@@ -1,4 +1,5 @@
 from scipp import Variable
+from mccode_antlr.common.parameters import InstrumentParameter
 
 
 def is_type(x, t, name):
@@ -23,3 +24,8 @@ def is_scalar(x: Variable):
         return False
     return True
 
+
+def variable_value_or_parameter(value: Variable | InstrumentParameter, unit: str):
+    if isinstance(value, Variable):
+        return value.to(unit=unit).value
+    return value

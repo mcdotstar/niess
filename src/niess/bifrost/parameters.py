@@ -66,3 +66,108 @@ def tube_xz_displacement_to_quaternion(length: Variable, displacement: Variable)
     # return the orienting Quaternion that takes (010) to the actual orientation
     quaternion = vector_to_vector_quaternion(vector([0, 1, 0]), com_to_end)
     return quaternion
+
+
+def primary_parameters():
+    from scipp import array, vector, scalar, norm
+    from ..spatial import mccode_quaternion, at_relative_dict, at_relative
+    from .guide_compressor import primary_compressor_parameters
+    from .guide_curved import curved_guide_parameters
+    from .guide_expanding import expanding_guide_parameters
+    from .guide_straight import straight_guide_parameters
+    from .guide_closing import closing_guide_parameters
+    p = dict()
+
+    m = scalar(1.0, unit='m')
+    mm = scalar(1.0, unit='mm')
+    z = scalar([0, 0, 1.0])
+
+    eps = 1.0e-5
+    guide_zero = vector([0.01277, 0, 1.903398 - eps], unit='m')
+    guide_zero_rot = mccode_quaternion(0, -0.56, 0)
+
+    p['source'] = {
+        'sector': 'W',
+        'beamline': 4,
+        'wavelength_minimum': 'source_lambda_min/"angstrom" = 0.75',
+        'wavelength_maximum': 'source_lambda_max/"angstrom" = 30.0',
+        'focus_distance': norm(guide_zero),
+        'focus_width': (0.068797 + 2 * 0.01277) * m,  # including the substrate?
+        'focus_height': 0.03472 * m,
+    }
+
+    p.update(primary_compressor_parameters(guide_zero, guide_zero_rot))
+
+    bunker_chopper_height = scalar(0.047514 + 2 * 0.00331, unit='m')  # 2 * margin of error for floor settling in bunker
+    hall_chopper_height = scalar(0.09 + 2 * 0.00423, unit='m')  # 2 * margin of error for piles settling under the long guide hall
+    radius = 350 * mm
+    offset = -(radius - bunker_chopper_height / 2) * vector([0, 1., 0])
+    p['pulse_shaping_chopper_1'] = {
+        'position': at_relative_dict(p['nose'], 0.0306 * m * z) - offset,
+        'orientation': p['nose']['orientation'],
+        'radius': radius,
+        'height': bunker_chopper_height,
+        'angle': scalar(170., unit='deg'),
+        'frequency': scalar(14., unit='Hz'),
+        'phase': scalar(0., unit='deg'),
+        'offset': offset,
+    }
+    p['pulse_shaping_chopper_2'] = {
+        'position': at_relative_dict(p['pulse_shaping_chopper_1'], 0.049 * m * z),
+        'orientation': p['pulse_shaping_chopper_1']['orientation'],
+        'radius': radius,
+        'height': bunker_chopper_height,
+        'angle': scalar(170., unit='deg'),
+        'frequency': scalar(14., unit='Hz'),
+        'phase': scalar(0., unit='deg'),
+        'offset': offset,
+    }
+
+    # From BIFROST Table of Optics, ESS-4813238 the end of subsystem 1 to the start
+    # of subsystem 2 is exactly 81.707 mm. Private communication indicates instead
+    # the gap from the end of the nose-guide to the start of the first curved guide
+    # segment inside the PSC housing is 84 mm
+    element_6_to_element_5 = 84 * mm
+    rel_p = at_relative_dict(p['nose'], element_6_to_element_5 * z)
+    rel_r = p['nose']['orientation']
+    # Element 6 in the old McStas instrument is the curved section. It includes
+    # the first and second frame overlap choppers and a copper-substrate 'collimation'
+    # section which helps prevent streaming
+    el6, rel_p, rel_r = curved_guide_parameters(rel_p, rel_r, bunker_chopper_height)
+    p.update(el6)
+
+    # Following the curved section is the expanding 'connector' section including
+    # the bunker wall feed through. There is a monitor but no choppers here
+    ex, rel_p, rel_r = expanding_guide_parameters(rel_p, rel_r)
+    p.update(ex)
+
+    # The straight section includes the bandwidth choppers and a monitor
+    ex, rel_p, rel_r = straight_guide_parameters(rel_r, rel_p, hall_chopper_height)
+    p.update(ex)
+
+    # The closing section focuses the beam and includes divergence limiting jaws
+    ex, rel_p, rel_r = closing_guide_parameters(rel_p, rel_r)
+    p.update(ex)
+
+    # directly after the guide is an exchangeable B4C mask-aperture.
+    p['mask'] = {
+        'position': at_relative(rel_p, rel_r, 5 * mm * z),
+        'orientation': rel_r,
+        'width': 50 * mm,
+        'height': 60 * mm,
+    }
+    # then the normalization monitor
+    p['normalization_monitor'] = {
+        'position': at_relative(rel_p, rel_r, 50 * mm * z),
+        'orientation': rel_r,
+        'width': 70 * mm,
+        'height': 70 * mm,
+        'thickness': 0.1 * mm,
+    }
+    # and finally a driven sample slit (that also can be adjusted along the beam)
+    p['slit'] = {
+        'position': at_relative(rel_p, rel_r, 50 * mm * z),
+        'orientation': rel_r,
+        'width': 70 * mm,
+        'height': 70 * mm,
+    }

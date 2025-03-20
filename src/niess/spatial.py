@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 from scipp import Variable
 
 
@@ -194,3 +193,103 @@ def combine_bounding_boxes(boxes: Variable, limits: str | None = None, basis: st
 
     return box.transpose([limits, basis])
 
+
+def mccode_ordered_angles(orientation: Variable):
+    """Determine the McCode ordered Euler angles that represent a quaternion
+
+    In McCode instruments, a rotation is specified as (x, y, z), indicating the
+    ordered rotation, R_z(z) R_y(y) R_x(x), which is applied on the left of a vector,
+        v_rotated = R_z(z) R_y(y) R_x(x) v
+
+    Each R matrix is the 'standard' rotation matrix with the noted axis constant,
+              [1  0      0     ]          [ cos(y) 0 sin(y)]          [cos(z) -sin(z) 0]
+        R_x = [0 cos(x) -sin(x)]    R_y = [ 0      1 0     ]    R_z = [sin(z)  cos(z) 0]
+              [0 sin(x)  cos(x)]          [-sin(y) 0 cos(y)]          [0       0      1]
+
+    Parameters
+    ----------
+    orientation: `scipp.Variable`
+        A quaternion-valued scalar representing the transformation between two
+        orthonormal axes systems.
+
+    Returns
+    -------
+    : `tuple[float, float, float]`
+        The x, y, and z angles needed to represent the same transformation in a McCode
+        instrument component instance definition line, e.g., `ROTATED (x, y, z)`.
+    """
+    if not __is_quaternion__(orientation):
+        raise ValueError(f"{orientation=} expected to be a scipp quaternion")
+    from math import asin, atan2, pi
+
+    # Follow the suggestions at Wikipedia.com, and the gimbal-lock avoidance
+    # from EuclideanSpace.com
+    # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+    # http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/
+
+    x, y, z, w = orientation.value
+    lock = x * y + z * w
+    if lock > 0.4999:
+        # gimbal lock with straight-up orientation
+        pitch = pi / 2
+        roll  = 2 * atan2(x, w)
+        yaw = 0
+    elif lock < -0.4999:
+        # gimbal lock with straight-down orientation (pitch = -90)
+        pitch = -pi / 2
+        roll = -2 * atan2(x, w)
+        yaw = 0
+    else:
+        roll = atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
+        pitch = asin(2 * (w * y - x * z))
+        yaw = atan2(2 * (w * z + x * y), 1 - 2 * (y *y + z * z))
+
+    return 180 / pi * roll, 180 / pi * pitch, 180 / pi * yaw
+
+
+def mccode_quaternion(x, y, z):
+    from scipp import vector
+    from scipp.spatial import rotations_from_rotvecs as r
+    rx = r(vector([x, 0, 0], unit='deg'))
+    ry = r(vector([0, y, 0], unit='deg'))
+    rz = r(vector([0, 0, z], unit='deg'))
+    q = rz * ry * rx
+    return q
+
+
+def at_relative(relative_position: Variable, relative_orientation: Variable, position: Variable):
+    if not __is_vector__(relative_position):
+        raise ValueError('The position of the relative coordinate system must be a vector')
+    if not __is_quaternion__(relative_orientation):
+        raise ValueError('The orientation of the relative coordinate system must be a quaternion')
+    if isinstance(position, Variable) and position.size == 1:
+        from scipp import vector
+        print('Warning, implicit relative z-axis positioning')
+        position = position * vector([0, 0, 1.0])
+
+    if not __is_vector__(position):
+        raise ValueError('The position in the relative coordinate system must be a vector')
+    from numpy import eye
+    from scipy.spatial.transform import Rotation
+    from scipp.spatial import affine_transform
+    a_mat = eye(4)
+    a_mat[:3, :3] = Rotation(relative_orientation.value).as_matrix() # rotation part
+    a_mat[:3, 3] = relative_position.value  # translation part
+    a = affine_transform(value=a_mat, unit=relative_position.unit)
+    return (a * position.to(unit=a.unit)).to(unit=position.unit)
+
+
+def at_relative_dict(relative_dict: dict, position: Variable):
+    if 'position' not in relative_dict:
+        raise ValueError('The relative dictionary must have a position')
+    if 'orientation' not in relative_dict:
+        raise ValueError('The relative dictionary must have a orientation')
+    return at_relative(relative_dict['position'], relative_dict['orientation'], position)
+
+
+def rotate_relative(relative_orientation: Variable, orientation: Variable):
+    if not __is_quaternion__(relative_orientation):
+        raise ValueError('The orientation of the relative coordinate system must be a quaternion')
+    if not __is_quaternion__(orientation):
+        raise ValueError('The orientation relative to the relative coordinate system must be a quaternion')
+    return orientation * relative_orientation
