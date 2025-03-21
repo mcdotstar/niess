@@ -262,7 +262,7 @@ def at_relative(relative_position: Variable, relative_orientation: Variable, pos
         raise ValueError('The position of the relative coordinate system must be a vector')
     if not __is_quaternion__(relative_orientation):
         raise ValueError('The orientation of the relative coordinate system must be a quaternion')
-    if isinstance(position, Variable) and position.size == 1:
+    if isinstance(position, Variable) and not __is_vector__(position):
         from scipp import vector
         print('Warning, implicit relative z-axis positioning')
         position = position * vector([0, 0, 1.0])

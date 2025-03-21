@@ -7,10 +7,11 @@ def primary_compressor_parameters(guide_start_vec, guide_start_rot) -> dict:
     The names of dictionary keys here must match attributes of the Primary
     class, the order should not be important.
     """
-    from scipp import scalar, array, sum
+    from scipp import scalar, array, sum, vector
     from ..spatial import at_relative
 
-    mm = scalar(1.0, unit='mm')
+    mm = scalar(1.0, unit='mm').to(unit='m')
+    z = vector([0, 0, 1.])
 
     # verified guide dimensions reported as part of ESS-4019844
     # coating m-values from same, which also has measured reflectivity curves
@@ -75,7 +76,7 @@ def primary_compressor_parameters(guide_start_vec, guide_start_rot) -> dict:
     nboa_output_width = 35.32 * mm
 
     p['nboa_entry_window'] = {
-        'position': at_relative(guide_start_vec, guide_start_rot, -nboa_window_thickness),
+        'position': at_relative(guide_start_vec, guide_start_rot, -nboa_window_thickness * z),
         'orientation': guide_start_rot,
         'length': nboa_window_thickness,
         'composition': 'Al_sg225',
@@ -114,7 +115,7 @@ def primary_compressor_parameters(guide_start_vec, guide_start_rot) -> dict:
 
     p['nboa_exit_window'] = {
         'position': at_relative(guide_start_vec, guide_start_rot,
-                                nboa_length + nboa_window_thickness),
+                                (nboa_length + nboa_window_thickness) * z),
         'orientation': guide_start_rot,
         'length': nboa_window_thickness,
         'composition': 'Al_sg225',
@@ -124,9 +125,9 @@ def primary_compressor_parameters(guide_start_vec, guide_start_rot) -> dict:
 
     p['monolith_window'] = {
         'position': at_relative(p['nboa_exit_window']['position'], guide_start_rot,
-                                scalar(1., unit='cm').to(unit='m')),
+                                (10 * mm) * z),
         'orientation': guide_start_rot,
-        'length': scalar(4.0, unit='mm').to(unit='m'),
+        'length': 4 * mm,
         'composition': 'Al_sg225',
         'width': nboa_input_width + 4 * nboa_substrate,
         'height': nboa_input_height + 4 * nboa_substrate,
@@ -142,9 +143,9 @@ def primary_compressor_parameters(guide_start_vec, guide_start_rot) -> dict:
     """
     p['bbg_entry_window'] = {
         'position': at_relative(p['nboa_exit_window']['position'], guide_start_rot,
-                                nboa_bbg_gap - scalar(2., unit='mm')),
+                                (nboa_bbg_gap - 2 * mm) * z),
         'orientation': guide_start_rot,
-        'length': scalar(0.5, unit='mm').to(unit='m'),
+        'length': 0.5 * mm,
         'composition': 'Al_sg225',
         'width': bbg_45604['entry']['outer']['width'],
         'height': bbg_45604['entry']['outer']['height'],
@@ -152,16 +153,16 @@ def primary_compressor_parameters(guide_start_vec, guide_start_rot) -> dict:
 
     # The bridge beam guide is a moveable element which exchanges with a shutter
     p['bbg'] = {
-        'position':  at_relative(guide_start_vec, guide_start_rot, sum(nboa_segments) + nboa_bbg_gap),
+        'position':  at_relative(guide_start_vec, guide_start_rot, (sum(nboa_segments) + nboa_bbg_gap) * z),
         'orientation': guide_start_rot,
     }
     p['bbg'].update(bbg_45604)
 
     p['bbg_exit_window'] = {
         'position': at_relative(p['bbg']['position'], guide_start_rot,
-                                p['bbg']['length'] + scalar(1., unit='mm')),
+                                (p['bbg']['length'] + 1 * mm) * z),
         'orientation': guide_start_rot,
-        'length': scalar(0.5, unit='mm').to(unit='m'),
+        'length': 0.5 * mm,
         'composition': 'Al_sg225',
         'width': bbg_45604['exit']['outer']['width'],
         'height': bbg_45604['exit']['outer']['height'],
@@ -176,9 +177,9 @@ def primary_compressor_parameters(guide_start_vec, guide_start_rot) -> dict:
     """
     p['psc_housing_entry_window'] = {
         'position': at_relative(p['bbg_exit_window']['position'], guide_start_rot,
-                                bbg_nose_gap - scalar(2., unit='mm')),
+                                (bbg_nose_gap - 2 * mm)  * z),
         'orientation': guide_start_rot,
-        'length': scalar(0.5, unit='mm').to(unit='m'),
+        'length': 0.5 * mm,
         'composition': 'Al_sg225',
         'width': psc_45605['entry']['outer']['width'],
         'height': psc_45605['entry']['outer']['height'],
@@ -186,11 +187,12 @@ def primary_compressor_parameters(guide_start_vec, guide_start_rot) -> dict:
 
     # The last guide segment before the PSC, in its vacuum housing
     p['nose'] = {
-        'position': at_relative(p['bbg']['position'], guide_start_rot, p['bbg']['length'] + bbg_nose_gap),
+        'position': at_relative(p['bbg']['position'], guide_start_rot,
+                                (p['bbg']['length'] + bbg_nose_gap) * z),
         'orientation': guide_start_rot,
     }
     p['nose'].update(psc_45605)
 
     # stash the end of this guide element as a reference point for the first PS chopper
-    p['nose']['end'] = at_relative(p['nose']['position'], guide_start_rot, p['nose']['length'])
+    p['nose']['end'] = at_relative(p['nose']['position'], guide_start_rot, p['nose']['length'] * z)
     return p

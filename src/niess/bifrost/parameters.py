@@ -79,8 +79,8 @@ def primary_parameters():
     p = dict()
 
     m = scalar(1.0, unit='m')
-    mm = scalar(1.0, unit='mm')
-    z = scalar([0, 0, 1.0])
+    mm = scalar(1.0, unit='mm').to(unit='m')
+    z = vector([0, 0, 1.0])
 
     eps = 1.0e-5
     guide_zero = vector([0.01277, 0, 1.903398 - eps], unit='m')
@@ -103,7 +103,7 @@ def primary_parameters():
     radius = 350 * mm
     offset = -(radius - bunker_chopper_height / 2) * vector([0, 1., 0])
     p['pulse_shaping_chopper_1'] = {
-        'position': at_relative_dict(p['nose'], 0.0306 * m * z) - offset,
+        'position': at_relative_dict(p['nose'], (0.0306 * m) * z) - offset,
         'orientation': p['nose']['orientation'],
         'radius': radius,
         'height': bunker_chopper_height,
@@ -113,7 +113,7 @@ def primary_parameters():
         'offset': offset,
     }
     p['pulse_shaping_chopper_2'] = {
-        'position': at_relative_dict(p['pulse_shaping_chopper_1'], 0.049 * m * z),
+        'position': at_relative_dict(p['pulse_shaping_chopper_1'], (0.049 * m) * z),
         'orientation': p['pulse_shaping_chopper_1']['orientation'],
         'radius': radius,
         'height': bunker_chopper_height,
@@ -142,7 +142,7 @@ def primary_parameters():
     p.update(ex)
 
     # The straight section includes the bandwidth choppers and a monitor
-    ex, rel_p, rel_r = straight_guide_parameters(rel_r, rel_p, hall_chopper_height)
+    ex, rel_p, rel_r = straight_guide_parameters(rel_p, rel_r, hall_chopper_height)
     p.update(ex)
 
     # The closing section focuses the beam and includes divergence limiting jaws
@@ -151,14 +151,14 @@ def primary_parameters():
 
     # directly after the guide is an exchangeable B4C mask-aperture.
     p['mask'] = {
-        'position': at_relative(rel_p, rel_r, 5 * mm * z),
+        'position': at_relative(rel_p, rel_r, (5 * mm) * z),
         'orientation': rel_r,
         'width': 50 * mm,
         'height': 60 * mm,
     }
     # then the normalization monitor
     p['normalization_monitor'] = {
-        'position': at_relative(rel_p, rel_r, 50 * mm * z),
+        'position': at_relative(rel_p, rel_r, (15 * mm) * z),
         'orientation': rel_r,
         'width': 70 * mm,
         'height': 70 * mm,
@@ -166,8 +166,13 @@ def primary_parameters():
     }
     # and finally a driven sample slit (that also can be adjusted along the beam)
     p['slit'] = {
-        'position': at_relative(rel_p, rel_r, 50 * mm * z),
+        'position': at_relative(rel_p, rel_r, (15 * mm) * z),
         'orientation': rel_r,
         'width': 70 * mm,
         'height': 70 * mm,
     }
+
+    # The primary spectrometer is followed by the sample stack, then secondary spectrometer
+    # the McStas instrument will need numerous extra components around the sample
+
+    return p

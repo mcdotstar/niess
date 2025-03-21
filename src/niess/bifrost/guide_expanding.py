@@ -1,6 +1,6 @@
 from scipp import Variable
 from scipp import scalar
-mm = scalar(1.0, unit='mm')
+mm = scalar(1.0, unit='mm').to(unit='m')
 
 """
 The expanding guide section is made up of two copper-substrate guide units which
@@ -115,7 +115,7 @@ def guide_table():
     return parse_guide_table(swissneutronics_37835_expanding_section_table)
 
 
-def unit_dict(ref_p, ref_r, number):
+def unit_dict(ref_p, ref_r, number, length):
     from .guide_tools import straight_unit_dict
     params = guide_unit_parameters()
     return straight_unit_dict(ref_p, ref_r, params[number])
@@ -127,7 +127,7 @@ def expanding_guide_parameters(guide_pos, guide_rot) -> tuple[dict, Variable, Va
     # 2. Beam monitor 2
     # 3. Glass substrate elliptical-approximation tapered guide segments; units 18-28
     # 4. Shutter to allow entry into the cave without closing the BBG shutter
-    from .guide_tools import guide_partial_dict, device_partial_dict
+    from .guide_tools import guide_partial_dict, device_partial_dict, exiting_partial_dict
 
     table = guide_table()
 
@@ -149,7 +149,10 @@ def expanding_guide_parameters(guide_pos, guide_rot) -> tuple[dict, Variable, Va
     beam = {'width': 60 * mm, 'height': 90 * mm}
     window = {k: v + 20 * mm for k, v in beam.items()}
     # there is a shutter in this gap, but there's no need to include it for McStas
-    d, ref_p, ref_r = device_partial_dict(ref_p, ref_r, None, table, 28, 29, window)
+    # d, ref_p, ref_r = device_partial_dict(ref_p, ref_r, None, table, 28, 29, window)
+    # ignoring that there _is_ a device to be inserted causes a logic error
+    d, ref_p, ref_r = exiting_partial_dict(ref_p, ref_r, table, window)
     p.update(d)
+
 
     return p, ref_p, ref_r

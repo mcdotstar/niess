@@ -40,14 +40,14 @@ class Primary(Section):
     curved_entrance_window: Filter
     unit_4_curved: StraightGuides
     unit_4_exit_window: Filter
-    first_frame_overlap_chopper: DiscChopper
+    frame_overlap_chopper_1: DiscChopper
     unit_5_entry_window: Filter
     unit_5_curved: StraightGuides
     unit_6_curved: StraightGuides
     unit_7_curved: StraightGuides
     unit_8_curved: StraightGuides
     unit_8_exit_window: Filter
-    second_frame_overlap_chopper: DiscChopper
+    frame_overlap_chopper_2: DiscChopper
     unit_9_entry_window: Filter
     unit_9_curved: StraightGuides
     unit_10_curved: StraightGuides

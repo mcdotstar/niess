@@ -1,6 +1,6 @@
 from scipp import scalar, Variable
 
-mm = scalar(1.0, unit='mm')
+mm = scalar(1.0, unit='mm').to(unit='m')
 
 def guide_table():
     from .guide_tools import parse_guide_table
@@ -119,7 +119,7 @@ def guide_table():
     return parse_guide_table(swissneutronics_37835_straight_guide_section_table)
 
 
-def unit_dict(ref_p, ref_r, number):
+def unit_dict(ref_p, ref_r, number, length):
     # The straight guide is made up of entirely equivalent guide units
     from .guide_tools import straight_unit_dict
     params = {
@@ -129,20 +129,21 @@ def unit_dict(ref_p, ref_r, number):
         'right': 1.5,
         'top': 1.5,
         'bottom': 1.5,
+        'length': length,
     }
     return straight_unit_dict(ref_p, ref_r, params)
 
 
 def straight_guide_parameters(guide_pos, guide_rot, chopper_height) -> tuple[dict, Variable, Variable]:
     from scipp import array, vector
-    from .guide_tools import guide_partial_dict, device_partial_dict
+    from .guide_tools import guide_partial_dict, device_partial_dict, entering_partial_dict
     table = guide_table()
     beam = {'width': 60 * mm, 'height': 90 * mm}
     window = {k: v + 20 * mm for k, v in beam.items()}
 
-    p = {}
     # finish the gap left for the shutter
-    p, ref_p, ref_r = device_partial_dict(guide_pos, guide_rot, None, table, 28, 29, window)
+    # p, ref_p, ref_r = device_partial_dict(guide_pos, guide_rot, None, table, 28, 29, window)
+    p, ref_p, ref_r = entering_partial_dict(guide_pos, guide_rot, None, table, window)
 
     # straight guide from shutter to bandwidth chopper
     d, ref_p, ref_r = guide_partial_dict(ref_p, ref_r, table, 29, 43, unit_dict)

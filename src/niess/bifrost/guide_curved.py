@@ -45,7 +45,7 @@ def guide_rotated_position(axis: Variable, width: Variable, rot: Variable) -> Va
     # -> Find the angle of half of the rotation, take its sin, multipy by the width
     # scalar part of quaternion = cos(angle/2)
     distance = width * sin(acos(scalar(half_rotation(rot).value[-1])))
-    return distance * rot * axis
+    return distance * (rot * axis)
 
 
 def radius_of_curvature_to_next_point(point: Variable, distance: Variable, width: Variable, radius_of_curvature: Variable) -> Variable:
@@ -90,7 +90,7 @@ def curved_guide_unit_dictionary(start_at, start_rot, lengths, name, radius_of_c
     return d, end, end_rot
 
 
-def curved_guide_partial_dict(ref_p, ref_r, radius, table, min_unit, max_unit, **consts):
+def curved_guide_partial_dict(ref_p, ref_r, radius, table, lengths, min_unit, max_unit, **consts):
     from scipp import vector
     from .guide_tools import Type, parse_guide_table
     from ..spatial import at_relative
@@ -107,8 +107,8 @@ def curved_guide_partial_dict(ref_p, ref_r, radius, table, min_unit, max_unit, *
                 fname = f'unit_{section}_{name}'
                 d[fname], ref_p, ref_r = curved_guide_unit_dictionary(
                     ref_p,
-                    radius_of_curvature_to_rotation(length, radius) * ref_r,
-                    length,
+                    radius_of_curvature_to_rotation(lengths[section][0], radius) * ref_r,
+                    lengths[section],
                     fname,
                     radius,
                     **consts
@@ -155,14 +155,15 @@ def curved_guide_device_partial_dict(ref_p, ref_r, dev_name, dev_dict, table, pr
                     # For lack of better information, position the device in the
                     # center of the gap left for it:
                     half_p = at_relative(ref_p, ref_r, dist/2 * vector([0, 0, 1.]))
-                    if 'offset' in d[dev_name]:
-                        half_p -= d[dev_name]['offset']
+                    if 'offset' in dev_dict:
+                        half_p -= dev_dict['offset']
                     d[dev_name] = {'position': half_p, 'orientation': ref_r}
                     d[dev_name].update(dev_dict)
             else:
                 raise ValueError('Only windows or gaps expected here!')
             ref_p = at_relative(ref_p, ref_r, dist * vector([0, 0, 1.]))
-        return d, ref_p, ref_r
+
+    return d, ref_p, ref_r
 
 
 def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_height) -> tuple[dict, Variable, Variable]:
@@ -178,7 +179,7 @@ def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_hei
     from scipp import scalar, vector, array
     from ..spatial import at_relative, at_relative_dict
     m = scalar(1.0, unit='m')
-    mm = scalar(1.0, unit='mm')
+    mm = scalar(1.0, unit='mm').to(unit='m')
 
     # Described in ESS-1075014, section 3.3
 
@@ -352,7 +353,7 @@ def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_hei
     device_gap = swissneutronics_37835_curved_section_table[11][1]
     radius = 350 * mm
     offset = -(radius - bunker_chopper_height / 2) * y
-    p['first_frame_overlap_chopper'] = {
+    p['frame_overlap_chopper_1'] = {
         'position': at_relative(last_p, last_r, device_gap/2 * z) - offset,
         'orientation': last_r,
         'radius': radius,
@@ -380,6 +381,7 @@ def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_hei
     # Units between FOC1 and FOC2 are # 5, 6, 7, 8
     section, last_p, last_r = curved_guide_partial_dict(
         last_p, last_r, radius_of_curvature, swissneutronics_37835_curved_section_table,
+        curved_guide_unit_lengths,
         5, 8, width=guide_width, height=guide_height, **coatings
     )
     p.update(section)
@@ -395,7 +397,7 @@ def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_hei
         'offset': offset,
     }
     section, last_p, last_r = curved_guide_device_partial_dict(
-        last_p, last_r, 'second_frame_overlap_chopper', foc,
+        last_p, last_r, 'frame_overlap_chopper_2', foc,
         swissneutronics_37835_curved_section_table, 8, 9,
         width=guide_width, height=guide_height, **coatings
     )
@@ -404,6 +406,7 @@ def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_hei
 
     section, last_p, last_r = curved_guide_partial_dict(
         last_p, last_r, radius_of_curvature, swissneutronics_37835_curved_section_table,
+        curved_guide_unit_lengths,
         9, 16, width=guide_width, height=guide_height, **coatings
     )
     p.update(section)

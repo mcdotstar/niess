@@ -1,6 +1,6 @@
 from scipp import scalar, Variable
 
-mm = scalar(1.0, unit='mm')
+mm = scalar(1.0, unit='mm').to(unit='m')
 
 def guide_segments():
     length = {
@@ -133,7 +133,7 @@ def guide_unit_parameters():
     return pars
 
 
-def unit_dict(ref_p, ref_r, number):
+def unit_dict(ref_p, ref_r, number, length):
     from .guide_tools import straight_unit_dict
     params = guide_unit_parameters()
     return straight_unit_dict(ref_p, ref_r, params[number])
@@ -145,8 +145,9 @@ def closing_guide_parameters(guide_pos, guide_rot) -> tuple[dict, Variable, Vari
     p = {}
     window = {'width': 60 * mm, 'height': 90 * mm}  # bigger tha the beam for sure
 
+    ref_p, ref_r = guide_pos, guide_rot
     for min_unit, max_unit, no in ((76, 85, 3), (86, 86, 2), (87, 87, 1)):
-        d, ref_p, ref_r = guide_partial_dict(guide_pos, guide_rot, table, min_unit, max_unit, unit_dict)
+        d, ref_p, ref_r = guide_partial_dict(ref_p, ref_r, table, min_unit, max_unit, unit_dict)
         p.update(d)
         # horizontal-only divergence limiting 'jaw'
         device = (f'jaw_{no}', window.copy())
@@ -154,7 +155,10 @@ def closing_guide_parameters(guide_pos, guide_rot) -> tuple[dict, Variable, Vari
                                               window)
         p.update(d)
 
-    d, ref_p, ref_r = guide_partial_dict(guide_pos, guide_rot, table, 88, 89, unit_dict)
+    d, ref_p, ref_r = guide_partial_dict(ref_p, ref_r, table, 88, 88, unit_dict)
+    p.update(d)
+
+    d, ref_p, ref_r = device_partial_dict(ref_p, ref_r, None, table, 88, 89, window)
     p.update(d)
 
     return p, ref_p, ref_r
