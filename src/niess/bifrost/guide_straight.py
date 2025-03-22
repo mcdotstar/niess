@@ -142,7 +142,6 @@ def straight_guide_parameters(guide_pos, guide_rot, chopper_height) -> tuple[dic
     window = {k: v + 20 * mm for k, v in beam.items()}
 
     # finish the gap left for the shutter
-    # p, ref_p, ref_r = device_partial_dict(guide_pos, guide_rot, None, table, 28, 29, window)
     p, ref_p, ref_r = entering_partial_dict(guide_pos, guide_rot, None, table, window)
 
     # straight guide from shutter to bandwidth chopper
@@ -164,7 +163,7 @@ def straight_guide_parameters(guide_pos, guide_rot, chopper_height) -> tuple[dic
         ('bandwidth_chopper_2', {**chopper}),
         ('bandwidth_monitor', {'thickness': 0.1 * mm, **beam})
     )
-    d, ref_p, ref_r = device_partial_dict(guide_pos, guide_rot, devices, table, 43, 44, window)
+    d, ref_p, ref_r = device_partial_dict(ref_p, ref_r, devices, table, 43, 44, window)
     p.update(d)
 
     # straight guide from after monitor to the start of the closing section

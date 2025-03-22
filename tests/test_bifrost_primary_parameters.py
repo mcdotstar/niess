@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2025-present Gregory Tucker <gregory.tucker@ess.eu>
 #
 # SPDX-License-Identifier: MIT
+from niess.bifrost.primary import Primary
+
 
 def test_primary_parameters():
     from textwrap import dedent
@@ -134,10 +136,99 @@ def test_primary_parameters():
     normalization_monitor
     slit""").splitlines()
 
-    print(names)
     for name, ex in zip(names, expected, strict=True):
         assert name == ex
 
     assert len(parameters) == len(expected)
 
 
+def beam_dists(comp, start):
+    """Compute the distance(s) to a component's or its segments' beam position
+
+    That is the component position plus its offset vector, if it has one.
+    """
+    from scipp import norm, vector
+    if hasattr(comp, 'segments'):
+        return [y for x in comp.segments for y in beam_dists(x, start)]
+    offset = getattr(comp, 'offset', vector([0, 0, 0.], unit=comp.position.unit))
+    beam_at = comp.position + offset
+    return [norm(beam_at - start)]
+
+
+def test_primary_create():
+    from niess.bifrost.parameters import primary_parameters
+    from niess.bifrost.primary import Primary
+    from scipp import norm, scalar, isclose
+    parameters = primary_parameters()
+    primary = Primary.from_calibration(parameters)
+    # ... just getting here is a test that the from_calibration mechanism works
+
+    # each successive component should be farther away from the source:
+    start = primary.source.position
+    last = norm(start - start)
+    for part in primary.parts()[1:]:
+        for dist in beam_dists(getattr(primary, part), start):
+            assert dist > last, f'Positioning error for {part}: {dist} <= {last}'
+            last = dist
+
+    # but maybe testing the produced content is a good idea?
+    start_to_end = primary.slit.position - primary.source.position
+    # the sample is ~162 m from the source; but the primary spectrometer ends at
+    # the slit which is ~0.5 m from the sample
+    assert isclose(norm(start_to_end), scalar(161.5, unit='m'), atol=scalar(0.5, unit='m'))
+
+
+def dprint(d: dict, n: int = 0):
+    pre = ' '*n
+    for k, v in d.items():
+        if isinstance(v, dict):
+            print(f'{pre}{k}:')
+            dprint(v, n + 1)
+        else:
+            print(f'{pre}{k}: {v}')
+
+
+def compare(a, b, depth: str = None):
+    if depth is None:
+        depth = ''
+    if not isinstance(a, type(b)):
+        return False
+    if isinstance(a, dict):
+        return compare_dict(a, b, depth=depth)
+    if isinstance(a, (list, tuple)):
+        if len(a) != len(b):
+            return False
+        return all(compare(x, y, depth=depth) for x, y in zip(a, b))
+    return compare_one(a, b, depth=depth)
+
+
+def compare_dict(dict1, dict2, depth: str):
+    for kappa in dict2:
+        if kappa not in dict1:
+            return False
+    for k, v in dict1.items():
+        if k not in dict2:
+            return False
+        nu = dict2[k]
+        return compare(v, nu, depth=f'{depth}/k')
+
+
+def compare_one(a, b, depth: str):
+    """Compare two things which are not dicts, lists, or tuples and are the same type"""
+    from numpy import allclose
+    if isinstance(a, str):
+        return a == b
+    return allclose(a, b)
+
+
+def test_primary_serialize_deserialize():
+    from json import dumps, loads
+    from niess.bifrost.parameters import primary_parameters
+    from niess.bifrost.primary import Primary
+    from niess.utilities import serializable
+    from dataclasses import asdict
+    parameters = primary_parameters()
+    primary = Primary.from_calibration(parameters)
+    pdict = serializable(asdict(primary))
+    ddict = loads(dumps(pdict, indent=4))
+    assert compare(pdict, ddict)

@@ -166,7 +166,7 @@ def primary_parameters():
     }
     # and finally a driven sample slit (that also can be adjusted along the beam)
     p['slit'] = {
-        'position': at_relative(rel_p, rel_r, (15 * mm) * z),
+        'position': at_relative(rel_p, rel_r, (30 * mm) * z),
         'orientation': rel_r,
         'width': 70 * mm,
         'height': 70 * mm,

@@ -8,6 +8,15 @@ class Aperture(Component):
     width: Variable
     height: Variable
 
+    @classmethod
+    def from_calibration(cls, cal: dict):
+        name = cal['name']
+        position = cal['position']
+        orientation = cal['orientation']
+        width = cal['width']
+        height = cal['height']
+        return cls(name, position, orientation, width, height)
+
 
 @dataclass
 class Jaw(Aperture):

@@ -62,16 +62,26 @@ class StraightGuide(Guide):
 
 @dataclass
 class StraightGuides:
+    name: str
     segments: list[StraightGuide]
 
     @classmethod
-    def from_calibration(cls, cal: dict[str, dict]):
+    def from_calibration(cls, cal: dict[str, dict | str]):
+        """Convert a dictionary of dictionaries to a list of StraightGuides
+
+        This is likely called from Section.from_calibration, which would insert
+        the *Section* name as an entry in the dictionary. This is the list's parent
+        which we can store separately.
+        """
+        parent = cal.pop('name')
         segments = []
         for name, cdict in cal.items():
+            if not isinstance(cdict, dict):
+                raise ValueError("Only dicts should be in this calibration dictionary")
             if 'name' not in cdict:
                 cdict['name'] = name
             segments.append(StraightGuide.from_calibration(cdict))
-        return cls(segments)
+        return cls(parent, segments)
 
     def to_mccode(self, assembler: Assembler):
         for segment in self.segments:
@@ -129,16 +139,18 @@ class TaperedGuide(Guide):
 
 @dataclass
 class TaperedGuides:
+    name: str
     segments: list[TaperedGuide]
 
     @classmethod
-    def from_calibration(cls, cal: dict[str, dict]):
+    def from_calibration(cls, cal: dict[str, dict | str]):
+        parent = cal.pop('name')
         segments = []
         for name, cdict in cal.items():
             if 'name' not in cdict:
                 cdict['name'] = name
             segments.append(TaperedGuide.from_calibration(cdict))
-        return cls(segments)
+        return cls(parent, segments)
 
     def to_mccode(self, assembler: Assembler):
         for segment in self.segments:
@@ -156,7 +168,7 @@ class PartialEllipse:
         from scipp import sqrt
         if not all(x in cal for x in ('major', 'minor', 'offset')):
             # calculate the ellipse parameters from the provided information
-            all_of = 'length', 'in', 'out'
+            all_of = 'in', 'out'
             any_of = 'entry', 'exit', 'midpoint'
             if not (all(x in cal for x in all_of) and any(x in cal for x in any_of)):
                 raise ValueError()

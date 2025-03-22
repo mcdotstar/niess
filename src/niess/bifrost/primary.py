@@ -80,57 +80,57 @@ class Primary(Section):
     unit_29_entry_window: Filter
     unit_29_straight: StraightGuide
     unit_30_straight: StraightGuide
-    unit_31_straight: StraightGuides
-    unit_32_straight: StraightGuides
-    unit_33_straight: StraightGuides
-    unit_34_straight: StraightGuides
-    unit_35_straight: StraightGuides
-    unit_36_straight: StraightGuides
-    unit_37_straight: StraightGuides
-    unit_38_straight: StraightGuides
-    unit_39_straight: StraightGuides
-    unit_40_straight: StraightGuides
-    unit_41_straight: StraightGuides
-    unit_42_straight: StraightGuides
-    unit_43_straight: StraightGuides
+    unit_31_straight: StraightGuide
+    unit_32_straight: StraightGuide
+    unit_33_straight: StraightGuide
+    unit_34_straight: StraightGuide
+    unit_35_straight: StraightGuide
+    unit_36_straight: StraightGuide
+    unit_37_straight: StraightGuide
+    unit_38_straight: StraightGuide
+    unit_39_straight: StraightGuide
+    unit_40_straight: StraightGuide
+    unit_41_straight: StraightGuide
+    unit_42_straight: StraightGuide
+    unit_43_straight: StraightGuide
     bandwidth_chopper_1: DiscChopper
     bandwidth_chopper_2: DiscChopper
     unit_43_exit_window: Filter
     bandwidth_monitor: BeamCurrentMonitor
     unit_44_entry_window: Filter
     #
-    unit_44_straight: StraightGuides
-    unit_45_straight: StraightGuides
-    unit_46_straight: StraightGuides
-    unit_47_straight: StraightGuides
-    unit_48_straight: StraightGuides
-    unit_49_straight: StraightGuides
-    unit_50_straight: StraightGuides
-    unit_51_straight: StraightGuides
-    unit_52_straight: StraightGuides
-    unit_53_straight: StraightGuides
-    unit_54_straight: StraightGuides
-    unit_55_straight: StraightGuides
-    unit_56_straight: StraightGuides
-    unit_57_straight: StraightGuides
-    unit_58_straight: StraightGuides
-    unit_59_straight: StraightGuides
-    unit_60_straight: StraightGuides
-    unit_61_straight: StraightGuides
-    unit_62_straight: StraightGuides
-    unit_63_straight: StraightGuides
-    unit_64_straight: StraightGuides
-    unit_65_straight: StraightGuides
-    unit_66_straight: StraightGuides
-    unit_67_straight: StraightGuides
-    unit_68_straight: StraightGuides
-    unit_69_straight: StraightGuides
-    unit_70_straight: StraightGuides
-    unit_71_straight: StraightGuides
-    unit_72_straight: StraightGuides
-    unit_73_straight: StraightGuides
-    unit_74_straight: StraightGuides
-    unit_75_straight: StraightGuides
+    unit_44_straight: StraightGuide
+    unit_45_straight: StraightGuide
+    unit_46_straight: StraightGuide
+    unit_47_straight: StraightGuide
+    unit_48_straight: StraightGuide
+    unit_49_straight: StraightGuide
+    unit_50_straight: StraightGuide
+    unit_51_straight: StraightGuide
+    unit_52_straight: StraightGuide
+    unit_53_straight: StraightGuide
+    unit_54_straight: StraightGuide
+    unit_55_straight: StraightGuide
+    unit_56_straight: StraightGuide
+    unit_57_straight: StraightGuide
+    unit_58_straight: StraightGuide
+    unit_59_straight: StraightGuide
+    unit_60_straight: StraightGuide
+    unit_61_straight: StraightGuide
+    unit_62_straight: StraightGuide
+    unit_63_straight: StraightGuide
+    unit_64_straight: StraightGuide
+    unit_65_straight: StraightGuide
+    unit_66_straight: StraightGuide
+    unit_67_straight: StraightGuide
+    unit_68_straight: StraightGuide
+    unit_69_straight: StraightGuide
+    unit_70_straight: StraightGuide
+    unit_71_straight: StraightGuide
+    unit_72_straight: StraightGuide
+    unit_73_straight: StraightGuide
+    unit_74_straight: StraightGuide
+    unit_75_straight: StraightGuide
 
     # focusing section
     unit_76_closing: EllipticGuide
