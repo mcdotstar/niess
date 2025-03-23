@@ -28,6 +28,13 @@ class Component:
     position: Variable
     orientation: Variable
 
+    @classmethod
+    def from_calibration(cls, calibration: dict):
+        name = calibration['name']
+        position = calibration['position']
+        orientation = calibration['orientation']
+        return cls(name, position, orientation)
+
     def __mccode__(self) -> tuple[str, dict]:
         """Return the component type name and parameters needed to produce a McCode instance"""
         return 'Arm', {}
@@ -50,4 +57,4 @@ class Component:
         at = at.to(unit='m').value
         rot = mccode_ordered_angles(self.orientation)
 
-        return assembler.component(self.name, comp, at=at, rotated=rot, parameters=pars)
+        return assembler.component(self.name, comp, at=at, rotate=rot, parameters=pars)

@@ -128,7 +128,7 @@ class Tank:
 
         origin = vector([0, 0, 0], unit='m')
         positions = [c.sample_space_angle(origin).to(unit='radian').value for c in self.channels]
-        cov_xy = [c.coverage(origin) for c in self.channels]
+        cov_xy = [c.coverage(origin, unit='radian') for c in self.channels]
         cov_x = 2 * max(concat([y for _, y in cov_xy], dim='channel')).value
 
         slits_name = 'slits'

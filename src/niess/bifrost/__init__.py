@@ -4,6 +4,7 @@ from .bifrost import BIFROST
 from .channel import Channel
 from .triplet import Triplet
 from .analyzer import Analyzer
+from .primary import Primary
 
 __all__ = [
     Arm,
@@ -11,5 +12,6 @@ __all__ = [
     BIFROST,
     Channel,
     Triplet,
-    Analyzer
+    Analyzer,
+    Primary,
 ]

@@ -119,6 +119,7 @@ class Channel:
 
     def coverage(self, sample: Variable, unit=None):
         from scipp import concat, max
+        unit = unit or 'radian'
         cov_xy = [x.coverage(sample, unit=unit) for x in self.pairs]
         cov_x = max(concat([x for x, _ in cov_xy], dim='pairs'))
         cov_y = max(concat([y for _, y in cov_xy], dim='pairs'))

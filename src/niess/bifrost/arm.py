@@ -96,6 +96,7 @@ class Arm:
     def coverage(self, sample: Variable, unit=None):
         # The arm coverage is defined vertically by the analyzer, but the mean
         # horizontal divergence is defined by the active *detector* length
+        unit = unit or 'radian'
         ana_hor, ana_ver = self.analyzer.coverage(sample, unit=unit)
         det_hor = self.detector.horizontal_coverage(sample, self.analyzer.central_blade.position, unit=unit)
         if det_hor > ana_hor:

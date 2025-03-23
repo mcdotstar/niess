@@ -161,7 +161,7 @@ def straight_guide_parameters(guide_pos, guide_rot, chopper_height) -> tuple[dic
     devices = (
         ('bandwidth_chopper_1', {**chopper}),
         ('bandwidth_chopper_2', {**chopper}),
-        ('bandwidth_monitor', {'thickness': 0.1 * mm, **beam})
+        ('bandwidth_monitor', {'thickness': 0.1 * mm, 'sample_rate': scalar(42., unit='kHz'), **beam})
     )
     d, ref_p, ref_r = device_partial_dict(ref_p, ref_r, devices, table, 43, 44, window)
     p.update(d)

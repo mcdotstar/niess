@@ -30,6 +30,8 @@ def is_scalar(x: Variable):
 def variable_value_or_parameter(value: Variable | InstrumentParameter, unit: str):
     if isinstance(value, Variable):
         return value.to(unit=unit).value
+    if isinstance(value, InstrumentParameter):
+        return value.name
     return value
 
 
@@ -99,3 +101,51 @@ def serialize_mccode(value: InstrumentParameter | Expr):
         return {'type': 'mccode_instrument_parameter', 'value': str(value)}
     elif isinstance(value, Expr):
         return {'type': 'mccode_expr', 'value': value.value, 'scalar': value.is_scalar, 'dtype': str(value.data_type)}
+
+
+def dprint(d: dict, n: int = 0):
+    """Pretty print a dictionary with indent-depth indicating nesting"""
+    pre = ' '*n
+    for k, v in d.items():
+        if isinstance(v, dict):
+            print(f'{pre}{k}:')
+            dprint(v, n + 1)
+        else:
+            print(f'{pre}{k}: {v}')
+
+
+def compare(a, b, depth: str = None):
+    """Compare two dictionaries, list, tuples, or numeric values for equivalency
+
+    Nesting of dictionaries, lists, and tuples supported.
+    """
+    if depth is None:
+        depth = ''
+    if not isinstance(a, type(b)):
+        return False
+    if isinstance(a, dict):
+        return compare_dict(a, b, depth=depth)
+    if isinstance(a, (list, tuple)):
+        if len(a) != len(b):
+            return False
+        return all(compare(x, y, depth=depth) for x, y in zip(a, b))
+    return compare_one(a, b, depth=depth)
+
+
+def compare_dict(dict1, dict2, depth: str):
+    for kappa in dict2:
+        if kappa not in dict1:
+            return False
+    for k, v in dict1.items():
+        if k not in dict2:
+            return False
+        nu = dict2[k]
+        return compare(v, nu, depth=f'{depth}/k')
+
+
+def compare_one(a, b, depth: str):
+    """Compare two things which are not dicts, lists, or tuples and are the same type"""
+    from numpy import allclose
+    if isinstance(a, str):
+        return a == b
+    return allclose(a, b)

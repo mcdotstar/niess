@@ -79,6 +79,7 @@ class Triplet:
     def horizontal_coverage(self, sample_at, analyzer_at, unit=None):
         """Find and return the horizontal coverage angle of the central tube"""
         from scipp import norm, cross, atan2
+        unit = unit or 'radian'
         horizontal = cross(self.tube_com()['tube', 1] - analyzer_at, analyzer_at - sample_at)
         horizontal /= norm(horizontal)
         bbox = self.tubes[1].bounding_box(horizontal, unit=sample_at.unit)

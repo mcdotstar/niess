@@ -50,7 +50,7 @@ class Filter(Component):
     def __mccode__(self) -> tuple[str, dict]:
         params = dict()
         params['xwidth'] = self.width.to(unit='m').value
-        params['ywidth'] = self.height.to(unit='m').value
+        params['yheight'] = self.height.to(unit='m').value
         params['zdepth'] = self.length.to(unit='m').value
         if '.ncmat' in self.composition:
             sample = self.composition

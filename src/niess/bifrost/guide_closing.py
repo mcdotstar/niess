@@ -161,4 +161,7 @@ def closing_guide_parameters(guide_pos, guide_rot) -> tuple[dict, Variable, Vari
     d, ref_p, ref_r = device_partial_dict(ref_p, ref_r, None, table, 88, 89, window)
     p.update(d)
 
+    # The sample is 578 mm from the current reference point (the downstream side of the
+    # final aluminum window)
+
     return p, ref_p, ref_r

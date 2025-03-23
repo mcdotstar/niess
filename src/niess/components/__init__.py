@@ -4,6 +4,7 @@ from .detectors import Wire, DiscreteWire, DiscreteTube, He3Tube
 from .aperture import Aperture, Jaw, Slit
 from .chopper import Chopper, DiscChopper, FermiChopper
 from .collimator import Collimator, SollerCollimator, RadialCollimator
+from .component import Component
 from .filter import Attenuator, Filter, OrderedFilter, make_aluminum
 from .guide import EllipticGuide, TaperedGuide, StraightGuide, Guide, StraightGuides, TaperedGuides
 from .moderator import Moderator
@@ -29,6 +30,7 @@ __all__ = [
     Collimator,
     SollerCollimator,
     RadialCollimator,
+    Component,
     Attenuator,
     Filter,
     OrderedFilter,

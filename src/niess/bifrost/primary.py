@@ -8,7 +8,7 @@ windows, etc.; but they all come together into the primary spectrometer.
 """
 from dataclasses import dataclass
 from ..components import (
-    Section,
+    Section, Component,
     Jaw, Slit, Filter, DiscChopper,
     EllipticGuide, StraightGuide, StraightGuides, TaperedGuides,
     FissionChamber, BeamCurrentMonitor, GEM2D, ESSource
@@ -153,6 +153,8 @@ class Primary(Section):
     mask: Slit
     normalization_monitor: GEM2D
     slit: Slit
+
+    sample_origin: Component
 
 
 

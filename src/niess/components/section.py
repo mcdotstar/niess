@@ -28,9 +28,9 @@ class Section:
         """Get the ordered list of component names and types which make up this Section"""
         return [(field.name, field.type) for field in fields(cls)]
 
-    def to_mccode(self):
+    def to_mccode(self, *args, **kwargs):
         for part in self.parts():
-            getattr(self, part).to_mccode()
+            getattr(self, part).to_mccode(*args, **kwargs)
 
     @classmethod
     def from_calibration(cls, calibration: dict):

@@ -95,6 +95,8 @@ class BeamCurrentMonitor(Component):
         height = cal['height']
         thickness = cal.get('thickness', cal.get('length'))
         sample_rate = cal.get('sample_rate', cal.get('frequency'))
+        if sample_rate is None:
+            raise ValueError(f'The sample rate for {name} must be defined')
         return cls(name, position, orientation, width, height, thickness, sample_rate)
 
     def __mccode__(self) -> tuple[str, dict]:
@@ -144,7 +146,7 @@ class GEM2D(Component):
     def __mccode__(self) -> tuple[str, dict]:
         from scipp import scalar
         source_frequency = scalar(14.0, unit='Hz')
-        nt = int((1/source_frequency/scalar(70., unit='microsecond')).to(unit='1').value)
+        nt = 1000 # 71.42 µs bins
         p = {
             'xwidth': self.width.to(unit='m').value,
             'yheight': self.height.to(unit='m').value,

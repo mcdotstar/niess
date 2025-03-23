@@ -138,6 +138,7 @@ def expanding_guide_parameters(guide_pos, guide_rot) -> tuple[dict, Variable, Va
     sizes = {'width': 52 * mm, 'height': 72 * mm,}
     device = ('overlap_monitor', {
         'thickness': 0.1 * mm,  # I-BM 100 has a 100 micron thick foil ... plus other stuff in the beam
+        'sample_rate': scalar(70., unit='kHz'),
         **sizes,
     })
     d, ref_p, ref_r = device_partial_dict(ref_p, ref_r, (device,), table, 17, 18, sizes)

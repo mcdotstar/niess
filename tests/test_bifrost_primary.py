@@ -134,7 +134,8 @@ def test_primary_parameters():
     unit_88_exit_window
     mask
     normalization_monitor
-    slit""").splitlines()
+    slit
+    sample_origin""").splitlines()
 
     for name, ex in zip(names, expected, strict=True):
         assert name == ex
@@ -171,54 +172,13 @@ def test_primary_create():
             assert dist > last, f'Positioning error for {part}: {dist} <= {last}'
             last = dist
 
-    # but maybe testing the produced content is a good idea?
     start_to_end = primary.slit.position - primary.source.position
     # the sample is ~162 m from the source; but the primary spectrometer ends at
     # the slit which is ~0.5 m from the sample
     assert isclose(norm(start_to_end), scalar(161.5, unit='m'), atol=scalar(0.5, unit='m'))
 
-
-def dprint(d: dict, n: int = 0):
-    pre = ' '*n
-    for k, v in d.items():
-        if isinstance(v, dict):
-            print(f'{pre}{k}:')
-            dprint(v, n + 1)
-        else:
-            print(f'{pre}{k}: {v}')
-
-
-def compare(a, b, depth: str = None):
-    if depth is None:
-        depth = ''
-    if not isinstance(a, type(b)):
-        return False
-    if isinstance(a, dict):
-        return compare_dict(a, b, depth=depth)
-    if isinstance(a, (list, tuple)):
-        if len(a) != len(b):
-            return False
-        return all(compare(x, y, depth=depth) for x, y in zip(a, b))
-    return compare_one(a, b, depth=depth)
-
-
-def compare_dict(dict1, dict2, depth: str):
-    for kappa in dict2:
-        if kappa not in dict1:
-            return False
-    for k, v in dict1.items():
-        if k not in dict2:
-            return False
-        nu = dict2[k]
-        return compare(v, nu, depth=f'{depth}/k')
-
-
-def compare_one(a, b, depth: str):
-    """Compare two things which are not dicts, lists, or tuples and are the same type"""
-    from numpy import allclose
-    if isinstance(a, str):
-        return a == b
-    return allclose(a, b)
+    sample_at = primary.sample_origin.position - primary.source.position
+    assert isclose(norm(sample_at), scalar(162., unit='m'), atol=scalar(0.1, unit='m'))
 
 
 def test_primary_serialize_deserialize():
@@ -227,6 +187,7 @@ def test_primary_serialize_deserialize():
     from niess.bifrost.primary import Primary
     from niess.utilities import serializable
     from dataclasses import asdict
+    from niess.utilities import compare
     parameters = primary_parameters()
     primary = Primary.from_calibration(parameters)
     pdict = serializable(asdict(primary))

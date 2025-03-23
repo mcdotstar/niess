@@ -148,6 +148,8 @@ def primary_parameters():
     # The closing section focuses the beam and includes divergence limiting jaws
     ex, rel_p, rel_r = closing_guide_parameters(rel_p, rel_r)
     p.update(ex)
+    # The reference point is now the downstream side of the final window.
+    # The sample is exactly 578 mm from this position, but there are other things before
 
     # directly after the guide is an exchangeable B4C mask-aperture.
     p['mask'] = {
@@ -174,5 +176,10 @@ def primary_parameters():
 
     # The primary spectrometer is followed by the sample stack, then secondary spectrometer
     # the McStas instrument will need numerous extra components around the sample
+
+    p['sample_origin'] = {
+        'position': at_relative(rel_p, rel_r, (578 * mm) * z),
+        'orientation': rel_r,
+    }
 
     return p
