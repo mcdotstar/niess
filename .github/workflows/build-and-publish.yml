@@ -1,4 +1,4 @@
-name: Choppera Python Package
+name: Python Package
 
 on:
   push:
@@ -15,6 +15,11 @@ jobs:
     permissions:
       id-token: write
     steps:
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: mcstas-readout
+          create-args: >-
+            mcstas-readout-master
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
