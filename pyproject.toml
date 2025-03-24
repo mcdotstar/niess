@@ -28,6 +28,7 @@ dependencies = [
   "numpy",
   "scipy",
   "mccode-antlr>=0.9.3",
+  "mccode-to-kafka>=0.2.1",
 ]
 
 [project.urls]
