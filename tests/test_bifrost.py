@@ -45,6 +45,9 @@ def test_bifrost_mccode():
     primary.to_mccode(bifrost)
 
     # TODO insert pre- and post-sample things here
+    #      e.g., the split_at location at the end of the guide
+    #      any filters, e.g., a hits-the-sample MCPL filter, or a Be-transmission filter
+    #      the radial collimator between sample and tank, etc.
 
     tank = Tank.from_calibration(**known_channel_params())
     tank.to_mccode(bifrost, 'sample_origin')
