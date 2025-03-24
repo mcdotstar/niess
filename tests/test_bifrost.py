@@ -4,8 +4,8 @@
 
 
 def get_mccode_registries():
-    from subprocess import run
-    from mccode_antlr.reader import MCSTAS_REGISTRY, LocalRegistry, GitHubRegistry
+    # from subprocess import run
+    from mccode_antlr.reader import MCSTAS_REGISTRY, GitHubRegistry #, LocalRegistry
 
     registries = ['mcstas-chopper-lib', 'mcstas-transformer', 'mcstas-detector-tubes',
                   'mcstas-epics-link', 'mcstas-frame-tof-monitor', 'mccode-mcpl-filter',
@@ -17,10 +17,10 @@ def get_mccode_registries():
         version='main'
     ) for name in registries]
 
-    r = run(['readout-config', '--show', 'compdir'], check=True, capture_output=True, text=True)
-    readout_registry = LocalRegistry(name='readout', root=r.stdout.strip())
+    # r = run(['readout-config', '--show', 'compdir'], check=True, capture_output=True, text=True)
+    # readout_registry = LocalRegistry(name='readout', root=r.stdout.strip())
 
-    return [MCSTAS_REGISTRY] + registries + [readout_registry]
+    return [MCSTAS_REGISTRY] + registries # + [readout_registry]
 
 
 
