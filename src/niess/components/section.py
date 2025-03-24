@@ -1,4 +1,5 @@
 from dataclasses import dataclass, fields
+from ..utilities import calibration
 
 # TODO Consider whether it would be possible to use any one of:
 #      datclass-wizzard: https://dataclass-wizard.readthedocs.io
@@ -33,14 +34,15 @@ class Section:
             getattr(self, part).to_mccode(*args, **kwargs)
 
     @classmethod
-    def from_calibration(cls, calibration: dict):
+    @calibration
+    def from_calibration(cls, parameters: dict):
         for part in cls.parts():
-            assert part in calibration
+            assert part in parameters
 
-        def named_cal(name):
-            if 'name' not in calibration[name]:
-                calibration[name]['name'] = name
-            return calibration[name]
+        def named_par(name):
+            if 'name' not in parameters[name]:
+                parameters[name]['name'] = name
+            return parameters[name]
 
-        values = [T.from_calibration(named_cal(n)) for n, T in cls.items()]
+        values = [T.from_calibration(named_par(n)) for n, T in cls.items()]
         return cls(*values)

@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-
-import scipp
+from niess.utilities import calibration
 
 from niess import He3Tube
 
@@ -40,7 +39,8 @@ class Tank:
     monitor: He3Tube
 
     @staticmethod
-    def from_calibration(**params):
+    @calibration
+    def from_calibration(params: dict):
         from scipp import array, scalar
         from .channel import Channel
 

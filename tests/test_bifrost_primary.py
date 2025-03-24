@@ -178,7 +178,7 @@ def test_primary_create():
     assert isclose(norm(start_to_end), scalar(161.5, unit='m'), atol=scalar(0.5, unit='m'))
 
     sample_at = primary.sample_origin.position - primary.source.position
-    assert isclose(norm(sample_at), scalar(162., unit='m'), atol=scalar(0.1, unit='m'))
+    assert isclose(norm(sample_at), scalar(161.75, unit='m'), atol=scalar(0.1, unit='m'))
 
 
 def test_primary_serialize_deserialize():

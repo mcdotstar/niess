@@ -149,3 +149,27 @@ def compare_one(a, b, depth: str):
     if isinstance(a, str):
         return a == b
     return allclose(a, b)
+
+
+def calibration_input(*args, **kwargs):
+    """Allow specifying the calibration parameters as a single positional dict or
+    any number of keyword arguments, with the latter taking precedence."""
+    if len(args) == 1 and isinstance(args[0], dict):
+        params = args[0].copy()
+    elif len(args):
+        raise ValueError('only one (dict) positional argument or keyword arguments are allowed')
+    else:
+        params = {}
+    params.update(kwargs)
+    return params
+
+
+def calibration(func):
+    """A decorator for, e.g. a `@classmethod` decorated Class method which is the
+    from_calibration function for the class to handle input collation"""
+    def wrapper(*args, **kwargs):
+        if len(args) > 1:
+             # ensure we have (class, dict) or similar?
+            return func(*args[:-1], calibration_input(args[-1], **kwargs))
+        return func(calibration_input(*args, **kwargs))
+    return wrapper
