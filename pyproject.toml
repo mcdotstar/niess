@@ -27,7 +27,7 @@ dependencies = [
   "scipp>=25.1.0",
   "numpy",
   "scipy",
-  "mccode-antlr>=0.9.3",
+  "mccode-antlr>=0.14.0",
   "mccode-to-kafka>=0.2.2",
 ]
 

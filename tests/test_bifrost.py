@@ -4,8 +4,7 @@
 
 
 def get_mccode_registries():
-    # from subprocess import run
-    from mccode_antlr.reader import MCSTAS_REGISTRY, GitHubRegistry #, LocalRegistry
+    from mccode_antlr.reader import GitHubRegistry
 
     registries = ['mcstas-chopper-lib', 'mcstas-transformer', 'mcstas-detector-tubes',
                   'mcstas-epics-link', 'mcstas-frame-tof-monitor', 'mccode-mcpl-filter',
@@ -17,10 +16,7 @@ def get_mccode_registries():
         version='main'
     ) for name in registries]
 
-    # r = run(['readout-config', '--show', 'compdir'], check=True, capture_output=True, text=True)
-    # readout_registry = LocalRegistry(name='readout', root=r.stdout.strip())
-
-    return [MCSTAS_REGISTRY] + registries # + [readout_registry]
+    return registries
 
 
 
@@ -37,9 +33,10 @@ def test_bifrost_mccode():
     from niess.bifrost.parameters import primary_parameters
     from niess.bifrost.parameters import known_channel_params
     from niess.bifrost import Tank, Primary
+    from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
 
-    bifrost = Assembler('bifrost', registries=get_mccode_registries())
+    bifrost = Assembler('bifrost', registries=get_mccode_registries(), flavor=Flavor.MCSTAS)
 
     primary = Primary.from_calibration(primary_parameters())
     primary.to_mccode(bifrost)
