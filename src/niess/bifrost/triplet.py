@@ -111,7 +111,7 @@ class Triplet:
 
     def mcstas_parameters(self) -> dict:
         #TODO make this more accurate -- insert vectors into the instrument defined parameters to use here?
-        from scipp import sqrt, dot
+        from scipp import sqrt, dot, scalar
         # length vector (from one end of each tube to the other)
         lv = [self.tubes[x].to - self.tubes[x].at for x in range(3)]
         # central vector (the position of the center, relative to defining sample position)
@@ -122,6 +122,7 @@ class Triplet:
         radius = sum([self.tubes[x].radius.to(unit='m').value for x in range(3)]) / 3
         # The distance between the first and third tube centres plus twice the radius is the assembly width
         width = sqrt(dot(cv[2] - cv[0], cv[2] - cv[0])).to(unit='m').value + 2 * radius
+
         params = dict(
             charge_a='"event_charge_left"',
             charge_b='"event_charge_right"',
@@ -132,6 +133,8 @@ class Triplet:
             height=length,
             radius=radius,
             wires_in_series=1,
+            rhos=[tube.resistivity.to(unit='Ohm/m').value for tube in self.tubes], 
+            Rs=[r.to(unit='Ohm').value for r in self.resistances]
         )
         return params
 
@@ -143,6 +146,15 @@ class Triplet:
         base_parameters = self.mcstas_parameters()
         if parameters is not None:
             base_parameters.update(parameters)
+        # The resistivity (rhos) and resistances (Rs) must be written into the instrument
+        assembler.declare_array('double', f'{name}_rhos', base_parameters['rhos'])
+        assembler.declare_array('double', f'{name}_Rs', base_parameters['Rs'])
+        for n in ('rhos', 'Rs'):
+            # record the inserted _array name_ for the array parameters
+            base_parameters[n] = f'{name}_{n}'
+            # remove the scalar versions if present, otherwise they take precedence(?)
+            if n[:-1] in base_parameters:
+                del base_parameters[n[:-1]]
         tubes = assembler.component(name, component, at=((0, 0, distance), relative), parameters=base_parameters)
         tubes.WHEN(when)
         tubes.EXTEND(extend)
