@@ -3,17 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from scipp import Variable
 from .component import Component
-
-
-@dataclass
-class Attenuator(Component):
-    """Only reduces beam intensity without modifying, e.g., divergence
-
-    Use, e.g., Filter with 'AcrylicGlass_C5O2H8' or 'Polycarbonate_C16O3H14'
-    NCrystal materials if more-accurate incoherent scattering (from Acrylic or
-    Polycarbonate) is desired.
-    """
-    transmission: Variable
+from mccode_antlr.assembler import Assembler
 
 
 @dataclass
@@ -68,5 +58,26 @@ class OrderedFilter(Filter):
     tau: Variable # the direction and lattice spacing used in the filter
 
 
+@dataclass
+class Attenuator(Filter):
+    """A pneumatically insertable absorbing or scattering material
+
+    Likely materials
+    | name                                             | NCrystal dataset         |
+    |--------------------------------------------------|--------------------------|
+    | Poly(methyl methacrylate)                        |  'AcrylicGlass_C5O2H8'   |
+    |  AKA Plexiglass, Lucite, Perspex, acrylic, etc.  |                          |
+    | Polycarbonate                                    | 'Polycarbonate_C16O3H14' |
+    """
+    def to_mccode(self, assembler: Assembler):
+        from mccode_antlr.common import InstrumentParameter
+        parameter = InstrumentParameter.parse(f"int {self.name}_in = 0")
+        assembler.instrument.add_parameter(parameter, ignore_repeated=True)
+        comp = super().to_mccode(assembler)
+        comp.WHEN(parameter.name)
+        return comp
+
+
 def make_aluminum(name, position, orientation, width, height, length):
-    return Filter(name, position, orientation, width, height, length, 'Al_sg225')
+    from scipp import scalar
+    return Filter(name, position, orientation, width, height, length, 'Al_sg225', scalar(300, unit='K'))

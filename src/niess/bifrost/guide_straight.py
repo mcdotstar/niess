@@ -1,9 +1,28 @@
 from scipp import scalar, Variable
 
 mm = scalar(1.0, unit='mm').to(unit='m')
+bandwidth_monitor = 15 * mm
+attenuator_1 = 5 * mm
+attenuator_2 = 10 * mm
+attenuator_3 = 3 * mm
 
 def guide_table():
     from .guide_tools import parse_guide_table
+
+    after_bwc_device_gap = 63.5 * mm
+
+    gap_pre_bandwidth_monitor = 2 * mm  # FIXME this must be verified
+    gap_bandwidth_monitor_attenuator_1 = 2 * mm
+    gap_attenuator_1_attenuator_2 = 2 * mm
+    gap_attenuator_2_attenuator_3 = 2 * mm
+    gap_post_attenuator_3 = after_bwc_device_gap - (
+        gap_pre_bandwidth_monitor + bandwidth_monitor
+        + gap_bandwidth_monitor_attenuator_1 + attenuator_1
+        + gap_attenuator_1_attenuator_2 + attenuator_2
+        + gap_attenuator_2_attenuator_3 + attenuator_3
+    )
+
+
     swissneutronics_37835_straight_guide_section_table = (
         ('window', 0.5 * mm),
         ('window gap', 2.5 * mm),
@@ -46,7 +65,17 @@ def guide_table():
         ('device gap', 11 * mm), # second BWC disc width
         ('window gap', 24 * mm),
         ('window', 0.5 * mm),
-        ('device gap', 63.5 * mm), # location of bandwidth monitor then attenuators
+        # ('device gap', 63.5 * mm), # location of bandwidth monitor then attenuators
+        ('gap', gap_pre_bandwidth_monitor),
+        ('device gap', bandwidth_monitor),
+        ('gap', gap_bandwidth_monitor_attenuator_1),
+        ('device gap', attenuator_1),  # 5 mm Plexiglass
+        ('gap', gap_attenuator_1_attenuator_2),
+        ('device gap', attenuator_2), # 10 mm Plexiglass
+        ('gap', gap_attenuator_2_attenuator_3),
+        ('device gap', attenuator_3), # 3 mm B4C with 68 2 mm diameter holes
+        ('gap', gap_post_attenuator_3),
+
         ('window', 0.5 * mm),
         ('window gap', 2.5 * mm),
 
@@ -158,10 +187,18 @@ def straight_guide_parameters(guide_pos, guide_rot, chopper_height) -> tuple[dic
         'phase': scalar(0., unit='deg'),
         'offset': offset,
     }
+
+    plexiglass = 'AcrylicGlass_C5O2H8'
+    b4c = 'B4C_sg166_BoronCarbide'
+    attenuator = {'width': 88 * mm, 'height': 105 * mm, 'composition': plexiglass}
+
     devices = (
         ('bandwidth_chopper_1', {**chopper}),
         ('bandwidth_chopper_2', {**chopper}),
-        ('bandwidth_monitor', {'thickness': 0.1 * mm, 'sample_rate': scalar(42., unit='kHz'), **beam})
+        ('bandwidth_monitor', {'thickness': bandwidth_monitor, 'sample_rate': scalar(42., unit='kHz'), **beam}),
+        ('attenuator_1', {'length': attenuator_1, **attenuator}),
+        ('attenuator_2', {'length': attenuator_2, **attenuator}),
+        ('attenuator_3', {'length': attenuator_3, **attenuator, 'composition': b4c}),
     )
     d, ref_p, ref_r = device_partial_dict(ref_p, ref_r, devices, table, 43, 44, window)
     p.update(d)

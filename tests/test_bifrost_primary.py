@@ -82,6 +82,9 @@ def test_primary_parameters():
     bandwidth_chopper_2
     unit_43_exit_window
     bandwidth_monitor
+    attenuator_1
+    attenuator_2
+    attenuator_3
     unit_44_entry_window
     unit_44_straight
     unit_45_straight

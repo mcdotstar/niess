@@ -9,7 +9,7 @@ windows, etc.; but they all come together into the primary spectrometer.
 from dataclasses import dataclass
 from ..components import (
     Section, Component,
-    Jaw, Slit, Filter, DiscChopper,
+    Jaw, Slit, Filter, Attenuator, DiscChopper,
     EllipticGuide, StraightGuide, StraightGuides, TaperedGuides,
     FissionChamber, BeamCurrentMonitor, GEM2D, ESSource
 )
@@ -98,6 +98,9 @@ class Primary(Section):
     bandwidth_chopper_2: DiscChopper
     unit_43_exit_window: Filter
     bandwidth_monitor: BeamCurrentMonitor
+    attenuator_1: Attenuator
+    attenuator_2: Attenuator
+    attenuator_3: Attenuator
     unit_44_entry_window: Filter
     #
     unit_44_straight: StraightGuide
