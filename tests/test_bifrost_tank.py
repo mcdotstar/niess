@@ -21,15 +21,16 @@ def test_bifrost_tank_constructable():
 def test_bifrost_tank_calibratable():
     from scipp import scalar, isclose
     from niess.bifrost import Tank
-    from niess.bifrost.parameters import known_channel_params
-    params = known_channel_params()
-    tank = Tank.from_calibration(**params)
+    from niess.bifrost.parameters import tank_parameters
+    calibration = tank_parameters()
+    tank = Tank.from_calibration(calibration)
 
     assert len(tank.channels) == 9
 
     vertical = 4.0, 3.674467758121384, 3.372105326299701, 3.1338895319560107, 2.9399369139099463
     horizontal = scalar(5.2, unit='deg')
 
+    params = calibration['channels']
     for channel in tank.channels:
         assert len(channel.pairs) == 5
         for index, (analyzer, triplet) in enumerate((arm.analyzer, arm.detector) for arm in channel.pairs):
@@ -71,9 +72,12 @@ def test_bifrost_tank_angles():
     scattering limit boundaries for a single setting of the tank position"""
     from scipp import vector, concat, scalar
     from niess.bifrost import Tank
-    from niess.bifrost.parameters import known_channel_params
-    params = known_channel_params()
-    tank = Tank.from_calibration(**params)
+    from niess.bifrost.parameters import tank_parameters
+    params = tank_parameters()
+    assert 'channels' in params
+    assert 'elastic_monitor' in params
+
+    tank = Tank.from_calibration(params)
 
     sample = vector(value=[0, 0, 0], unit='m')
 

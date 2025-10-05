@@ -4,20 +4,26 @@ from niess.components import He3Monitor
 
 
 def _elastic_monitor_from_params(params):
-    from scipp import scalar, vector
+    from scipp import vector
     from scipp.spatial import rotations_from_rotvecs
+    from .parameters import tank_parameters
+    tp = tank_parameters()
+    def par_or(par):
+        return tp[par] if par not in params else params[par]
+
     # There is a possibility that some or all necessary parameters are missing
     # but there are not always good defaults to provide in all cases. What do we do?
-    distance = params.get('sample_elastic_monitor_distance', scalar(0., unit='m'))
-    angle = params.get('tank_elastic_monitor_angle', scalar(0., unit='deg'))
-    length = params.get('elastic_monitor_length', scalar(0., unit='m'))
-    radius = params.get('elastic_monitor_radius', params.get('elastic_monitor_width', scalar(0., unit='m') / 2))
-    pressure = params.get('elastic_monitor_pressure', scalar(1., unit='atm'))
-    name = params.get('bragg_peak_monitor_name', 'diffraction_monitor')
+    distance = par_or('sample_elastic_monitor_distance')
+    angle = par_or('tank_elastic_monitor_angle')
     y, z = vector([0, 1, 0]), vector([0, 0, 1])
-    ori = rotations_from_rotvecs(y * angle) # is this the orientation of the monitor too?
-    pos = ori * (z * distance)
-    return He3Monitor(name, pos, ori, radius, length, pressure)
+    ori = rotations_from_rotvecs(y * angle)  # is this the monitor orientation too?
+
+    cal = par_or('elastic_monitor')
+    cal['name'] = cal.get('name', 'elastic_monitor')
+    cal['position'] = cal.get('position', ori * (z * distance))
+    cal['orientation'] = cal.get('orientation', ori)
+
+    return He3Monitor.from_calibration(cal)
 
 
 @dataclass
@@ -32,10 +38,11 @@ class Tank:
 
     @staticmethod
     @calibration
-    def from_calibration(params: dict):
-        from scipp import array, scalar
+    def from_calibration(cal: dict):
+        from scipp import array
         from .channel import Channel
-
+        from .parameters import known_channel_params
+        params = cal.get('channels', known_channel_params())
         channel_params = [{'variant': x} for x in ('s', 'm', 'l')]
         channel_params = {i: channel_params[i % 3] for i in range(9)}
         # but this can be overridden by specifying an integer-keyed dictionary with the parameters for each channel
@@ -45,7 +52,7 @@ class Tank:
                             array(values=[-40, -30, -20, -10, 0, 10, 20, 30, 40.], unit='degree', dims=['channel']))
 
         channels = [Channel.from_calibration(angles[i], **channel_params[i]) for i in range(9)]
-        return Tank(tuple(channels), _elastic_monitor_from_params(params))
+        return Tank(tuple(channels), _elastic_monitor_from_params(cal))
 
     @staticmethod
     def unique_from_calibration(**params):

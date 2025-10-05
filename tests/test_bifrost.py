@@ -21,17 +21,15 @@ def get_mccode_registries():
 
 
 def test_bifrost_whole():
-    from niess.bifrost.parameters import primary_parameters
-    from niess.bifrost.parameters import known_channel_params
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
     from niess.bifrost import Tank, Primary
 
     primary = Primary.from_calibration(primary_parameters())
-    tank = Tank.from_calibration(**known_channel_params())
+    tank = Tank.from_calibration(tank_parameters())
 
 
 def test_bifrost_mccode():
-    from niess.bifrost.parameters import primary_parameters
-    from niess.bifrost.parameters import known_channel_params
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
     from niess.bifrost import Tank, Primary
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
@@ -46,7 +44,7 @@ def test_bifrost_mccode():
     #      any filters, e.g., a hits-the-sample MCPL filter, or a Be-transmission filter
     #      the radial collimator between sample and tank, etc.
 
-    tank = Tank.from_calibration(**known_channel_params())
+    tank = Tank.from_calibration(tank_parameters())
     tank.to_mccode(bifrost, 'sample_origin')
 
     # TODO add checks that conversion from the intermediate representation works?

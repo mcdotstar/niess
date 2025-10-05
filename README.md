@@ -71,9 +71,10 @@ their `McCode` representation and insert them into a `McStas` instrument by leve
 an `Assembler` from the `mccode_antlr` package.
 
 ```python
+from mccode_antlr import Flavor
 from mccode_antlr.assembler import Assembler
-from mccode_antlr.reader import MCSTAS_REGISTRY, GitHubRegistry
-from niess.bifrost.parameters import primary_parameters, known_channel_params
+from mccode_antlr.reader import GitHubRegistry
+from niess.bifrost.parameters import primary_parameters, tank_parameters
 from niess.bifrost import Primary, Tank
 
 registries = ['mcstas-chopper-lib', 'mcstas-transformer', 'mcstas-detector-tubes',
@@ -87,8 +88,8 @@ registries = [GitHubRegistry(
 ) for name in registries]
 
 
-assembler = Assembler('bifrost', registries=[MCSTAS_REGISTRY] + registries)
+assembler = Assembler('bifrost', registries=registries, flavor=Flavor.MCSTAS)
 Primary.from_calibration(primary_parameters()).to_mccode(assembler)
-Tank.from_calibration(known_channel_params()).to_mccode(assembler, 'sample_coordinates')
+Tank.from_calibration(tank_parameters()).to_mccode(assembler, 'sample_coordinates')
 
 ```
