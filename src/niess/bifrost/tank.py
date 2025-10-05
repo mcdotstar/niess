@@ -1,31 +1,23 @@
 from dataclasses import dataclass
 from niess.utilities import calibration
-
-from niess import He3Tube
-
-def _tube_at(distance, rotation_y, length, radius, resistivity, elements, pressure):
-    from scipp import vector
-    from scipp.spatial import rotations_from_rotvecs
-    y, z = vector([0, 1, 0]), vector([0, 0, 1])
-    r = rotations_from_rotvecs(y * rotation_y)
-    pos = r * (z * distance)
-    top = pos + length * y / 2
-    bottom = pos - length * y / 2
-    return He3Tube(at=bottom, to=top, radius=radius, resistivity=resistivity, elements=elements, pressure=pressure)
+from niess.components import He3Monitor
 
 
 def _elastic_monitor_from_params(params):
-    from scipp import scalar
+    from scipp import scalar, vector
+    from scipp.spatial import rotations_from_rotvecs
     # There is a possibility that some or all necessary parameters are missing
     # but there are not always good defaults to provide in all cases. What do we do?
     distance = params.get('sample_elastic_monitor_distance', scalar(0., unit='m'))
     angle = params.get('tank_elastic_monitor_angle', scalar(0., unit='deg'))
     length = params.get('elastic_monitor_length', scalar(0., unit='m'))
     radius = params.get('elastic_monitor_radius', params.get('elastic_monitor_width', scalar(0., unit='m') / 2))
-    resistivity = scalar(1., unit='Ohm/cm')
     pressure = params.get('elastic_monitor_pressure', scalar(1., unit='atm'))
-    mon = _tube_at(distance, angle, length, radius, resistivity, 1, pressure)
-    return mon
+    name = params.get('bragg_peak_monitor_name', 'diffraction_monitor')
+    y, z = vector([0, 1, 0]), vector([0, 0, 1])
+    ori = rotations_from_rotvecs(y * angle) # is this the orientation of the monitor too?
+    pos = ori * (z * distance)
+    return He3Monitor(name, pos, ori, radius, length, pressure)
 
 
 @dataclass
@@ -36,7 +28,7 @@ class Tank:
     from mccode_antlr.instr import Instance
 
     channels: tuple[Channel, ...]
-    monitor: He3Tube
+    monitor: He3Monitor
 
     @staticmethod
     @calibration
@@ -145,3 +137,7 @@ class Tank:
             when = f"{1 + index} == secondary_cassette"
             channel.to_mccode(assembler, sample, name=name, when=when, settings=settings, **kwargs)
 
+        # only if a ray did not enter one of the channels does it have any chance
+        # of hitting the Bragg peak monitor:
+        mon = self.monitor.to_mccode(assembler)
+        mon.WHEN('secondary_cassette == -1')

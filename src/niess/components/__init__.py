@@ -8,7 +8,7 @@ from .component import Component
 from .filter import Attenuator, Filter, OrderedFilter, make_aluminum
 from .guide import EllipticGuide, TaperedGuide, StraightGuide, Guide, StraightGuides, TaperedGuides
 from .moderator import Moderator
-from .monitors import FissionChamber, BeamCurrentMonitor, GEM2D
+from .monitors import FissionChamber, He3Monitor, BeamCurrentMonitor, GEM2D
 from .source import ESSource
 from .section import Section
 
@@ -43,6 +43,7 @@ __all__ = [
     TaperedGuides,
     Moderator,
     FissionChamber,
+    He3Monitor,
     BeamCurrentMonitor,
     GEM2D,
     ESSource,

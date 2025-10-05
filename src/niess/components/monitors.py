@@ -75,6 +75,39 @@ class FissionChamber(Component):
         # Build the NeXus Structure entry to point to the correct Kafka stream
         return add_frame_monitor_metadata(inst, self.__mccode__()[1]['nt'])
 
+@dataclass
+class He3Monitor(Component):
+    """Zero-dimensional He3 tube monitor.
+    Outputs events without any spatial information.
+    """
+    radius: Variable
+    length: Variable
+    pressure: Variable
+
+    @classmethod
+    def from_calibration(cls, cal: dict):
+        name = cal['name']
+        position = cal['position']
+        orientation = cal['orientation']
+        radius = cal['radius']
+        length = cal['length']
+        pressure = cal['pressure']
+        return cls(name, position, orientation, radius, length, pressure)
+
+    def __mccode__(self) -> tuple[str, dict]:
+        p = {
+            'xwidth': 2 * self.radius.to(unit='m').value,
+            'yheight': self.length.to(unit='m').value,
+            'nt': int(1e6 / 14.0 / 7),  # 7 microsecond bins
+            'frequency': 14.0,
+        }
+        return 'Frame_monitor', p
+
+    def to_mccode(self, assembler: Assembler):
+        inst = super().to_mccode(assembler)
+        # Build the NeXus Structure entry to point to the correct Kafka stream
+        return add_frame_monitor_metadata(inst, self.__mccode__()[1]['nt'])
+
 
 @dataclass
 class BeamCurrentMonitor(Component):
