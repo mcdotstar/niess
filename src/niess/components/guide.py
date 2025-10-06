@@ -1,22 +1,45 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
-
+from typing import Union
 from mccode_antlr.assembler import Assembler
 from scipp import Variable
-from .component import Component
+from .component import Base, Component
 
 
-@dataclass
+def float_or_tuple_float(x):
+    if isinstance(x, float):
+        return x
+    if isinstance(x, list) and all(isinstance(i, float) for i in x):
+        return tuple(x)
+    if isinstance(x, tuple) and all(isinstance(i, float) for i in x):
+        return x
+    raise ValueError("Only float values (or a list-like collection of floats) allowed")
+
+
+def list_or_dict_to_type_list(typ, value):
+    ret = []
+    if isinstance(value, dict):
+        for name, cdict in value.items():
+            if not isinstance(cdict, dict):
+                raise ValueError("Only dicts should be provided here")
+            cdict['name'] = cdict.get('name', name)
+            ret.append(typ.from_calibration(cdict))
+    elif isinstance(value, list):
+        for v in value:
+            if not isinstance(v, dict):
+                raise ValueError("Only dicts should be provided here")
+            ret.append(typ.from_calibration(v))
+    else:
+        raise ValueError("Only dict or list of dicts should be provided here")
+    return ret
+
+
 class Guide(Component):
     length: Variable
-    left: float | tuple[float]  # m-value for x > 0 face
-    right: float | tuple[float] # m-value for x < 0 face
-    top: float | tuple[float]  # m-value for y > 0 face
-    bottom: float | tuple[float]   # m-value for the y < 0 face
+    left: Union[float, tuple[float]]  # m-value for x > 0 face
+    right: Union[float, tuple[float]] # m-value for x < 0 face
+    top: Union[float, tuple[float]]  # m-value for y > 0 face
+    bottom: Union[float, tuple[float]]   # m-value for the y < 0 face
 
 
-@dataclass
 class StraightGuide(Guide):
     width: Variable
     height: Variable
@@ -34,8 +57,8 @@ class StraightGuide(Guide):
         right = cal.get('right', m)
         top = cal.get('top', m)
         bottom = cal.get('bottom', m)
-        if any(isinstance(x, tuple) for x in (left, right, top, bottom)):
-            raise ValueError('StraightGuide does not support tuple m values')
+        if any(isinstance(x, (tuple, list)) for x in (left, right, top, bottom)):
+            raise ValueError('StraightGuide does not support multiple m values')
         width = cal['width']
         height = cal['height']
         return cls(name, position, orientation, length, left, right, top, bottom, width, height)
@@ -60,13 +83,12 @@ class StraightGuide(Guide):
         return 'Guide_gravity', p
 
 
-@dataclass
-class StraightGuides:
+class StraightGuides(Base):
     name: str
     segments: list[StraightGuide]
 
     @classmethod
-    def from_calibration(cls, cal: dict[str, dict | str]):
+    def from_calibration(cls, cal: dict):
         """Convert a dictionary of dictionaries to a list of StraightGuides
 
         This is likely called from Section.from_calibration, which would insert
@@ -75,12 +97,16 @@ class StraightGuides:
         """
         parent = cal.pop('name')
         segments = []
-        for name, cdict in cal.items():
-            if not isinstance(cdict, dict):
-                raise ValueError("Only dicts should be in this calibration dictionary")
-            if 'name' not in cdict:
-                cdict['name'] = name
-            segments.append(StraightGuide.from_calibration(cdict))
+        if 'segments' in cal and len(cal) == 1:
+            segments = list_or_dict_to_type_list(StraightGuide, cal['segments'])
+        else:
+            segments = list_or_dict_to_type_list(StraightGuide, cal)
+        # for name, cdict in cal.items():
+        #     if not isinstance(cdict, dict):
+        #         raise ValueError("Only dicts should be in this calibration dictionary")
+        #     if 'name' not in cdict:
+        #         cdict['name'] = name
+        #     segments.append(StraightGuide.from_calibration(cdict))
         return cls(parent, segments)
 
     def to_mccode(self, assembler: Assembler):
@@ -88,7 +114,6 @@ class StraightGuides:
             segment.to_mccode(assembler)
 
 
-@dataclass
 class TaperedGuide(Guide):
     in_width: Variable
     in_height: Variable
@@ -108,7 +133,7 @@ class TaperedGuide(Guide):
         right = cal.get('right', m)
         top = cal.get('top', m)
         bottom = cal.get('bottom', m)
-        if any(isinstance(x, tuple) for x in (left, right, top, bottom)):
+        if any(isinstance(x, (tuple, list)) for x in (left, right, top, bottom)):
             raise ValueError('StraightGuide does not support tuple m values')
         in_width = cal.get('in_width', cal.get('width'))
         out_width = cal.get('out_width', cal.get('width'))
@@ -137,15 +162,16 @@ class TaperedGuide(Guide):
         return 'Guide_gravity', p
 
 
-@dataclass
-class TaperedGuides:
+class TaperedGuides(Base):
     name: str
     segments: list[TaperedGuide]
 
     @classmethod
-    def from_calibration(cls, cal: dict[str, dict | str]):
+    def from_calibration(cls, cal: dict):
         parent = cal.pop('name')
         segments = []
+        if 'segments' in cal and len(cal) == 1:
+            cal = cal['segments']
         for name, cdict in cal.items():
             if 'name' not in cdict:
                 cdict['name'] = name
@@ -157,8 +183,7 @@ class TaperedGuides:
             segment.to_mccode(assembler)
 
 
-@dataclass
-class PartialEllipse:
+class PartialEllipse(Base):
     major: Variable
     minor: Variable
     offset: Variable
@@ -201,7 +226,6 @@ class PartialEllipse:
         return p
 
 
-@dataclass
 class EllipticGuide(Guide):
     horizontal: PartialEllipse
     vertical:  PartialEllipse
@@ -214,11 +238,11 @@ class EllipticGuide(Guide):
         position = cal.get('position', v([0, 0, 0.], unit='m'))
         orientation = cal.get('orientation', r(v([0, 0, 0.], unit='deg')))
         length = cal['length']
-        m = cal.get('m', 1.0)
-        left = cal.get('left', m)
-        right = cal.get('right', m)
-        top = cal.get('top', m)
-        bottom = cal.get('bottom', m)
+        m = float_or_tuple_float(cal.get('m', 1.0))
+        left = float_or_tuple_float(cal.get('left', m))
+        right = float_or_tuple_float(cal.get('right', m))
+        top = float_or_tuple_float(cal.get('top', m))
+        bottom = float_or_tuple_float(cal.get('bottom', m))
 
         ms = left, right, top, bottom
         if any(isinstance(x, tuple) for x in ms):

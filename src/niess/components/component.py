@@ -1,10 +1,46 @@
-from dataclasses import dataclass
+import msgspec
+from typing import ClassVar, Type
 from scipp import Variable
 from mccode_antlr.assembler import Assembler
 
+class Base(msgspec.Struct):
+    __struct_field_types__: ClassVar[dict[str, Type]]
 
-@dataclass
-class Component:
+    def to_dict(self):
+        return {k: getattr(self, k) for k in self.__struct_fields__}
+
+    @classmethod
+    def from_dict(cls, data):
+        for k, t in cls.__struct_field_types__.items():
+            if k not in data:
+                raise KeyError(f"{k} not found in data")
+            if not isinstance(data[k], t) and isinstance(data[k], dict) and hasattr(t, 'from_dict'):
+                data[k] = t.from_dict(data[k])
+        return cls(**data)
+
+    def fields(self):
+        return self.__struct_fields__
+
+    def __eq__(self, other):
+        from scipp import identical
+        if not isinstance(other, type(self)):
+            return False
+        for field in self.__struct_fields__:
+            a = getattr(self, field)
+            b = getattr(other, field)
+            if a is None or b is None:
+                if a is not None or b is not None:
+                    return False
+            elif isinstance(a, Variable):
+                if not identical(a, b, equal_nan=True):
+                    return False
+            else:
+                if a != b:
+                    return False
+        return True
+
+
+class Component(Base):
     """Any component in the instrument.
 
     Note
@@ -34,6 +70,10 @@ class Component:
         position = calibration['position']
         orientation = calibration['orientation']
         return cls(name, position, orientation)
+
+    @classmethod
+    def from_dict(cls, dictionary):
+        return cls.from_calibration(dictionary)
 
     def __mccode__(self) -> tuple[str, dict]:
         """Return the component type name and parameters needed to produce a McCode instance"""

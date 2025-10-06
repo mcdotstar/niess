@@ -1,6 +1,5 @@
-from __future__ import annotations
+from typing import Optional, Union
 
-from dataclasses import dataclass
 from scipp import Variable
 
 from mccode_antlr.common.parameters import InstrumentParameter
@@ -11,12 +10,10 @@ ESS_SOURCE_DURATION = Variable(values=2.857e-3, unit='s', dims=None)
 
 
 
-@dataclass
 class Source(Component):
     pass
 
 
-@dataclass
 class ESSource(Source):
     """Representation of the ESS Butterfly source
 
@@ -26,21 +23,22 @@ class ESSource(Source):
     beamline: int
     height: Variable
     cold_frac: float
-    focus_distance: Variable | None
-    focus_width: Variable | None
-    focus_height: Variable | None
+    focus_distance: Optional[Variable]
+    focus_width: Optional[Variable]
+    focus_height: Optional[Variable]
     cold_performance: float
     thermal_performance: float
-    wavelength_minimum: Variable | InstrumentParameter | None
-    wavelength_maximum: Variable | InstrumentParameter | None
-    latest_emission_time: Variable | None
-    n_pulses: int | None
-    accelerator_power: Variable | None
+    wavelength_minimum: Optional[Union[Variable, InstrumentParameter]]
+    wavelength_maximum: Optional[Union[Variable, InstrumentParameter]]
+    latest_emission_time: Optional[Variable]
+    n_pulses: Optional[int]
+    accelerator_power: Optional[Variable]
 
     @classmethod
     def from_calibration(cls, cal: dict):
         from scipp import vector as v, scalar as s
         from scipp.spatial import rotations_from_rotvecs as r
+        from niess.io.mccode import reconstitute_instrument_parameter as rip
         name = cal.get('name', 'ESS_source')
         position = cal.get('position', v([0, 0, 0.], unit='m'))
         orientation = cal.get('orientation', r(v([0, 0, 0.], unit='rad')))
@@ -54,12 +52,8 @@ class ESSource(Source):
         focus_height = cal.get('focus_height', None)
         cold_performance = cal.get('cold_performance', 1.0)
         thermal_performance = cal.get('thermal_performance', 1.0)
-        wavelength_minimum = cal.get('wavelength_minimum', None)
-        wavelength_maximum = cal.get('wavelength_maximum', None)
-        if isinstance(wavelength_minimum, str):
-            wavelength_minimum = InstrumentParameter.parse(wavelength_minimum)
-        if isinstance(wavelength_maximum, str):
-            wavelength_maximum = InstrumentParameter.parse(wavelength_maximum)
+        wavelength_minimum = rip(cal.get('wavelength_minimum', None), (Variable,))
+        wavelength_maximum = rip(cal.get('wavelength_maximum', None), (Variable,))
         latest_emission_time = cal.get('latest_emission_time', None)
         n_pulses = cal.get('n_pulses', None)
         accelerator_power = cal.get('accelerator_power', None)
@@ -97,10 +91,9 @@ class ESSource(Source):
         return 'ESS_butterfly', pars
 
     def to_mccode(self, assembler):
-        from dataclasses import fields
         from ..mccode import ensure_runtime_parameter
-        for field in fields(self):
-            p = getattr(self, field.name)
+        for field in self.fields():
+            p = getattr(self, field)
             if isinstance(p, InstrumentParameter):
                 ensure_runtime_parameter(assembler, p)
         return super().to_mccode(assembler)

@@ -24,11 +24,12 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "scipp>=25.1.0",
+  "scipp>=25.8.0",
   "numpy",
   "scipy",
-  "mccode-antlr>=0.14.0",
+  "mccode-antlr>=0.15.2",
   "mccode-to-kafka>=0.2.2",
+  "msgspec>=0.19.0"
 ]
 
 [project.urls]

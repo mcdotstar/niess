@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+from niess.components.component import Base
+from typing import ClassVar, Type
 
-@dataclass
-class Arm:
+class Arm(Base):
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
     from .analyzer import Analyzer
@@ -10,6 +10,20 @@ class Arm:
 
     analyzer: Analyzer
     detector: Triplet
+
+    __struct_field_types__: ClassVar[dict[str, Type]] = {'analyzer': Analyzer, 'detector': Triplet}
+
+    @classmethod
+    def from_dict(cls, data):
+        from .analyzer import Analyzer
+        from .triplet import Triplet
+        analyzer = data['analyzer']
+        detector = data['detector']
+        if not isinstance(analyzer, Analyzer):
+            analyzer = Analyzer.from_dict(analyzer)
+        if not isinstance(detector, Triplet):
+            detector = Triplet.from_dict(detector)
+        return cls(analyzer, detector)
 
     @staticmethod
     def from_calibration(a_position, tau, d_position, d_length, **params):

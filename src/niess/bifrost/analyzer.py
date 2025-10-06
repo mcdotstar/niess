@@ -1,13 +1,23 @@
-from dataclasses import dataclass
+from niess.components.component import Base
+from typing import ClassVar, Type
 
-
-@dataclass
-class Analyzer:
+class Analyzer(Base):
     from mccode_antlr.assembler import Assembler
     from ..components import Crystal
     from scipp import Variable
 
     blades: tuple[Crystal, ...]  # 7-9 blades
+
+    __struct_field_types__: ClassVar[dict[str, Type]] = {'blades': tuple[Crystal, ...]}
+
+    @classmethod
+    def from_dict(cls, data):
+        from ..components import Crystal
+        blades = data['blades']
+        if not hasattr(blades, '__len__') or (len(blades) != 7 and len(blades) != 9):
+            raise ValueError('Blades must have 7 or 9 elements')
+        blades = tuple(b if isinstance(b, Crystal) else Crystal.from_dict(b) for b in blades)
+        return cls(blades)
 
     @property
     def central_blade(self):

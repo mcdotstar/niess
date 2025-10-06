@@ -1,10 +1,9 @@
-from dataclasses import dataclass
 from scipp import Variable
 from .component import Component
 
 from mccode_antlr.assembler import Assembler
 
-@dataclass
+
 class Chopper(Component):
     """Any device which periodically opens a path that particles may traverse"""
     velocity: Variable  # angular velocity scalar or vector
@@ -15,7 +14,6 @@ class Chopper(Component):
     height: Variable  # the path height
 
 
-@dataclass
 class DiscChopper(Chopper):
     """Ideally infinitely thin material with rotation vector parallel to the path"""
     # `radius` is the outer dimension of the disc.
@@ -93,7 +91,6 @@ class DiscChopper(Chopper):
         return super().to_mccode(assembler)
 
 
-@dataclass
 class FermiChopper(Chopper):
     """Ideally infinitely tall cylinder with a group of curved channels through
     its center, rotation vector parallel to its axis, and perpendicular to the path"""

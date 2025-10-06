@@ -185,26 +185,29 @@ def test_primary_create():
 
 
 def test_primary_serialize_deserialize():
-    from json import dumps, loads
+    from niess.io.json import to_json, from_json
     from niess.bifrost.parameters import primary_parameters
     from niess.bifrost.primary import Primary
-    from niess.utilities import serializable
-    from dataclasses import asdict
-    from niess.utilities import compare
     parameters = primary_parameters()
     primary = Primary.from_calibration(parameters)
-    pdict = serializable(asdict(primary))
-    ddict = loads(dumps(pdict, indent=4))
-    assert compare(pdict, ddict)
+    returned = from_json(to_json(primary))
+    assert primary == returned
 
 
 def test_primary_without_parameters():
     from niess.bifrost.primary import Primary
     from niess.bifrost.parameters import primary_parameters
-    from niess.utilities import serializable
-    from dataclasses import asdict
     p0 = Primary.from_calibration()
     pp = Primary.from_calibration(primary_parameters())
-    d0 = serializable(asdict(p0))
-    dp = serializable(asdict(pp))
-    assert d0 == dp
+    assert p0 == pp
+
+
+def test_instrument_to_json():
+    from pathlib import Path
+    from niess.io.json import save_json
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+    from niess.bifrost.primary import Primary
+    from niess.bifrost.tank import Tank
+    root = Path(__file__).parent
+    save_json(Primary.from_calibration(primary_parameters()), root / 'primary.json')
+    save_json(Tank.from_calibration(tank_parameters()), root / 'tank.json')

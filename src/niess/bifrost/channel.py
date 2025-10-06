@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-
+from typing import ClassVar, Type
+from niess.components.component import Base
 
 def variant_parameters(params: dict, default: dict):
     variant = params.get('variant', default['variant'])
@@ -7,14 +7,25 @@ def variant_parameters(params: dict, default: dict):
     return complete
 
 
-@dataclass
-class Channel:
+
+class Channel(Base):
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
     from scipp import Variable
     from .arm import Arm
 
     pairs: tuple[Arm, Arm, Arm, Arm, Arm]
+
+    __struct_field_types__: ClassVar[dict[str, Type]] = {'pairs': tuple[Arm, Arm, Arm, Arm, Arm]}
+
+    @classmethod
+    def from_dict(cls, data):
+        from .arm import Arm
+        pairs = data['pairs']
+        if not hasattr(pairs, '__len__') or len(pairs) != 5:
+            raise ValueError(f'Blades must have 5 elements (not {len(pairs)})')
+        pairs = tuple(p if isinstance(p, Arm) else Arm.from_dict(p) for p in pairs)
+        return cls(pairs)
 
     @staticmethod
     def from_calibration(relative_angle: Variable, **params):

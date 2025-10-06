@@ -1,9 +1,8 @@
-from dataclasses import dataclass
 from scipp import Variable
 from mccode_antlr.assembler import Assembler
 from .component import Component
 
-@dataclass
+
 class Aperture(Component):
     width: Variable
     height: Variable
@@ -18,7 +17,6 @@ class Aperture(Component):
         return cls(name, position, orientation, width, height)
 
 
-@dataclass
 class Jaw(Aperture):
     """A special variable width aperture, open by default and configured at runtime"""
 
@@ -38,7 +36,6 @@ class Jaw(Aperture):
         return super().to_mccode(assembler)
 
 
-@dataclass
 class Slit(Aperture):
     """A special variable aperture, open by default and configured at runtime"""
 

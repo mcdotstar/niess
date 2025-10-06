@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from scipp import Variable
 from .component import Component
 from mccode_antlr.assembler import Assembler
 
 
-@dataclass
 class Filter(Component):
     """A powder or amorphous material that effects a beam with physics from NCrystal
 
@@ -52,13 +50,11 @@ class Filter(Component):
         return 'NCrystal_sample', params
 
 
-@dataclass
 class OrderedFilter(Filter):
     """(likely) A Bragg scattering filter, e.g., Pyrolytic Graphite"""
     tau: Variable # the direction and lattice spacing used in the filter
 
 
-@dataclass
 class Attenuator(Filter):
     """A pneumatically insertable absorbing or scattering material
 

@@ -1,19 +1,32 @@
-from dataclasses import dataclass
-
+from niess.components.component import Base
 
 def __is_type__(x, t, name):
     if not isinstance(x, t):
         raise RuntimeError(f"{name} must be a {t}")
 
 
-@dataclass
-class Triplet:
+class Triplet(Base):
     from mccode_antlr.assembler import Assembler
     from ..components import He3Tube
     from scipp import Variable
 
     tubes: tuple[He3Tube, He3Tube, He3Tube]
     resistances: Variable
+
+    __struct_field_types__ = {'tubes': tuple[He3Tube, He3Tube, He3Tube],
+                              'resistances': Variable}
+
+    @classmethod
+    def from_dict(cls, data):
+        from ..components import He3Tube
+        tubes = data['tubes']
+        resistances = data['resistances']
+        if not isinstance(tubes, tuple) and isinstance(tubes, list):
+            tubes = tuple(tubes)
+        if not len(tubes) == 3:
+            raise RuntimeError(f"3 tubes required (not {len(tubes)})")
+        tubes = tuple(t if isinstance(t, He3Tube) else He3Tube.from_dict(t) for t in tubes)
+        return cls(tubes, resistances)
 
     @staticmethod
     def from_calibration(position: Variable, length: Variable, **params):

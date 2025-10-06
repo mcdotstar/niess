@@ -1,16 +1,16 @@
 # SPDX-FileCopyrightText: 2025-present Gregory Tucker <gregory.tucker@ess.eu>
 #
 # SPDX-License-Identifier: MIT
-from __future__ import annotations
-
-from dataclasses import dataclass
+from typing import ClassVar, Type
+from .component import Base
 from scipp import Variable
 
 
-@dataclass
-class IdealCrystal:
+class IdealCrystal(Base):
     position: Variable
     tau: Variable
+
+    __struct_field_types__: ClassVar[dict[str, Type]] = {'position': Variable, 'tau': Variable}
 
     def triangulate(self, unit=None):
         from scipp import sqrt, dot, vector, arange, concat, cross, isclose
@@ -106,11 +106,15 @@ class IdealCrystal:
         return rtp_x, rtp_y, rtp_angle
 
 
-@dataclass
 class Crystal(IdealCrystal):
     shape: Variable  # lengths: (in-scattering-plane perpendicular to Q, perpendicular to plane, along Q)
     orientation: Variable
     mosaic: Variable
+
+    __struct_field_types__: ClassVar[dict[str, Type]] = {
+        **{'shape': Variable, 'orientation': Variable, 'mosaic': Variable},
+        **IdealCrystal.__struct_field_types__
+    }
 
     def triangulate(self, unit=None):
         from ..spatial import vector_to_vector_quaternion

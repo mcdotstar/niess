@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from mccode_antlr.assembler import Assembler
 from scipp import Variable
 from .component import Component
@@ -41,8 +39,6 @@ def add_frame_monitor_metadata(inst, n):
     return inst
 
 
-
-@dataclass
 class FissionChamber(Component):
     """Zero-dimensional fission chamber monitor.
     Outputs events without any spatial information.
@@ -75,7 +71,7 @@ class FissionChamber(Component):
         # Build the NeXus Structure entry to point to the correct Kafka stream
         return add_frame_monitor_metadata(inst, self.__mccode__()[1]['nt'])
 
-@dataclass
+
 class He3Monitor(Component):
     """Zero-dimensional He3 tube monitor.
     Outputs events without any spatial information.
@@ -109,7 +105,6 @@ class He3Monitor(Component):
         return add_frame_monitor_metadata(inst, self.__mccode__()[1]['nt'])
 
 
-@dataclass
 class BeamCurrentMonitor(Component):
     """Zero-dimensional beam current monitor.
     Outputs a current sampled at a configurable frequency.
@@ -150,7 +145,6 @@ class BeamCurrentMonitor(Component):
         return add_frame_monitor_metadata(inst, self.__mccode__()[1]['nt'])
 
 
-@dataclass
 class GEM2D(Component):
     """Two-dimensional Gas Electron Multiplier monitor.
     Outputs events on X or Y strips (without coincidence) or at (X, Y) point

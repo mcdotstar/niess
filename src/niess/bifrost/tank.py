@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+from typing import ClassVar, Type
 from niess.utilities import calibration
 from niess.components import He3Monitor
-
+from niess.components.component import Base
 
 def _elastic_monitor_from_params(params):
     from scipp import vector
@@ -26,8 +26,7 @@ def _elastic_monitor_from_params(params):
     return He3Monitor.from_calibration(cal)
 
 
-@dataclass
-class Tank:
+class Tank(Base):
     from scipp import Variable
     from .channel import Channel
     from mccode_antlr.assembler import Assembler
@@ -35,6 +34,20 @@ class Tank:
 
     channels: tuple[Channel, ...]
     monitor: He3Monitor
+
+    __struct_field_types__: ClassVar[dict[str, Type]] = {'channels': tuple[Channel, ...], 'monitor': He3Monitor}
+
+    @classmethod
+    def from_dict(cls, data):
+        from .channel import Channel
+        cs = data['channels']
+        if not hasattr(cs, '__len__'):
+            raise ValueError('Channels must have length (probably 9)')
+        cs = tuple(c if isinstance(c, Channel) else Channel.from_dict(c) for c in cs)
+        mn = data['monitor']
+        if not isinstance(mn, He3Monitor):
+            mn = He3Monitor.from_dict(mn)
+        return cls(cs, mn)
 
     @staticmethod
     @calibration
@@ -148,3 +161,4 @@ class Tank:
         # of hitting the Bragg peak monitor:
         mon = self.monitor.to_mccode(assembler)
         mon.WHEN('secondary_cassette == -1')
+
