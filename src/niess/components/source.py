@@ -86,7 +86,7 @@ class ESSource(Source):
         if self.n_pulses is not None:
             pars['n_pulses'] = self.n_pulses
         if self.accelerator_power is not None:
-            pars['power'] = self.accelerator_power.to(unit='MW').value
+            pars['acc_power'] = self.accelerator_power.to(unit='MW').value
 
         return 'ESS_butterfly', pars
 
