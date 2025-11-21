@@ -66,11 +66,12 @@ class Attenuator(Filter):
     | Polycarbonate                                    | 'Polycarbonate_C16O3H14' |
     """
     def to_mccode(self, assembler: Assembler):
-        from mccode_antlr.common import InstrumentParameter
+        from mccode_antlr.common import InstrumentParameter, Expr, Value, DataType, ObjectType, ShapeType
         parameter = InstrumentParameter.parse(f"int {self.name}_in = 0")
         assembler.instrument.add_parameter(parameter, ignore_repeated=True)
         comp = super().to_mccode(assembler)
-        comp.WHEN(parameter.name)
+        var = Value(parameter.name, DataType.int, ObjectType.parameter, ShapeType.scalar)
+        comp.WHEN(Expr(var))
         return comp
 
 

@@ -29,7 +29,8 @@ dependencies = [
   "scipy",
   "mccode-antlr>=0.15.2",
   "mccode-to-kafka>=0.2.2",
-  "msgspec>=0.19.0"
+  "msgspec>=0.19.0",
+  "ncrystal>=4.2.4" # required for B4C_sg166_BoronCarbide
 ]
 
 [project.urls]

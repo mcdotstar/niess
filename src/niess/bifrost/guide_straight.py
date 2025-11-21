@@ -189,7 +189,7 @@ def straight_guide_parameters(guide_pos, guide_rot, chopper_height) -> tuple[dic
     }
 
     plexiglass = 'AcrylicGlass_C5O2H8'
-    b4c = 'B4C_sg166_BoronCarbide'
+    b4c = 'B4C_sg166_BoronCarbide' # TODO check whether this should be *enriched* 10B, https://github.com/mctools/ncrystal/discussions/286
     attenuator = {'width': 88 * mm, 'height': 105 * mm, 'composition': plexiglass}
 
     devices = (
