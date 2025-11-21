@@ -46,12 +46,12 @@ def tank_parameters():
     known = dict()
     known['channels'] = known_channel_params()
     known['sample_elastic_monitor_distance'] = scalar(800., unit='mm')
-    known['tank_elastic_monitor_angle'] = scalar(45., unit='deg')
+    known['tank_elastic_monitor_angle'] = scalar(59., unit='deg')
     known['elastic_monitor'] = {
         'name': 'elastic_monitor',
-        'radius': scalar(10., unit='mm'),
-        'length': scalar(100., unit='mm'),
-        'pressure': scalar(10., unit='atm'),
+        'radius': scalar(1., unit='inch').to(unit='mm'),
+        'length': scalar(3.2, unit='inch').to(unit='mm'),
+        'pressure': scalar(0.2, unit='atm'),
     }
     return known
 
