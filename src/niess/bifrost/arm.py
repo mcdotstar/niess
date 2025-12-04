@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from niess.components.component import Base
 from typing import ClassVar, Type
 
 class Arm(Base):
+    from networkx import DiGraph
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
     from .analyzer import Analyzer
@@ -155,3 +158,20 @@ class Arm(Base):
                                 when=detector_when, extend=detector_extend,
                                 component=kwargs.get('detector_component', None),
                                 parameters=kwargs.get('detector_parameters', None))
+
+    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
+        point = f'{name}_analyzer_point'  # component name of the location of the analyzer
+        mono = f'{name}_monochromator'  # component name of the analyzer itself
+        orient = f'{name}_detector_angle'  # component name of the oriented arm pointing at the detector
+        triplet = f'{name}_triplet'  # component name of the detector itself
+
+        graph.add_node(point)
+        if upstream is not None:
+            graph.add_edge(upstream, point)
+        self.analyzer.add_to_graph(point, mono, graph)
+        graph.add_node(orient)
+        graph.add_edge(mono, orient)
+        self.detector.add_to_graph(orient, triplet, graph)
+
+        return [triplet]
+

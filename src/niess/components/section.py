@@ -1,5 +1,8 @@
 # from dataclasses import dataclass, fields
+from __future__ import annotations
+
 import msgspec
+from networkx import DiGraph
 from typing import ClassVar, Type
 from ..utilities import calibration
 
@@ -63,3 +66,17 @@ class Section(msgspec.Struct, tag=True):
         # TODO make a function to recurse through a dictionary and ensure
         #      scipp.Variable and mccode_antlr.? are converted
         return cls.from_calibration(d)
+
+    def to_graph(self):
+        from networkx import DiGraph
+        graph = DiGraph()
+        self.add_to_graph(None, '', graph)
+        return graph
+
+    def add_to_graph(self, upstream: str | None, unused_section_name: str, graph: DiGraph):
+        last = upstream
+        for name in self.__struct_fields__:
+            names = getattr(self, name).add_to_graph(last, name, graph)
+            if isinstance(names, list) and len(names) == 1:
+                last = names[0]
+        return [last]

@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import msgspec
 from typing import ClassVar, Type
 from scipp import Variable
+from networkx import DiGraph
 from mccode_antlr.assembler import Assembler
 
 class Base(msgspec.Struct):
@@ -38,6 +41,12 @@ class Base(msgspec.Struct):
                 if a != b:
                     return False
         return True
+
+    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
+        graph.add_node(name)
+        if upstream is not None:
+            graph.add_edge(upstream, name)
+        return [name]
 
 
 class Component(Base):

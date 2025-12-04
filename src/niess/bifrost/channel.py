@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import ClassVar, Type
 from niess.components.component import Base
 
@@ -9,6 +11,7 @@ def variant_parameters(params: dict, default: dict):
 
 
 class Channel(Base):
+    from networkx import DiGraph
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
     from scipp import Variable
@@ -170,3 +173,10 @@ class Channel(Base):
             detector_extend = f"flag = (SCATTERED) ? 1 : 0;"
             arm.to_mccode(assembler, cassette, name=arm_name, analyzer_when=arm_when, analyzer_extend=extend,
                           settings=settings, detector_when=detector_when, detector_extend=detector_extend, **kwargs)
+
+    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
+        cassette = f'{name}_arm'
+        graph.add_node(cassette)
+        if upstream is not None:
+            graph.add_edge(upstream, cassette)
+        return [arm.add_to_graph(cassette, f"{name}_{1 + arm_index}", graph) for arm_index, arm in enumerate(self.pairs)]

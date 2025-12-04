@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import ClassVar, Type
 from niess.utilities import calibration
 from niess.components import He3Monitor
@@ -28,6 +30,7 @@ def _elastic_monitor_from_params(params):
 
 class Tank(Base):
     from scipp import Variable
+    from networkx import DiGraph
     from .channel import Channel
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
@@ -162,3 +165,10 @@ class Tank(Base):
         mon = self.monitor.to_mccode(assembler)
         mon.WHEN('secondary_cassette == -1')
 
+    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
+        graph.add_node('slits')
+        if upstream is not None:
+            graph.add_edge(upstream, 'slits')
+        cs = [channel.add_to_graph('slits', f"channel_{1 + index}", graph) for index, channel in enumerate(self.channels)]
+        mn = self.monitor.add_to_graph(upstream, self.monitor.name, graph)
+        return [*cs, mn]

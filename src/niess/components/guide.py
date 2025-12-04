@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from typing import Union
 from mccode_antlr.assembler import Assembler
+from networkx import DiGraph
 from scipp import Variable
 from .component import Base, Component
 
@@ -82,9 +85,19 @@ class StraightGuide(Guide):
         p['h2'] = p['h1']
         return 'Guide_gravity', p
 
-
-class StraightGuides(Base):
+class SegmentedGuide(Base):
     name: str
+    segments: list
+
+    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
+        last = upstream
+        for x in self.segments:
+            names = x.add_to_graph(last, x.name, graph)
+            if len(names) == 1:
+                last = names[0]
+        return [last]
+
+class StraightGuides(SegmentedGuide):
     segments: list[StraightGuide]
 
     @classmethod
@@ -162,8 +175,7 @@ class TaperedGuide(Guide):
         return 'Guide_gravity', p
 
 
-class TaperedGuides(Base):
-    name: str
+class TaperedGuides(SegmentedGuide):
     segments: list[TaperedGuide]
 
     @classmethod
