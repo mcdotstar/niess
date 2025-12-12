@@ -1,25 +1,26 @@
 from mccode_antlr.assembler import Assembler
+from mccode_antlr.instr.instance import Instance
 from scipp import Variable
 from .component import Component
 
 # Monitors used on BIFROST, which are limited within McStas to always produce histograms
 
-def nexus_structure_metadata(topic, *, variables, constants):
+def nexus_structure_metadata(topic: str, source: str, *, variables, constants):
     from json import dumps
     from mccode_antlr.common import MetaData
     from mccode_to_kafka.writer import da00_dataarray_config
-    # TODO uodate eniius.utils.mccode_component_eniius_data to use ('*', 'application/json') instead of
+    # TODO update eniius.utils.mccode_component_eniius_data to use ('*', 'application/json') instead of
     #      only ('eniius_data', 'json')
     # The correct JSON to encode is a dictionary with a single key, 'data', which itself is a dictionary with
     # the keys 'type' and 'value'. The value of 'type' is 'dict' and the value of 'value' is the actual NeXus structure.
     # This is very hacky and is (currently) necessary to escape parsing within eniius.
 
-    struct = da00_dataarray_config(topic, source='mccode-to-kafka', variables=variables, constants=constants)
+    struct = da00_dataarray_config(topic, source=source, variables=variables, constants=constants)
 
     return MetaData.from_instance_tokens(topic, 'application/json', 'nexus_structure_stream_data', dumps(struct))
 
 
-def add_frame_monitor_metadata(inst, n):
+def add_monitor_metadata(instr_name: str, inst: Instance, n):
     from mccode_to_kafka.writer import da00_variable_config
     axes = {
         'signal': {'unit': 'counts', 'label': f'{inst.name} counts', 'shape': [n]},
@@ -33,13 +34,30 @@ def add_frame_monitor_metadata(inst, n):
     }
     variables = [configs['signal'], configs['errors']]
     constants = [configs['t']]
-    metadata = nexus_structure_metadata(topic=inst.name, variables=variables,
-                                        constants=constants)
+    topic = f'{instr_name.lower()}_beam_monitor'
+    source = inst.name  # 'cbm1', 'cbm2', etc. in the real instrument, for now
+    metadata = nexus_structure_metadata(
+        topic=topic, source=source, variables=variables, constants=constants
+    )
     inst.add_metadata(metadata)
     return inst
 
 
-class FissionChamber(Component):
+class FrameMonitor(Component):
+    @staticmethod
+    def time_bins():
+        return int(1e6 / 14.0 / 7) # 7 microsecond bins
+
+    def to_mccode(self, assembler: Assembler):
+        inst = super().to_mccode(assembler)
+        # Build the NeXus Structure entry to point to the correct Kafka stream
+        return add_monitor_metadata(assembler.name, inst, self.time_bins())
+
+    def __partial__mccode__(self) -> tuple[str, dict]:
+        return 'Frame_monitor', {'nt': self.time_bins(), 'frequency': 14.0}
+
+
+class FissionChamber(FrameMonitor):
     """Zero-dimensional fission chamber monitor.
     Outputs events without any spatial information.
     """
@@ -58,21 +76,15 @@ class FissionChamber(Component):
         return cls(name, position, orientation, width, height, thickness)
 
     def __mccode__(self) -> tuple[str, dict]:
-        p = {
+        t, p = self.__partial__mccode__()
+        p.update({
             'xwidth': self.width.to(unit='m').value,
             'yheight': self.height.to(unit='m').value,
-            'nt': int(1e6 / 14.0 / 7),  # 7 microsecond bins
-            'frequency': 14.0,
-        }
-        return 'Frame_monitor', p
-
-    def to_mccode(self, assembler: Assembler):
-        inst = super().to_mccode(assembler)
-        # Build the NeXus Structure entry to point to the correct Kafka stream
-        return add_frame_monitor_metadata(inst, self.__mccode__()[1]['nt'])
+        })
+        return t, p
 
 
-class He3Monitor(Component):
+class He3Monitor(FrameMonitor):
     """Zero-dimensional He3 tube monitor.
     Outputs events without any spatial information.
     """
@@ -88,24 +100,21 @@ class He3Monitor(Component):
         radius = cal['radius']
         length = cal['length']
         pressure = cal['pressure']
-        return cls(name, position, orientation, radius, length, pressure)
+        return cls(
+            name=name, position=position, orientation=orientation,
+            radius=radius, length=length, pressure=pressure
+        )
 
     def __mccode__(self) -> tuple[str, dict]:
-        p = {
+        t, p = self.__partial__mccode__()
+        p.update({
             'xwidth': 2 * self.radius.to(unit='m').value,
             'yheight': self.length.to(unit='m').value,
-            'nt': int(1e6 / 14.0 / 7),  # 7 microsecond bins
-            'frequency': 14.0,
-        }
-        return 'Frame_monitor', p
-
-    def to_mccode(self, assembler: Assembler):
-        inst = super().to_mccode(assembler)
-        # Build the NeXus Structure entry to point to the correct Kafka stream
-        return add_frame_monitor_metadata(inst, self.__mccode__()[1]['nt'])
+        })
+        return t, p
 
 
-class BeamCurrentMonitor(Component):
+class BeamCurrentMonitor(FrameMonitor):
     """Zero-dimensional beam current monitor.
     Outputs a current sampled at a configurable frequency.
     """
@@ -125,27 +134,26 @@ class BeamCurrentMonitor(Component):
         sample_rate = cal.get('sample_rate', cal.get('frequency'))
         if sample_rate is None:
             raise ValueError(f'The sample rate for {name} must be defined')
-        return cls(name, position, orientation, width, height, thickness, sample_rate)
+        return cls(
+            name=name, position=position, orientation=orientation,
+            width=width, height=height, thickness=thickness, sample_rate=sample_rate
+        )
 
-    def __mccode__(self) -> tuple[str, dict]:
+    def time_bins(self):
         from scipp import scalar
         source_frequency = scalar(14.0, unit='Hz')
-        nt = int((self.sample_rate.to(unit='Hz') / source_frequency).value)
-        p = {
+        return int((self.sample_rate.to(unit='Hz') / source_frequency).value)
+
+    def __mccode__(self) -> tuple[str, dict]:
+        t, p = self.__partial__mccode__()
+        p.update({
             'xwidth': self.width.to(unit='m').value,
             'yheight': self.height.to(unit='m').value,
-            'nt': nt,
-            'frequency': source_frequency.to(unit='Hz').value,
-        }
-        return 'Frame_monitor', p
-
-    def to_mccode(self, assembler: Assembler):
-        inst = super().to_mccode(assembler)
-        # Build the NeXus Structure entry to point to the correct Kafka stream
-        return add_frame_monitor_metadata(inst, self.__mccode__()[1]['nt'])
+        })
+        return t, p
 
 
-class GEM2D(Component):
+class GEM2D(FrameMonitor):
     """Two-dimensional Gas Electron Multiplier monitor.
     Outputs events on X or Y strips (without coincidence) or at (X, Y) point
     (with coincidence).
@@ -168,23 +176,16 @@ class GEM2D(Component):
         thickness = cal.get('thickness', cal.get('length'))
         x_strips = cal.get('x_strips', cal.get('nx', 1))
         y_strips = cal.get('y_strips', cal.get('ny', 1))
-        return cls(name, position, orientation, width, height, thickness, x_strips, y_strips)
+        return cls(
+            name=name, position=position, orientation=orientation,
+            width=width, height=height, thickness=thickness,
+            x_strips=x_strips, y_strips=y_strips
+        )
 
     def __mccode__(self) -> tuple[str, dict]:
-        from scipp import scalar
-        source_frequency = scalar(14.0, unit='Hz')
-        # nt = 1000 # 71.42 µs bins
-        nt = 10000 # 7.142 µs bins
-        # nt = 71428 # 1.00001 µs bins
-        p = {
+        t, p = self.__partial__mccode__()
+        p.update({
             'xwidth': self.width.to(unit='m').value,
             'yheight': self.height.to(unit='m').value,
-            'nt': nt,
-            'frequency': source_frequency.to(unit='Hz').value,
-        }
-        return 'Frame_monitor', p
-
-    def to_mccode(self, assembler: Assembler):
-        inst = super().to_mccode(assembler)
-        # Build the NeXus Structure entry to point to the correct Kafka stream
-        return add_frame_monitor_metadata(inst, self.__mccode__()[1]['nt'])
+        })
+        return t, p

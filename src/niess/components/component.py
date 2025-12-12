@@ -6,6 +6,10 @@ from scipp import Variable
 from networkx import DiGraph
 from mccode_antlr.assembler import Assembler
 
+# TODO: Add a 'tag' property to either Base or Component
+#       This is intended to represent an ESS Facility Breakdown Structure (FBS) tag,
+#       and should take precedence over 'name' for the purpose of making component graphs
+
 class Base(msgspec.Struct):
     __struct_field_types__: ClassVar[dict[str, Type]]
 
@@ -49,7 +53,7 @@ class Base(msgspec.Struct):
         return [name]
 
 
-class Component(Base):
+class Component(Base, kw_only=True):
     """Any component in the instrument.
 
     Note
@@ -68,17 +72,22 @@ class Component(Base):
         The orientation of the component instance in scipp quaternion form. This
         transforms the coordinate system of the component into the global coordinate
         system.
+    tag: str | None
+        The Facility Breakdown Structure (FBS) tag representing this component
     """
     name: str
     position: Variable
     orientation: Variable
+    # tag: str | None = None
 
     @classmethod
     def from_calibration(cls, calibration: dict):
         name = calibration['name']
         position = calibration['position']
         orientation = calibration['orientation']
-        return cls(name, position, orientation)
+        # tag = calibration.get('tag')
+        # return cls(name=name, position=position, orientation=orientation, tag=tag)
+        return cls(name=name, position=position, orientation=orientation)
 
     @classmethod
     def from_dict(cls, dictionary):
