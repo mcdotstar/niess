@@ -64,7 +64,18 @@ class StraightGuide(Guide):
             raise ValueError('StraightGuide does not support multiple m values')
         width = cal['width']
         height = cal['height']
-        return cls(name, position, orientation, length, left, right, top, bottom, width, height)
+        return cls(
+            name=name,
+            position=position,
+            orientation=orientation,
+            length=length,
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
+            width=width,
+            height=height
+        )
 
     def __mccode__(self) -> tuple[str, dict]:
         p = {
@@ -152,8 +163,20 @@ class TaperedGuide(Guide):
         out_width = cal.get('out_width', cal.get('width'))
         in_height = cal.get('in_height', cal.get('height'))
         out_height = cal.get('out_height', cal.get('height'))
-        return cls(name, position, orientation, length, left, right, top, bottom,
-                   in_width, out_width, in_height, out_height)
+        return cls(
+            name=name,
+            position=position,
+            orientation=orientation,
+            length=length,
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
+            in_width=in_width,
+            out_width=out_width,
+            in_height=in_height,
+            out_height=out_height
+        )
 
     def __mccode__(self) -> tuple[str, dict]:
         p = {
@@ -227,7 +250,11 @@ class PartialEllipse(Base):
         major = cal['major']
         minor = cal['minor']
         offset = cal['offset']
-        return cls(major, minor, offset)
+        return cls(
+            major=major,
+            minor=minor,
+            offset=offset
+        )
 
     def mccode_pars(self, post):
         p = {
@@ -272,7 +299,18 @@ class EllipticGuide(Guide):
         horizontal = PartialEllipse.from_calibration(gl, cal.get('horizontal'))
         vertical = PartialEllipse.from_calibration(gl, cal.get('vertical'))
 
-        return cls(name, position, orientation, length, left, right, top, bottom, horizontal, vertical)
+        return cls(
+            name=name,
+            position=position,
+            orientation=orientation,
+            length=length,
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
+            horizontal=horizontal,
+            vertical=vertical
+        )
 
     def __mccode__(self) -> tuple[str, dict]:
         from scipp import sum

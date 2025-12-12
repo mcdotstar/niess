@@ -33,7 +33,16 @@ class Filter(Component):
         temperature = cal.get('temperature', s(300., unit='K'))
         position = cal.get('position', v([0, 0, 0.], unit='m'))
         orientation = cal.get('orientation', r(v([0.,0, 0], unit='deg')))
-        return cls(name, position, orientation, width, height, length, composition, temperature)
+        return cls(
+            name=name,
+            position=position,
+            orientation=orientation,
+            width=width,
+            height=height,
+            length=length,
+            composition=composition,
+            temperature=temperature
+        )
 
     def __mccode__(self) -> tuple[str, dict]:
         params = dict()
@@ -77,4 +86,8 @@ class Attenuator(Filter):
 
 def make_aluminum(name, position, orientation, width, height, length):
     from scipp import scalar
-    return Filter(name, position, orientation, width, height, length, 'Al_sg225', scalar(300, unit='K'))
+    return Filter(
+        name=name, position=position, orientation=orientation,
+        width=width, height=height, length=length,
+        composition='Al_sg225', temperature=scalar(300, unit='K')
+    )

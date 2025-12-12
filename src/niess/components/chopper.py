@@ -58,7 +58,18 @@ class DiscChopper(Chopper):
         width = cal.get('width') # None is actually acceptable
         height = cal.get('height')  # None is acceptable, then slit extends to center
         offset = cal.get('offset', vector([0, 0, 0], unit='m'))
-        return cls(name, position, orientation, velocity, phase, radius, windows, width, height, offset)
+        return cls(
+            name=name,
+            position=position,
+            orientation=orientation,
+            velocity=velocity,
+            phase=phase,
+            radius=radius,
+            windows=windows,
+            width=width,
+            height=height,
+            offset=offset
+        )
 
 
     def __mccode__(self) -> tuple[str, dict]:

@@ -58,10 +58,25 @@ class ESSource(Source):
         n_pulses = cal.get('n_pulses', None)
         accelerator_power = cal.get('accelerator_power', None)
 
-        return cls(name, position, orientation, sector, beamline, height, cold_frac,
-                   focus_distance, focus_width, focus_height, cold_performance,
-                   thermal_performance, wavelength_minimum, wavelength_maximum,
-                   latest_emission_time, n_pulses, accelerator_power)
+        return cls(
+            name=name,
+            position=position,
+            orientation=orientation,
+            sector=sector,
+            beamline=beamline,
+            height=height,
+            cold_frac=cold_frac,
+            focus_distance=focus_distance,
+            focus_width=focus_width,
+            focus_height=focus_height,
+            cold_performance=cold_performance,
+            thermal_performance=thermal_performance,
+            wavelength_minimum=wavelength_minimum,
+            wavelength_maximum=wavelength_maximum,
+            latest_emission_time=latest_emission_time,
+            n_pulses=n_pulses,
+            accelerator_power=accelerator_power
+        )
 
     def __mccode__(self) -> tuple[str, dict]:
         from ..utilities import variable_value_or_parameter as value_or

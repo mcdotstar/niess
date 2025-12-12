@@ -14,7 +14,13 @@ class Aperture(Component):
         orientation = cal['orientation']
         width = cal['width']
         height = cal['height']
-        return cls(name, position, orientation, width, height)
+        return cls(
+            name=name,
+            position=position,
+            orientation=orientation,
+            width=width,
+            height=height
+        )
 
 
 class Jaw(Aperture):

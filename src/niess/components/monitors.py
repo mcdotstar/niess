@@ -73,7 +73,14 @@ class FissionChamber(FrameMonitor):
         width = cal['width']
         height = cal['height']
         thickness = cal.get('thickness', cal.get('length'))
-        return cls(name, position, orientation, width, height, thickness)
+        return cls(
+            name=name,
+            position=position,
+            orientation=orientation,
+            width=width,
+            height=height,
+            thickness=thickness
+        )
 
     def __mccode__(self) -> tuple[str, dict]:
         t, p = self.__partial__mccode__()
