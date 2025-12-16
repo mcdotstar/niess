@@ -99,6 +99,7 @@ def curved_guide_partial_dict(ref_p, ref_r, radius, table, lengths, min_unit, ma
             if Type.guide == entry[0]:
                 ttype, number, identifier, name, length = entry
                 fname = f'unit_{section}_{name}'
+                # lengths is a integer-keyed dictionary, we pick the right one
                 d[fname], ref_p, ref_r = curved_guide_unit_dictionary(
                     ref_p,
                     radius_of_curvature_to_rotation(lengths[section][0], radius) * ref_r,
@@ -203,7 +204,7 @@ def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_hei
         6: [500.0 * mm, 500.0 * mm, 500.0 * mm, 140 * mm],
         7: [118.3 * mm, 500.0 * mm, 500.0 * mm, 500.0 * mm],
         8: [500.0 * mm, 500.0 * mm, 118.3 * mm, 500.0 * mm],
-        9: [500.0 * mm, 500.0 * mm, 500.0 * mm],
+        9: [500.0 * mm, 500.0 * mm, 68.3 * mm, 500.0 * mm],
         10: [175.71 * mm, 351.42 * mm, 351.42 * mm, 175.71 * mm], # Cu substrate
         11: [236.32 * mm, 472.63 * mm, 236.32 * mm], # Cu substrate
         12: [500.0 * mm, 500.0 * mm, 448.22 * mm],
