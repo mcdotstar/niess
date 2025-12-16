@@ -76,8 +76,9 @@ def tube_xz_displacement_to_quaternion(length: Variable, displacement: Variable)
     return quaternion
 
 
-def primary_parameters():
+def primary_parameters(use_tcs=False):
     from scipp import array, vector, scalar, norm
+    from scipp.spatial import rotations_from_rotvecs as r
     from ..spatial import mccode_quaternion, at_relative_dict, at_relative
     from .guide_compressor import primary_compressor_parameters
     from .guide_curved import curved_guide_parameters
@@ -91,8 +92,29 @@ def primary_parameters():
     z = vector([0, 0, 1.0])
 
     eps = 1.0e-5
+    # The guide is defined in the 'w4' coordinate system
     guide_zero = vector([0.01277, 0, 1.903398 - eps], unit='m')
     guide_zero_rot = mccode_quaternion(0, -0.56, 0)
+
+    if use_tcs:
+        # Relative to the Target Coordinate System (TCS),
+        # The BIFROST Instrument Specific Coordinate System (ISCS) is at:
+        tcs_iscs_position = vector([-77.05, 67.72, 137], unit='mm').to(unit='m')
+        tcs_iscs_orientation = r(vector([0, 132.14, 0], unit='deg'))
+        # But the McStas ESS_butterfly component 'sector': 'W', 'beamline': 4
+        # defines its own coordinate system, which is rotated relative to both
+        # The ISCS position _in_ the McStas 'W4' coordinates:
+        w4_iscs_position = vector([31.38,0,-0.01], unit='mm')
+        # In thE TCS coordinate system, W4 focal point is at and oriented:
+        w4_orientation = r(vector([0., 132.7, 0.],  unit='deg'))
+        w4_position = vector([89, 137., -54], unit='mm').to(unit='m')
+        # but we want to move everything to TCS:
+        moderator_offset =vector([0, 137., 0], unit='mm').to(unit='m')
+        guide_zero_rot = w4_orientation * guide_zero_rot
+        guide_zero = at_relative(w4_position, w4_orientation, guide_zero)
+    else:
+        w4_position = vector([0, 0, 0.], unit='m')
+        w4_orientation = r(vector([0, 0, 0.], unit='deg'))
 
     p['source'] = {
         'sector': 'W',
@@ -102,6 +124,8 @@ def primary_parameters():
         'focus_distance': norm(guide_zero),
         'focus_width': (0.068797 + 2 * 0.01277) * m,  # including the substrate?
         'focus_height': 0.03472 * m,
+        'position': w4_position,
+        'orientation': w4_orientation,
     }
 
     p.update(primary_compressor_parameters(guide_zero, guide_zero_rot))
