@@ -1,5 +1,6 @@
 from scipp import Variable
 from mccode_antlr.assembler import Assembler
+from mccode_antlr.instr import Instance
 from .component import Component
 
 
@@ -34,12 +35,15 @@ class Jaw(Aperture):
         }
         return 'Slit', params
 
-    def to_mccode(self, assembler: Assembler):
+    def to_mccode(
+            self, assembler: Assembler,
+            at: Instance | str | None = None, rotate: Instance | str | None = None,
+    ):
         from ..mccode import ensure_runtime_line as ensure
         half = self.width.to(unit='m').value / 2
         ensure(assembler, f'{self.name}_l/"m" = {-half}')
         ensure(assembler, f'{self.name}_r/"m" = {half}')
-        return super().to_mccode(assembler)
+        return super().to_mccode(assembler, at, rotate)
 
 
 class Slit(Aperture):
@@ -54,7 +58,10 @@ class Slit(Aperture):
         }
         return 'Slit', params
 
-    def to_mccode(self, assembler: Assembler):
+    def to_mccode(
+            self, assembler: Assembler,
+            at: Instance | str | None = None, rotate: Instance | str | None = None,
+    ):
         from ..mccode import ensure_runtime_line as ensure
         half = self.width.to(unit='m').value / 2
         ensure(assembler, f'{self.name}_l/"m" = {-half}')
@@ -62,4 +69,4 @@ class Slit(Aperture):
         half = self.height.to(unit='m').value / 2
         ensure(assembler, f'{self.name}_b/"m" = {-half}')
         ensure(assembler, f'{self.name}_t/"m" = {half}')
-        return super().to_mccode(assembler)
+        return super().to_mccode(assembler, at, rotate)

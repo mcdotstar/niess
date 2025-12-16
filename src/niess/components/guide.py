@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Union
 from mccode_antlr.assembler import Assembler
+from mccode_antlr.instr import Instance
 from networkx import DiGraph
 from scipp import Variable
 from .component import Base, Component
@@ -330,9 +331,12 @@ class EllipticGuide(Guide):
 
         return 'Elliptic_guide_gravity', p
 
-    def to_mccode(self, assembler: Assembler):
+    def to_mccode(
+            self, assembler: Assembler,
+            at: Instance | str | None = None, rotate: Instance | str | None = None,
+    ):
         if isinstance(self.left, tuple):
             assembler.declare_array('double', f'{self.name}_lens', self.length.to(unit='m').values)
             for n in ('left', 'right', 'top', 'bottom'):
                 assembler.declare_array('double', f'{self.name}_{n}', getattr(self, n))
-        super().to_mccode(assembler)
+        super().to_mccode(assembler, at, rotate)

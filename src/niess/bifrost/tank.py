@@ -162,7 +162,7 @@ class Tank(Base):
 
         # only if a ray did not enter one of the channels does it have any chance
         # of hitting the Bragg peak monitor:
-        mon = self.monitor.to_mccode(assembler)
+        mon = self.monitor.to_mccode(assembler, at=sample)
         mon.WHEN('secondary_cassette == -1')
 
     def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):

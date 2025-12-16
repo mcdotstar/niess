@@ -5,6 +5,7 @@ from typing import ClassVar, Type
 from scipp import Variable
 from networkx import DiGraph
 from mccode_antlr.assembler import Assembler
+from mccode_antlr.instr import Instance
 
 # TODO: Add a 'tag' property to either Base or Component
 #       This is intended to represent an ESS Facility Breakdown Structure (FBS) tag,
@@ -97,7 +98,10 @@ class Component(Base, kw_only=True):
         """Return the component type name and parameters needed to produce a McCode instance"""
         return 'Arm', {}
 
-    def to_mccode(self, assembler: Assembler):
+    def to_mccode(
+            self, assembler: Assembler,
+            at: Instance | str | None = None, rotate: Instance | str | None = None,
+    ):
         from mccode_antlr.common.parameters import InstrumentParameter as InstPar
         from ..spatial import mccode_ordered_angles
         from ..mccode import ensure_runtime_parameter
@@ -109,10 +113,13 @@ class Component(Base, kw_only=True):
                 ensure_runtime_parameter(assembler, value)
                 pars[name] = str(value)
 
+        at_rel = 'ABSOLUTE' if at is None else at
+        rot_rel = 'ABSOLUTE' if rotate is None else rotate
+
         at = self.position
         if hasattr(self, 'offset'):
             at += getattr(self, 'offset')
-        at = at.to(unit='m').value
-        rot = mccode_ordered_angles(self.orientation)
+        at = (at.to(unit='m').value, at_rel)
+        rot = (mccode_ordered_angles(self.orientation), rot_rel)
 
         return assembler.component(self.name, comp, at=at, rotate=rot, parameters=pars)

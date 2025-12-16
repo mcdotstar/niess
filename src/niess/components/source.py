@@ -1,8 +1,9 @@
 from typing import Optional, Union
 
 from scipp import Variable
-
+from mccode_antlr.instr import Instance
 from mccode_antlr.common.parameters import InstrumentParameter
+from mccode_antlr.assembler import Assembler
 from .component import Component
 
 
@@ -105,11 +106,14 @@ class ESSource(Source):
 
         return 'ESS_butterfly', pars
 
-    def to_mccode(self, assembler):
+    def to_mccode(
+            self, assembler: Assembler,
+            at: Instance | str | None = None, rotate: Instance | str | None = None,
+    ):
         from ..mccode import ensure_runtime_parameter
         for field in self.fields():
             p = getattr(self, field)
             if isinstance(p, InstrumentParameter):
                 ensure_runtime_parameter(assembler, p)
-        return super().to_mccode(assembler)
+        return super().to_mccode(assembler, at, rotate)
 

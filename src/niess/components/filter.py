@@ -3,6 +3,7 @@ from __future__ import annotations
 from scipp import Variable
 from .component import Component
 from mccode_antlr.assembler import Assembler
+from mccode_antlr.instr import Instance
 
 
 class Filter(Component):
@@ -74,11 +75,14 @@ class Attenuator(Filter):
     |  AKA Plexiglass, Lucite, Perspex, acrylic, etc.  |                          |
     | Polycarbonate                                    | 'Polycarbonate_C16O3H14' |
     """
-    def to_mccode(self, assembler: Assembler):
+    def to_mccode(
+            self, assembler: Assembler,
+            at: Instance | str | None = None, rotate: Instance | str | None = None,
+    ):
         from mccode_antlr.common import InstrumentParameter, Expr, Value, DataType, ObjectType, ShapeType
         parameter = InstrumentParameter.parse(f"int {self.name}_in = 0")
         assembler.instrument.add_parameter(parameter, ignore_repeated=True)
-        comp = super().to_mccode(assembler)
+        comp = super().to_mccode(assembler, at, rotate)
         var = Value(parameter.name, DataType.int, ObjectType.parameter, ShapeType.scalar)
         comp.WHEN(Expr(var))
         return comp

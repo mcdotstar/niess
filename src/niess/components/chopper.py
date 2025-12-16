@@ -1,6 +1,6 @@
 from scipp import Variable
 from .component import Component
-
+from mccode_antlr.instr import Instance
 from mccode_antlr.assembler import Assembler
 
 
@@ -94,12 +94,15 @@ class DiscChopper(Chopper):
             params['yheight'] = self.height.to(unit='m').value
         return 'DiskChopper', params
 
-    def to_mccode(self, assembler: Assembler):
+    def to_mccode(
+            self, assembler: Assembler,
+            at: Instance | str | None = None, rotate: Instance | str | None = None,
+    ):
         from ..mccode import ensure_runtime_line as ensure
         ensure(assembler, f'{self.name}speed/"Hz" = {self.speed.value}')
         ensure(assembler, f'{self.name}phase/"degree" = {self.phase.to(unit="deg").value}')
         # the offset is handled by super's to_mccode -- no problems.
-        return super().to_mccode(assembler)
+        return super().to_mccode(assembler, at, rotate)
 
 
 class FermiChopper(Chopper):

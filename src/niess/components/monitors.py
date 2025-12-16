@@ -48,8 +48,11 @@ class FrameMonitor(Component):
     def time_bins():
         return int(1e6 / 14.0 / 7) # 7 microsecond bins
 
-    def to_mccode(self, assembler: Assembler):
-        inst = super().to_mccode(assembler)
+    def to_mccode(
+            self, assembler: Assembler,
+            at: Instance | str | None = None, rotate: Instance | str | None = None,
+    ):
+        inst = super().to_mccode(assembler, at, rotate)
         # Build the NeXus Structure entry to point to the correct Kafka stream
         return add_monitor_metadata(assembler.name, inst, self.time_bins())
 
