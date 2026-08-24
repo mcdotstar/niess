@@ -86,11 +86,28 @@ class Tank(Base):
 
     @property
     def slit_width(self) -> float:
-        """The angular width shared by every slit, in radians.
+        """The angular width shared by every radial slit, in radians.
 
-        Twice the widest channel coverage. Note this takes the *second* element of
-        Channel.coverage, which Arm.coverage documents as the analyser's vertical
-        extent -- preserved as it was; see the note on Arm's geometry properties.
+        Twice the largest vertical analyzer coverage in the tank. Slit_radial_multi
+        accepts a neutron within ``slit_width/2`` of a slit angle, and those angles are
+        azimuthal, so a *vertical* extent setting an azimuthal opening deserves an
+        explanation rather than a `# TODO`.
+
+        In this frame x is along the beam, y is horizontal-transverse and z is vertical:
+        the nine channels fan out in x-y with every arm at z = 0. Analyzer.coverage
+        builds its own basis from the global vertical rather than from anything McStas
+        does, so the 90-degree turn Arm.to_mccode applies when it places the analyzer
+        never reaches it, and its second element really is the vertical extent -- 83 mm
+        of blade stack against 144 mm of blade width, subtending 4.0 and 7.0 degrees at
+        1.19 m.
+
+        Doubling the vertical gives 8.1 degrees, which fits inside the 10-degree channel
+        spacing. Twice the analyzer's horizontal coverage (13.9) or twice the detector's
+        (11.4) would overlap the neighbouring channels, so the emitted number is the
+        workable one of the three. Whether that is deliberate -- a slit sized to clear
+        the analyzer's 7.0-degree horizontal acceptance with margin -- or an axis that
+        got crossed and landed somewhere sensible anyway is not decidable from the code.
+        Either way it is unchanged here: this is a move, not a correction.
         """
         from scipp import concat, max
         coverage = [c.coverage(_origin(), unit='radian') for c in self.channels]
