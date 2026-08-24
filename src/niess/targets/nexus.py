@@ -58,6 +58,22 @@ class NexusContext(Context):
                 'instrument', nx_class='NXinstrument',
                 children=[dataset('name', self.instrument.name)])
 
+    def link(self, name: str, parameter: str, attrs: dict | None = None) -> dict:
+        """A value a run sets, as a link to the NXlog carrying it.
+
+        A chopper's speed is not a number an instrument has; it is a knob, and what the
+        file should say is where to read it. `niess.nexus` decides this by folding a
+        McCode expression and seeing whether an instrument parameter survives. Here the
+        component names the knob it declared.
+        """
+        from ..nexus.streams import linked_nxlog
+        return linked_nxlog(name, f'{self.nxlog_root}/{parameter}', attrs=attrs)
+
+    def stream_group(self, selection: dict, name: str = 'data') -> dict:
+        """One monitor's or detector's data stream, as the instrument chose it."""
+        from ..nexus.streams import stream_group_from_selection
+        return stream_group_from_selection(name, selection)
+
     def depends_on(self, frame) -> str:
         """What a thing in ``frame`` hangs from, as a NeXus path.
 
@@ -201,6 +217,27 @@ def _lazy(*dotted: str):
     return [_import(name) for name in dotted]
 
 
+def _da00_config(source: str, bins: int) -> dict:
+    """The da00 configuration for a monitor's histogram.
+
+    mccode_to_kafka stays the source of truth for the schema; this only says what this
+    monitor's histogram looks like.
+    """
+    from mccode_to_kafka.writer import da00_dataarray_config, da00_variable_config
+    axes = {
+        'signal': {'unit': 'counts', 'label': f'{source} counts', 'shape': [bins]},
+        'errors': {'unit': 'counts', 'label': f'{source} count errors', 'shape': [bins]},
+        't': {'unit': 'microsecond', 'label': 'time since reference',
+              'shape': [bins + 1]},
+    }
+    configs = {name: da00_variable_config(**spec, name=name, axes=['t'],
+                                          data_type='float64')
+               for name, spec in axes.items()}
+    return da00_dataarray_config(topic=None, source=source,
+                                 variables=[configs['signal'], configs['errors']],
+                                 constants=[configs['t']])
+
+
 def register_defaults() -> None:
     """Attach the per-type translators. Called on import; separate so it reads as a list."""
     from ..components.aperture import Aperture
@@ -249,15 +286,36 @@ def register_defaults() -> None:
 
     @translator(Aperture)
     def aperture(visit):
-        obj = visit.obj
-        return component_body('NXaperture', [
+        """An opening. Where its edges are driven at run time, they are links."""
+        obj, context = visit.obj, visit.context
+        children = [
             dataset('x_gap', float(obj.width.to(unit='m').value), attrs={'units': 'm'}),
             dataset('y_gap', float(obj.height.to(unit='m').value), attrs={'units': 'm'}),
-        ])
+        ]
+        edges = getattr(obj, 'edge_parameters', None)
+        if edges is not None:
+            children.extend(context.link(edge, parameter, attrs={'units': 'm'})
+                            for edge, parameter in edges().items())
+        return component_body('NXaperture', children)
 
     @translator(FrameMonitor)
     def monitor(visit):
-        return component_body('NXmonitor', [dataset('description', visit.name)])
+        """A monitor, and how its data reaches the file.
+
+        The choice is the instrument's -- histograms or events -- and it is recorded on
+        the monitor. Left unset, a frame monitor histograms, which is what these have
+        always done.
+        """
+        obj, context = visit.obj, visit.context
+        children = [dataset('description', visit.name)]
+        selection = obj.stream
+        if selection is None:
+            selection = {'module': 'da00',
+                         'topic': f'{context.instrument.name.lower()}_beam_monitor',
+                         'source': visit.name,
+                         'config': _da00_config(visit.name, obj.time_bins())}
+        children.append(context.stream_group(selection))
+        return component_body('NXmonitor', children)
 
     @translator(DiscChopper)
     def disc_chopper(visit):
@@ -270,9 +328,14 @@ def register_defaults() -> None:
         then read by three targets. Here the disc is a disc: it never came apart.
         """
         obj = visit.obj
+        context = visit.context
         edges = [angle for opening in obj.slits() for angle in opening]
         return component_body('NXdisk_chopper', [
             dataset('slits', len(obj.slits())),
+            # what a run sets, so the file says where to read it rather than guessing
+            context.link('rotation_speed', obj.speed_parameter(),
+                         attrs={'units': 'Hz'}),
+            context.link('delay', obj.delay_parameter(), attrs={'units': 's'}),
             dataset('slit_edges', edges, dtype='double', attrs={'units': 'degrees'}),
             dataset('top_dead_center',
                     float(obj.zero_angle.to(unit='deg').value),

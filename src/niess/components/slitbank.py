@@ -109,8 +109,11 @@ class RadialSlitBank(Component):
                     attrs={'units': 'radian'}),
             dataset('y_gap', float(self.height.to(unit='m').value),
                     attrs={'units': 'm'}),
-            dataset('distance', float(self.radius.to(unit='m').value),
-                    attrs={'units': 'm'}),
+            # both are knobs a calibration run sweeps, so the file links to them
+            visit.context.link('distance', self.knob('Distance'),
+                               attrs={'units': 'm'}),
+            visit.context.link('offset', self.knob('Angle'),
+                               attrs={'units': 'degrees'}),
             dataset('angles', [float(v) for v in
                                self.angles.to(unit='radian').values],
                     dtype='double', attrs={'units': 'radian'}),

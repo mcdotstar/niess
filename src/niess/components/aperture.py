@@ -33,10 +33,21 @@ class Aperture(Component):
 class Jaw(Aperture):
     """A special variable width aperture, open by default and configured at runtime"""
 
+    def edge_parameters(self) -> dict[str, str]:
+        """The run-time knobs its edges are set by, keyed by which edge.
+
+        Named here rather than spelled out in both the emitted parameters and the
+        declarations that create them -- and now also read by a NeXus file, which links
+        each edge to the NXlog carrying its value rather than writing down a number that
+        a run is free to change.
+        """
+        return {'left': f'{self.name}_l', 'right': f'{self.name}_r'}
+
     def __mccode__(self) -> tuple[str, dict]:
+        edges = self.edge_parameters()
         params = {
-            'xmin': f'{self.name}_l',
-            'xmax': f'{self.name}_r',
+            'xmin': edges['left'],
+            'xmax': edges['right'],
             'yheight': self.height.to(unit='m').value,
         }
         return 'Slit', params
@@ -47,21 +58,28 @@ class Jaw(Aperture):
             insert_provenance_metadata: bool = True,
     ):
         from ..mccode import ensure_runtime_line as ensure
+        edges = self.edge_parameters()
         half = self.width.to(unit='m').value / 2
-        ensure(assembler, f'{self.name}_l/"m" = {-half}')
-        ensure(assembler, f'{self.name}_r/"m" = {half}')
+        ensure(assembler, f'{edges["left"]}/"m" = {-half}')
+        ensure(assembler, f'{edges["right"]}/"m" = {half}')
         return super().to_mccode(assembler, at, rotate, insert_provenance_metadata=insert_provenance_metadata)
 
 
 class Slit(Aperture):
     """A special variable aperture, open by default and configured at runtime"""
 
+    def edge_parameters(self) -> dict[str, str]:
+        """The run-time knobs its four edges are set by, keyed by which edge."""
+        return {'left': f'{self.name}_l', 'right': f'{self.name}_r',
+                'bottom': f'{self.name}_b', 'top': f'{self.name}_t'}
+
     def __mccode__(self) -> tuple[str, dict]:
+        edges = self.edge_parameters()
         params = {
-            'xmin': f'{self.name}_l',
-            'xmax': f'{self.name}_r',
-            'ymin': f'{self.name}_b',
-            'ymax': f'{self.name}_t',
+            'xmin': edges['left'],
+            'xmax': edges['right'],
+            'ymin': edges['bottom'],
+            'ymax': edges['top'],
         }
         return 'Slit', params
 
@@ -71,10 +89,11 @@ class Slit(Aperture):
             insert_provenance_metadata: bool = True,
     ):
         from ..mccode import ensure_runtime_line as ensure
+        edges = self.edge_parameters()
         half = self.width.to(unit='m').value / 2
-        ensure(assembler, f'{self.name}_l/"m" = {-half}')
-        ensure(assembler, f'{self.name}_r/"m" = {half}')
+        ensure(assembler, f'{edges["left"]}/"m" = {-half}')
+        ensure(assembler, f'{edges["right"]}/"m" = {half}')
         half = self.height.to(unit='m').value / 2
-        ensure(assembler, f'{self.name}_b/"m" = {-half}')
-        ensure(assembler, f'{self.name}_t/"m" = {half}')
+        ensure(assembler, f'{edges["bottom"]}/"m" = {-half}')
+        ensure(assembler, f'{edges["top"]}/"m" = {half}')
         return super().to_mccode(assembler, at, rotate, insert_provenance_metadata=insert_provenance_metadata)

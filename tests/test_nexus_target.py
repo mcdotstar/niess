@@ -255,9 +255,67 @@ def test_the_radial_slit_bank_is_an_aperture(bifrost):
     slits = find_child(instrument_group(structure), 'slits')
     assert get_attribute(slits, 'NX_class') == 'NXslit'
     assert len(value(slits, 'angles')) == 10       # nine channels and the monitor
-    assert value(slits, 'distance') == 0.4
+    # both knobs a calibration run sweeps are links, not numbers a run could contradict
+    assert get_attribute(find_child(slits, 'distance'), 'NX_class') == 'NXlog'
+    assert get_attribute(find_child(slits, 'offset'), 'NX_class') == 'NXlog'
 
 
 def test_the_frozen_structure_is_unchanged(bifrost):
     from .baseline import NEXUS_STRUCTURES, frozen_json, nexus_structures
     assert nexus_structures() == frozen_json(NEXUS_STRUCTURES)
+
+
+# -- run-time values and streams ----------------------------------------------
+
+def test_a_knob_is_a_link_not_a_number(teaching):
+    """A chopper's speed is not something the instrument has; it is something a run sets.
+
+    So the file says where to read it. `niess.nexus` decides this by folding a McCode
+    expression and seeing whether an instrument parameter survives; here the chopper
+    names the knob it declared.
+    """
+    structure = to_nexus_structure(teaching)
+    chopper = find_child(instrument_group(structure), 'chopper')
+    for field in ('rotation_speed', 'delay'):
+        linked = find_child(chopper, field)
+        assert get_attribute(linked, 'NX_class') == 'NXlog', field
+        assert linked['children'], f'{field} links nothing'
+
+
+def test_a_driven_edge_is_a_link(teaching):
+    """A jaw's edges are knobs; a plain aperture's opening is not."""
+    structure = to_nexus_structure(teaching)
+    jaw = find_child(instrument_group(structure), 'jaw')
+    assert get_attribute(find_child(jaw, 'left'), 'NX_class') == 'NXlog'
+    assert get_attribute(find_child(jaw, 'right'), 'NX_class') == 'NXlog'
+    # its height is fixed, so it stays a number
+    assert find_child(jaw, 'y_gap')['config']['values'] > 0
+
+
+def test_a_monitor_carries_its_stream(teaching):
+    """Histograms by default, which is what a frame monitor has always done."""
+    structure = to_nexus_structure(teaching)
+    monitor = find_child(instrument_group(structure), 'monitor')
+    data = find_child(monitor, 'data')
+    assert get_attribute(data, 'NX_class') == 'NXdata'
+    assert data['children'][0]['module'] == 'da00'
+
+
+def test_the_instrument_chooses_the_protocol():
+    """Events or histograms is a property of the setup, not of the monitor type."""
+    from msgspec.structs import replace
+    from niess.teaching import Primary
+
+    primary = Primary.from_calibration()
+    events = replace(primary.monitor,
+                     stream={'module': 'ev44', 'topic': 'teaching_events',
+                             'source': 'monitor'})
+    primary = replace(primary, monitor=events)
+    structure = to_nexus_structure(Instrument(
+        name='teaching', origin='sample_origin',
+        parts=(Mount(name='primary', content=primary),)))
+
+    data = find_child(find_child(instrument_group(structure), 'monitor'), 'data')
+    assert get_attribute(data, 'NX_class') == 'NXevent_data'
+    assert data['children'][0]['module'] == 'ev44'
+    assert data['children'][0]['config']['topic'] == 'teaching_events'
