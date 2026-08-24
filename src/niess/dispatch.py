@@ -34,8 +34,16 @@ class NiessRegistry(Generic[B]):
     rather than of whatever the process happened to import.
     """
 
-    def __init__(self, parent: 'NiessRegistry[B] | None' = None) -> None:
+    def __init__(self, parent: 'NiessRegistry[B] | None' = None,
+                 hooks: str | None = None) -> None:
         self.parent = parent
+        #: Name of the per-class hook family this target reads, if it has one.
+        #: ``hooks='mccode'`` makes ``__mccode_enter__``/``__mccode_leaf__``/
+        #: ``__mccode_exit__`` on a class serve as its translator, so the ordinary case
+        #: is to write the method and have it found. Registering still wins, which is
+        #: what a class you do not own needs, and what scoping a conversion needs so
+        #: that importing a module cannot change another instrument's output.
+        self.hooks = hooks
         self._source_type_builders: dict[str, B] = {}
         self._role_builders: dict[str, B] = {}
         self._component_type_builders: dict[str, B] = {}
@@ -110,8 +118,17 @@ class NiessRegistry(Generic[B]):
             if builder is not None:
                 return builder
         if self.parent is not None:
-            return self.parent.resolve_for_object(obj)
-        return None
+            found = self.parent.resolve_for_object(obj)
+            if found is not None:
+                return found
+        return self._class_hooks(obj)
+
+    def _class_hooks(self, obj) -> B | None:
+        """The object's own hooks for this target, if it defines any."""
+        if self.hooks is None:
+            return None
+        translator = ClassHooks(obj, self.hooks)
+        return translator if translator.handles() else None
 
     def _resolve_local(self, instance, provenance) -> B | None:
         if provenance is not None:
@@ -179,3 +196,43 @@ def merged_params(instance, params: dict[str, float] | None = None) -> dict[str,
         except Exception:
             continue
     return merged
+
+
+class ClassHooks:
+    """Lets a class describe its own conversion, next to the fields it converts.
+
+    A registry created with ``hooks='mccode'`` finds ``__mccode_enter__``,
+    ``__mccode_leaf__`` and ``__mccode_exit__`` on a class and uses them as its
+    translator, so nothing has to be registered for the ordinary case. One with
+    ``hooks='nexus'`` does the same for ``__nexus_*__``.
+
+    Both idioms are available for every target. Which suits depends on the target: a
+    format with imperative scaffolding to place -- McStas, with its coordinate frames
+    and per-particle state -- reads well as a method on the composite that needs it,
+    while one that is mostly a table of per-type mappings reads better registered.
+    """
+
+    EVENTS = ('enter', 'leaf', 'exit')
+
+    def __init__(self, obj, prefix: str):
+        self.obj = obj
+        self.prefix = prefix
+
+    def _hook(self, event: str):
+        return getattr(self.obj, f'__{self.prefix}_{event}__', None)
+
+    def handles(self) -> bool:
+        return any(self._hook(event) is not None for event in self.EVENTS)
+
+    def leaf(self, visit):
+        hook = self._hook('leaf')
+        return None if hook is None else hook(visit)
+
+    def enter(self, visit):
+        hook = self._hook('enter')
+        return None if hook is None else hook(visit)
+
+    def exit(self, visit, entered) -> None:
+        hook = self._hook('exit')
+        if hook is not None:
+            hook(visit, entered)

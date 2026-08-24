@@ -61,64 +61,16 @@ class McCodeContext(Context):
         opened.__exit__(None, None, None)
 
 
-class ObjectTranslator:
-    """Dispatches to the hooks a niess class defines for itself.
-
-    Everything a class contributes to a McStas instrument is written on the class:
-
-    ``__mccode__``
-        what the thing *is* -- one COMPONENT line and its parameters.
-    ``to_mccode``
-        override to contribute something to the instrument around it -- a run-time knob,
-        a value computed at start-up, a lookup table. Do the work, then delegate.
-    ``__mccode_enter__``
-        what a composite needs around its contents: a coordinate frame to hang them
-        from, a user variable they share, an ``%include`` to put them in.
-    ``__mccode_exit__``
-        closing whatever that opened.
-
-    A registered translator still wins. That is what an instrument-specific conversion
-    needs, and a class you do not own -- the same reason `niess.nexus` keeps BIFROST's
-    translators off the shared registry rather than letting an import change another
-    instrument's output. But nothing has to be registered for the ordinary case: write
-    the method on the class and it is found.
-    """
-
-    def __init__(self, obj):
-        self.obj = obj
-
-    @staticmethod
-    def handles(obj) -> bool:
-        return any(hasattr(obj, hook)
-                   for hook in ('__mccode_enter__', '__mccode_exit__',
-                                '__mccode_leaf__'))
-
-    def leaf(self, visit: Visit):
-        hook = getattr(self.obj, '__mccode_leaf__', None)
-        return None if hook is None else hook(visit)
-
-    def enter(self, visit: Visit):
-        hook = getattr(self.obj, '__mccode_enter__', None)
-        return None if hook is None else hook(visit)
-
-    def exit(self, visit: Visit, entered) -> None:
-        hook = getattr(self.obj, '__mccode_exit__', None)
-        if hook is not None:
-            hook(visit, entered)
-
-
 class NiessMcCodeRegistry(NiessRegistry):
     """Translator lookup for the McStas target.
 
-    Falls back to the object's own ``__mccode_*__`` hooks, so a class that describes its
-    own conversion needs no registration at all.
+    Created with ``hooks='mccode'``, so a class carrying ``__mccode_enter__``,
+    ``__mccode_leaf__`` or ``__mccode_exit__`` is its own translator and needs no
+    registration. See :class:`niess.dispatch.ClassHooks`.
     """
 
-    def resolve_for_object(self, obj):
-        registered = super().resolve_for_object(obj)
-        if registered is not None:
-            return registered
-        return ObjectTranslator(obj) if ObjectTranslator.handles(obj) else None
+    def __init__(self, parent=None):
+        super().__init__(parent=parent, hooks='mccode')
 
 
 MCCODE_REGISTRY = NiessMcCodeRegistry()

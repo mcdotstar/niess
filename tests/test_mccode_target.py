@@ -176,7 +176,8 @@ def test_a_class_describing_its_own_conversion_needs_no_registration():
     __mccode__ for what it is, to_mccode to contribute to the instrument around it,
     __mccode_enter__/__mccode_exit__ for what a composite needs around its contents.
     """
-    from niess.targets.mccode import MCCODE_REGISTRY, ObjectTranslator
+    from niess.dispatch import ClassHooks
+    from niess.targets.mccode import MCCODE_REGISTRY
     from niess.bifrost.channel import Channel
     from niess.bifrost.tank import Tank
     from niess.components.section import Section
@@ -187,7 +188,7 @@ def test_a_class_describing_its_own_conversion_needs_no_registration():
     from niess.bifrost.parameters import tank_parameters
     tank = Tank.from_calibration(tank_parameters())
     resolved = MCCODE_REGISTRY.resolve_for_object(tank)
-    assert isinstance(resolved, ObjectTranslator)
+    assert isinstance(resolved, ClassHooks)
     assert resolved.obj is tank
 
 
@@ -217,13 +218,13 @@ def test_a_registered_translator_wins_over_the_class(bifrost_primary):
     to_mccode(bifrost_primary, registry=scoped)
     assert entered, 'the registered translator was not used'
     # and the default is untouched
-    from niess.targets.mccode import ObjectTranslator
+    from niess.dispatch import ClassHooks
     from niess.bifrost import Primary
     from niess.bifrost.parameters import primary_parameters
     assert isinstance(
         MCCODE_REGISTRY.resolve_for_object(
             Primary.from_calibration(primary_parameters())),
-        ObjectTranslator)
+        ClassHooks)
 
 
 def test_the_target_module_names_no_component():
