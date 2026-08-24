@@ -175,3 +175,44 @@ def test_disc_chopper_opening_turns_match_the_slits():
     # the beam sits 90 degrees from the mark, and the openings are centred on 20, 120
     # and 360 -- so each turn is (90 - centre) wrapped into one revolution
     assert turns == pytest.approx([70.0, 330.0, 90.0])
+
+
+def test_the_slit_parameters_are_declared(tank):
+    """They were named by the emitted component and never defined.
+
+    Slit_radial_multi is emitted with offset=slitAngle*DEG2RAD and radius=slitDistance,
+    and neither appeared in the instrument's parameters or in any DECLARE block -- so
+    the generated C carried two undefined identifiers. They are what makes the slits
+    scannable: a calibration run sweeps a narrow slit across the analyzers.
+    """
+    from mccode_antlr import Flavor
+    from mccode_antlr.assembler import Assembler
+
+    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
+    assembler.component('sample_origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
+    tank.to_mccode(assembler, 'sample_origin')
+
+    declared = {p.name: p for p in assembler.instrument.parameters}
+    assert 'slitAngle' in declared and 'slitDistance' in declared
+    assert declared['slitAngle'].unit == '"degree"'
+    assert declared['slitDistance'].unit == '"m"'
+    assert float(str(declared['slitDistance'].value)) == pytest.approx(0.4)
+
+    slits = next(c for c in assembler.instrument.components if c.name == 'slits')
+    used = {p.name: str(p.value) for p in slits.parameters}
+    assert used['radius'] == 'slitDistance'
+    assert used['offset'] == 'DEG2RAD*slitAngle'
+
+
+def test_the_slits_start_inside_everything_they_scan(tank):
+    """0.4 m, against 0.5 m to the collimators and 1.19 m to the nearest analyzer."""
+    from scipp import concat, min as smin, norm
+
+    radius = tank.slit_radius
+    collimators = smin(concat(
+        [c.radial_filter_collimator.collimator_inner_radius for c in tank.channels],
+        dim='channel')).to(unit='m')
+    assert radius < collimators
+    assert radius < norm(tank.monitor.position).to(unit='m')
+    assert radius < norm(
+        tank.channels[4].pairs[0].analyzer.central_blade.position).to(unit='m')

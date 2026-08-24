@@ -288,3 +288,64 @@ def test_nothing_registered_is_not_the_same_as_declining(parts):
 
     _, tank = parts
     assert NiessRegistry().resolve_for_object(tank.monitor) is None
+
+
+# -- mounting a piece at an angle ---------------------------------------------
+
+def a_parameter(text):
+    from mccode_antlr.common import InstrumentParameter
+    return InstrumentParameter.parse(text)
+
+
+def test_a_mount_can_be_turned_by_a_run_time_parameter(parts):
+    """A BIFROST run turns the sample by a3 and the tank by a4.
+
+    Neither is known when the instrument is described, so the mounting holds the
+    parameter itself rather than an angle.
+    """
+    _, tank = parts
+    a4 = a_parameter('a4/"degree" = 0.0')
+    mount = Mount(name='tank', content=tank, relative_to='sample_origin',
+                  rotation=(0, a4, 0))
+    assert mount.is_turned()
+    assert mount.parameters() == (a4,)
+
+
+def test_an_unturned_mount_says_so(parts):
+    _, tank = parts
+    assert not Mount(name='tank', content=tank).is_turned()
+    assert not Mount(name='tank', content=tank, rotation=(0, 0, 0)).is_turned()
+    assert Mount(name='tank', content=tank, rotation=(0, 5.0, 0)).is_turned()
+
+
+def test_a_fixed_rotation_needs_no_parameters(parts):
+    _, tank = parts
+    mount = Mount(name='tank', content=tank, rotation=(0, 5.0, 0))
+    assert mount.parameters() == ()
+
+
+def test_an_instrument_collects_what_its_mountings_need(parts):
+    primary, tank = parts
+    a3, a4 = a_parameter('a3/"degree" = 0.0'), a_parameter('a4/"degree" = 0.0')
+    instrument = Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=primary),
+        Mount(name='tank', content=tank, relative_to='sample_origin',
+              rotation=(0, a4, 0)),
+    ))
+    assert instrument.mount_parameters() == (a4,)
+    assert a3 not in instrument.mount_parameters()
+
+
+def test_a_turned_mount_still_walks_and_names_the_same(parts):
+    """Turning a piece is a placement, not a change of what is in it."""
+    primary, tank = parts
+    a4 = a_parameter('a4/"degree" = 0.0')
+    turned = Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=primary),
+        Mount(name='tank', content=tank, relative_to='sample_origin',
+              rotation=(0, a4, 0)),
+    ))
+    names = {v.id: v.name for v in visits(turned)}
+    assert names['tank/channels[2]/radial_filter_collimator'] == \
+        'channel_3_radial_filter_collimator'
+    assert {v.id: v.frame for v in visits(turned)}['tank/monitor'] == 'sample_origin'

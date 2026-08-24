@@ -34,13 +34,45 @@ class Mount(msgspec.Struct):
     which the primary provides. A piece whose coordinates are already global, as the
     primary's are, hangs from nothing.
 
+    ``rotation`` turns the piece about the frame it hangs from, in degrees, in McCode's
+    ``ROTATED`` order -- the extrinsic x-y-z that :func:`niess.spatial.mccode_ordered_angles`
+    documents. Its three entries may be numbers or ``InstrumentParameter``s, because the
+    interesting ones are driven at run time: a BIFROST run turns the sample by a3 and
+    the detector tank by a4, and neither is known when the instrument is described.
+
+        Mount(name='tank', content=tank, relative_to='sample_origin',
+              rotation=(0, a4, 0))
+
+    A parameter here is not a special case downstream. McStas emits an ``Arm`` turned by
+    the named parameter and hangs the piece from it; NeXus emits a transformation whose
+    value links to that parameter's ``NXlog``, which is what
+    :mod:`niess.nexus.expression` already does for any run-time value. So the
+    intermediate frame is something a target *emits*, not something an instrument has to
+    model -- the same treatment the tank's ninety-nine internal coordinate frames get.
+
     The name is the path label its contents appear under, so a blade deep inside BIFROST
     is ``tank/channels[2]/pairs[0]/analyzer/blades[3]`` rather than starting at
     ``channels[2]``.
     """
+
+    def is_turned(self) -> bool:
+        """Whether this piece is turned at all, rather than merely offset."""
+        return self.rotation is not None and any(
+            not isinstance(angle, (int, float)) or angle != 0
+            for angle in self.rotation
+        )
+
+    def parameters(self):
+        """The run-time parameters this mounting depends on, if any."""
+        from mccode_antlr.common import InstrumentParameter
+        if self.rotation is None:
+            return ()
+        return tuple(angle for angle in self.rotation
+                     if isinstance(angle, InstrumentParameter))
     name: str
     content: Any
     relative_to: Optional[str] = None
+    rotation: Optional[tuple[Any, Any, Any]] = None
 
 
 class Instrument(Base):
@@ -83,6 +115,19 @@ class Instrument(Base):
     def __niess_child_frame__(self, label: str, default):
         """Each piece hangs where its Mount says, not where the one before it did."""
         return self.mount_of(label).relative_to or default
+
+    def mount_parameters(self):
+        """Every run-time parameter the mountings depend on, in part order.
+
+        A target emitting the frames has to declare these before naming them. Distinct
+        from ``parameters``, which is what the instrument declares of its own accord.
+        """
+        found = []
+        for mount in self.parts:
+            for parameter in mount.parameters():
+                if parameter not in found:
+                    found.append(parameter)
+        return tuple(found)
 
     def mount_of(self, label: str) -> Mount:
         """The Mount a top-level piece arrived in."""
