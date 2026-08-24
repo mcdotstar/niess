@@ -140,6 +140,13 @@ class Visit:
         establish = getattr(self.obj, '__niess_frame__', None)
         return self.frame if establish is None else establish(self)
 
+    def child(self, label: str) -> 'Visit':
+        """One named child visit, for a translator that drives its own subtree."""
+        for visit in self.children():
+            if visit.label == label:
+                return visit
+        raise KeyError(f'{self.id or "the instrument"} has no child {label!r}')
+
     def ancestor(self, kind) -> Optional['Visit']:
         """The nearest enclosing visit whose object is an instance of ``kind``.
 
@@ -186,7 +193,7 @@ def walk(instrument, registry, context: Optional[Context] = None):
     context = Context(instrument=instrument) if context is None else context
     context.registry = registry
     root = Visit(context=context, obj=instrument)
-    _drive(root, registry)
+    drive(root, registry)
     return context
 
 
@@ -194,7 +201,12 @@ def walk(instrument, registry, context: Optional[Context] = None):
 SKIP = object()
 
 
-def _drive(visit: Visit, registry) -> None:
+def drive(visit: Visit, registry) -> None:
+    """Run ``registry`` over one visit and its subtree.
+
+    Public so a composite that emits its own scaffolding between its children can keep
+    dispatching them through the registry rather than reaching past it.
+    """
     translator = registry.resolve_for_object(visit.obj)
     children = visit.children()
 
@@ -213,7 +225,7 @@ def _drive(visit: Visit, registry) -> None:
                 return
 
     for child in children:
-        _drive(child, registry)
+        drive(child, registry)
 
     if translator is not None:
         leave = getattr(translator, 'exit', None)
