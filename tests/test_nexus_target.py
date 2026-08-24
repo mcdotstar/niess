@@ -194,7 +194,8 @@ def test_bifrost_converts(bifrost):
     assert counted['NXdetector'] == 45     # one per arm, not one per tube
     assert counted['NXguide'] == 119
     assert counted['NXdisk_chopper'] == 6
-    assert sum(counted.values()) == 357
+    assert counted['NXslit'] == 1          # the radial slit bank
+    assert sum(counted.values()) == 358    # one group per emitted component
 
 
 def test_reading_the_tree_classifies_more_than_reading_the_instrument(bifrost):
@@ -241,16 +242,20 @@ def test_arc_and_triplet_come_from_the_tree(bifrost):
     assert numbers[0][0] == icd_pixel(resolution, 1, 2, 0, 0)
 
 
-def test_the_radial_slit_bank_is_the_one_thing_missing(bifrost):
-    """It is emitted by Tank's McStas hook and has no object of its own yet.
+def test_the_radial_slit_bank_is_an_aperture(bifrost):
+    """It was emitted by Tank's McStas hook, so only McStas could see it.
 
-    Which is the remaining piece of "the McStas-only artefacts become real objects":
-    the slits are a physical aperture, and no target but McStas can currently see them.
+    It is a real aperture that happens to be used for bookkeeping -- the emitted
+    component reports which opening a neutron passed and everything downstream is gated
+    on that -- rather than bookkeeping that happens to look like an aperture.
     """
     from niess.targets.nexus import BIFROST_REGISTRY
 
     structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
-    assert find_child(instrument_group(structure), 'slits') is None
+    slits = find_child(instrument_group(structure), 'slits')
+    assert get_attribute(slits, 'NX_class') == 'NXslit'
+    assert len(value(slits, 'angles')) == 10       # nine channels and the monitor
+    assert value(slits, 'distance') == 0.4
 
 
 def test_the_frozen_structure_is_unchanged(bifrost):

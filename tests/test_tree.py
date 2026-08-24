@@ -67,14 +67,15 @@ def test_tank_is_deliberately_finer_than_its_emission(tank):
     import collections
     kinds = collections.Counter(type(node).__name__ for _, node in leaves(tank))
     assert kinds == {'Crystal': 369, 'He3Tube': 135, 'RadialFilterCollimator': 9,
-                     'He3Monitor': 1, 'Frame': 99}
-    # the ninety-nine frames are declared nodes, not emission artefacts
-    assert sum(kinds.values()) == 613
+                     'He3Monitor': 1, 'Frame': 99, 'RadialSlitBank': 1}
+    # the ninety-nine frames and the slit bank are declared nodes, not artefacts of
+    # emitting McStas
+    assert sum(kinds.values()) == 614
 
 
 def test_the_composites_have_the_children_we_think_they_do(tank):
     assert [label for label, _ in tank.__niess_children__()] == \
-           ['monitor'] + [f'channels[{i}]' for i in range(9)]
+           ['slits', 'monitor'] + [f'channels[{i}]' for i in range(9)]
     channel = tank.channels[0]
     assert [label for label, _ in channel.__niess_children__()] == \
            ['cassette', 'radial_filter_collimator'] + [f'pairs[{i}]' for i in range(5)]
@@ -155,7 +156,7 @@ def test_the_tank_has_ten_paths_out_of_the_sample(tank):
     """
     graph = tank.to_graph()
     roots = [node for node in graph if graph.in_degree(node) == 0]
-    assert len(roots) == 1
+    assert roots == ['slits'], 'the slits are what choose, so they are where flow splits'
     branches = sorted(graph.successors(roots[0]))
     assert len(branches) == 10
     assert branches == sorted(
@@ -169,8 +170,7 @@ def test_the_elastic_monitor_is_reachable_from_the_sample(tank):
 
     graph = tank.to_graph()
     assert nx.number_weakly_connected_components(graph) == 1
-    root, = [node for node in graph if graph.in_degree(node) == 0]
-    assert nx.has_path(graph, root, 'monitor')
+    assert graph.has_edge('slits', 'monitor')
 
 
 def test_the_radial_filter_comes_before_a_channels_analyzers(tank):

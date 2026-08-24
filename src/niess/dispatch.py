@@ -95,33 +95,73 @@ class NiessRegistry(Generic[B]):
         """Return the builder for a niess *object*, or ``None`` if none is registered.
 
         The companion to :meth:`resolve_builder`, which resolves against an emitted
-        McStas instance. Same two meaningful tiers, read off the object rather than off
-        a metadata blob it left behind:
+        McStas instance. Same tiers, read off the object rather than off a metadata blob
+        it left behind, most specific first:
 
-        1. the niess class, walking the MRO -- so registering against ``Component``
-           catches every component that does not want anything more specific,
-        2. the role, if the object declares one.
+        1. a translator registered for the object's exact class,
+        2. the object's own hooks for this target, if it has any (see
+           :class:`ClassHooks`) -- as specific as (1), because a class describing its own
+           conversion is describing *its* conversion,
+        3. a translator registered for an ancestor class, nearest first,
+        4. a translator registered for the object's role.
 
-        There is no third tier: a McCode component-type name is something an object
+        A registration for a base class does not beat a hook on the class itself:
+        registering something for ``Component`` says what to do with components in
+        general, and a component that says what to do with itself is more specific than
+        that.
+
+        There is no McCode-component-type tier: a type name is something an object
         acquires by being emitted, and nothing here has been.
 
         As everywhere else, ``None`` means *unhandled*; it never means "handled, emit
         nothing".
         """
-        for klass in type(obj).__mro__:
-            builder = self._source_type_builders.get(niess_source_type(klass))
+        exact = self._exact(obj)
+        if exact is not None:
+            return exact
+        if self.hooks is not None and self._defines_hooks(type(obj)):
+            return ClassHooks(obj, self.hooks)
+        return self._inherited(obj)
+
+    def _exact(self, obj) -> B | None:
+        """A translator registered for this object's own class, here or in a parent."""
+        found = self._source_type_builders.get(niess_source_type(type(obj)))
+        if found is not None:
+            return found
+        return None if self.parent is None else self.parent._exact(obj)
+
+    def _registered(self, klass) -> B | None:
+        found = self._source_type_builders.get(niess_source_type(klass))
+        if found is not None:
+            return found
+        return None if self.parent is None else self.parent._registered(klass)
+
+    def _inherited(self, obj) -> B | None:
+        """A translator for a base class, or the hooks a base class defines, nearest first.
+
+        Walking the MRO once and checking both at each step is what makes "most specific
+        wins" mean the same thing for either. Registering something for ``Component``
+        and defining ``__mccode_enter__`` on ``Section`` are both statements about a
+        base class; which applies is which base class is nearer, not which mechanism was
+        used. A registration wins a tie, so a conversion can still be overridden for a
+        class that describes itself.
+        """
+        for klass in type(obj).__mro__[1:]:
+            builder = self._registered(klass)
             if builder is not None:
                 return builder
+            if self.hooks is not None and self._defines_hooks(klass):
+                return ClassHooks(obj, self.hooks)
         role = getattr(obj, '__mccode_role__', None)
         if role is not None:
             builder = self._role_builders.get(role())
             if builder is not None:
                 return builder
-        if self.parent is not None:
-            found = self.parent.resolve_for_object(obj)
-            if found is not None:
-                return found
-        return self._class_hooks(obj)
+        return None if self.parent is None else self.parent._inherited(obj)
+
+    def _defines_hooks(self, klass) -> bool:
+        return any(f'__{self.hooks}_{event}__' in klass.__dict__
+                   for event in ClassHooks.EVENTS)
 
     def _class_hooks(self, obj) -> B | None:
         """The object's own hooks for this target, if it defines any."""

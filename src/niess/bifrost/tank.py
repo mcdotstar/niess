@@ -9,6 +9,13 @@ from niess.components.component import Base
 SLIT_BOUNDARY_MARGIN = 1e-6
 
 
+def _no_rotation():
+    """No turn at all, as a fresh Variable every time; see :func:`_origin`."""
+    from scipp import vector
+    from scipp.spatial import rotations_from_rotvecs
+    return rotations_from_rotvecs(vector([0., 0., 0.], unit='degree'))
+
+
 def _origin():
     """The sample position, as a fresh Variable every time.
 
@@ -266,41 +273,15 @@ class Tank(Base):
         return [concat(q, dim='channel') for q in zip(*[c.rtp_parameters(sample) for c in self.channels])]
 
     def __mccode_enter__(self, visit):
-        """The radial slits, before the monitor and the channels the walk then emits.
+        """Only the monitor's gate; the slits emit themselves.
 
-        The slits are how a neutron leaving the sample gets tagged with the channel it
-        entered: the EXTEND turns the slit index into ``secondary_cassette``, which
-        every channel's components are then gated on. That tagging is per-particle state
-        in a Monte Carlo trace, so it is McStas's business and appears nowhere else.
+        The elastic monitor has an opening of its own, added last, so the tag it waits
+        for is the count of them.
         """
-        from ..mccode import (add_niess_metadata, ensure_registry,
-                              ensure_runtime_line, ensure_user_var)
-        assembler = visit.context.assembler
-        ensure_registry(assembler, "mcdotstar/mcstas-slit-radial@main")
-        ensure_user_var(assembler, 'int', 'secondary_cassette',
-                        'Secondary spectrometer analyzer cassette index')
-        # what makes the slits scannable: a calibration run sweeps a narrow slit across
-        # the analyzers, which is an angle at a radius
-        ensure_runtime_line(assembler, 'slitAngle/"degree" = 0.0')
-        ensure_runtime_line(assembler, f'slitDistance/"m" = {self.slit_radius.value}')
-
-        positions = self.slit_angles
-        declared = 'slits_positions'
-        assembler.declare_array('double', declared, positions, source=__file__, line=0)
-        slits = assembler.component('slits', 'Slit_radial_multi',
-                                    at=((0, 0, 0), visit.frame))
-        add_niess_metadata(slits, self, source_name='slits',
-                           role='physical-component')
-        slits.set_parameters(slit_width=self.slit_width, offset='slitAngle*DEG2RAD',
-                             number=len(positions), radius='slitDistance', height=0.2,
-                             positions=declared)
-        # `slit` is >=0 iff scattered
-        slits.EXTEND('secondary_cassette = (SCATTERED) ? 1 + slit : -1;')
-
-        # the monitor's slit was added last, so it is the last index
         visit.context.whens[f'{visit.id}/monitor'] = \
-            f'secondary_cassette == {len(positions)}'
-        return slits
+            f'secondary_cassette == {len(self.slit_angles)}'
+        return None
+
 
     def to_mccode(
             self,
@@ -310,35 +291,9 @@ class Tank(Base):
             flat: bool = True,
             **kwargs
     ):
-        from ..mccode import (add_niess_metadata, ensure_registry, ensure_runtime_line,
-                              ensure_user_var)
-        ensure_registry(assembler, "mcdotstar/mcstas-slit-radial@main") # for slits
-        ensure_user_var(assembler, 'int', 'secondary_cassette', 'Secondary spectrometer analyzer cassette index')
-
-        # The emitted Slit_radial_multi drives its position from these two, and nothing
-        # declared them -- the instrument named slitAngle and slitDistance and never
-        # said what they were, so the generated C had two undefined identifiers in it.
-        # They are what makes the slits scannable: a calibration run sweeps a narrow
-        # slit across the analyzers, which is angle, at some radius.
-        ensure_runtime_line(assembler, 'slitAngle/"degree" = 0.0')
-        ensure_runtime_line(
-            assembler, f'slitDistance/"m" = {self.slit_radius.value}'
-        )
-
-        positions = self.slit_angles
-        cov_x = self.slit_width
-
-        slits_name = 'slits'
-        declared_positions = f'{slits_name}_positions'
-        assembler.declare_array('double', declared_positions, positions, source=__file__, line=173)
-        slits = assembler.component(slits_name, 'Slit_radial_multi', at=((0, 0, 0,), sample))
-        add_niess_metadata(slits, self, source_name=slits_name, role='physical-component')
-        slits.set_parameters(slit_width=cov_x, offset='slitAngle*DEG2RAD',
-                             number=len(positions), radius='slitDistance', height=0.2,
-                             positions=declared_positions)
-        # `slit` is >=0 iff scattered.
-        # This could be `secondary_cassette = 1 + slit;` unambiguously
-        slits.EXTEND("secondary_cassette = (SCATTERED) ? 1 + slit : -1;")
+        # The slits emit themselves, along with the run-time knobs, the array of
+        # angles and the per-particle variable every channel below is gated on.
+        self.slit_bank().to_mccode(assembler, at=sample, rotate=sample)
 
         # Insert the Bragg Peak elastic monitor -- it is outside the slits.
         # Rotated relative to `sample` as well as positioned there: `sample` is the
@@ -347,36 +302,60 @@ class Tank(Base):
         # ABSOLUTE and the monitor would stay put as the tank rotated around it.
         mon = self.monitor.to_mccode(assembler, at=sample, rotate=sample)
         # The slit for this monitor was added last, so it _is_ the last one
-        mon.WHEN(f"secondary_cassette == {len(positions)}")
+        mon.WHEN(f"secondary_cassette == {len(self.slit_angles)}")
 
         for index, channel in enumerate(self.channels):
             name = f"channel_{1 + index}"
             when = f"{1 + index} == secondary_cassette"
             channel.to_mccode(assembler, sample, name=name, when=when, settings=settings, flat=flat, **kwargs)
 
+    def slit_bank(self):
+        """The radial slits, as the aperture they are.
+
+        Derived rather than stored: every number in it comes from where the channels
+        are, so a calibration that moves a channel moves the slit that tags it.
+        """
+        from scipp import array, scalar
+        from ..components.slitbank import RadialSlitBank
+        return RadialSlitBank(
+            name='slits',
+            stem='slit',   # the knobs are slitAngle and slitDistance
+            position=_origin(),
+            orientation=_no_rotation(),
+            angles=array(values=self.slit_angles, dims=['slit'], unit='radian'),
+            width=scalar(self.slit_width, unit='radian'),
+            radius=self.slit_radius,
+            height=scalar(0.2, unit='m'),
+        )
+
+    def __niess_children__(self):
+        """The slits, then the monitor, then the channels -- which is emission order."""
+        return (('slits', self.slit_bank()), ('monitor', self.monitor),
+                *((f'channels[{i}]', c) for i, c in enumerate(self.channels)))
+
     def __niess_flow__(self, graph, path):
         """Ten paths leave the sample: nine channels and the elastic monitor.
 
-        This is the case McCode cannot state. Its instrument is a list, so the only
-        flow it can express is declaration order, and a neutron leaving the sample here
-        takes exactly one of ten branches. The radial slits are what choose -- the
-        emitted Slit_radial_multi tags the neutron with a channel, or with the monitor's
-        own slit, and everything downstream is gated on that tag. NeXus can say this,
-        through each group's `inputs` and `outputs`, which is why it is worth knowing.
+        This is the case McCode cannot state. Its instrument is a list, so the only flow
+        it can express is declaration order, and a neutron leaving the sample here takes
+        exactly one of ten branches. NeXus can say it, through each group's `inputs` and
+        `outputs`, which is why it is worth knowing.
 
-        The fan-out point is this node itself, standing in for the slit bank until the
-        slits become an object of their own.
+        The radial slits are what choose, so they are where the branches start: the
+        emitted component tags a neutron with a channel, or with the monitor's own
+        opening, and everything downstream is gated on that tag.
         """
-        from ..tree import node_id
-        here = node_id(path)
-        graph.add_node(here, kind=type(self).__name__)
-        exits: tuple[str, ...] = ()
-        for label, child in self.__niess_children__():
-            entries, child_exits = child.__niess_flow__(graph, path + (label,))
-            for entry in entries:
-                graph.add_edge(here, entry)
-            exits = exits + child_exits
-        return (here,), exits
+        (slit_label, slits), *rest = self.__niess_children__()
+        entries, exits = slits.__niess_flow__(graph, path + (slit_label,))
+        out: tuple[str, ...] = ()
+        for label, child in rest:
+            child_entries, child_exits = child.__niess_flow__(graph, path + (label,))
+            for source in exits:
+                for target in child_entries:
+                    graph.add_edge(source, target)
+            out = out + child_exits
+        return entries, out
+
 
     def efu_calibration(self):
         """Build the serializable representation of the EFU calibration data needed

@@ -53,7 +53,7 @@ def seen(bifrost):
 def test_the_instrument_is_one_object(bifrost):
     from niess.tree import leaves
     assert [label for label, _ in bifrost.__niess_children__()] == ['primary', 'tank']
-    assert len(leaves(bifrost)) == 771  # 158 primary + 613 tank
+    assert len(leaves(bifrost)) == 772  # 158 primary + 614 tank
 
 
 def test_the_whole_instrument_has_one_connected_flow(bifrost):
@@ -62,8 +62,9 @@ def test_the_whole_instrument_has_one_connected_flow(bifrost):
 
     graph = bifrost.to_graph()
     assert nx.number_weakly_connected_components(graph) == 1
-    assert list(graph.successors('primary/sample_origin')) == ['tank']
-    assert len(list(graph.successors('tank'))) == 10
+    # the tank's entry is its radial slits, which is where the ten branches start
+    assert list(graph.successors('primary/sample_origin')) == ['tank/slits']
+    assert len(list(graph.successors('tank/slits'))) == 10
 
 
 def test_of_builds_from_keywords():
@@ -78,14 +79,14 @@ def test_of_builds_from_keywords():
 def test_every_derived_component_name_is_one_the_emission_uses(bifrost, emitted_names):
     """The acceptance test for the naming rule.
 
-    168 of BIFROST's 358 components have a niess Component behind them; the other 190
-    are coordinate frames, the two aggregates per arm, and the radial slits, none of
-    which is a Component and all of which the McStas translator names for itself.
+    169 of BIFROST's 358 components have a niess Component behind them; the other 189
+    are the coordinate frames and the two aggregates per arm, neither of which is a
+    Component and both of which the McStas translator names for itself.
     """
     walked = [visit.name for visit in visits(bifrost)
               if isinstance(visit.obj, Component) and not visit.obj.__niess_children__()]
-    assert len(walked) == 168
-    assert len(set(walked)) == 168, 'names must be unique across an instrument'
+    assert len(walked) == 169
+    assert len(set(walked)) == 169, 'names must be unique across an instrument'
     assert set(walked) <= set(emitted_names)
 
 
