@@ -3,9 +3,10 @@
 They used to be registered on the shared ``DEFAULT_NEXUS_REGISTRY`` at import time,
 which made the opt-in per *process* rather than per conversion: once anything imported
 ``niess.nexus.bifrost``, every later conversion in that process picked up BIFROST's
-translators. That is not hypothetical -- ``niess.cspec`` builds ``Detector_tubes`` too,
-so a CSPEC instrument would silently inherit BIFROST's ICD pixel numbering and detector
-topic. Now each instrument has its own registry, extending the default one.
+translators. That is not hypothetical -- ``Detector_tubes`` is not a BIFROST-only
+component, so another instrument using it would silently inherit BIFROST's ICD pixel
+numbering and detector topic. Now each instrument has its own registry, extending the
+default one.
 """
 import pytest
 
