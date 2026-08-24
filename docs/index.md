@@ -36,7 +36,7 @@ pip install niess
 
 - **I have an instrument and need NeXus**
 
-    Convert a niess instrument — or any `.instr` file — to ESS NeXus Structure JSON.
+    Convert a niess instrument to ESS NeXus Structure JSON.
 
     [Produce NeXus Structure JSON](how-to/nexus-structure.md) ·
     [Write translators](how-to/custom-nexus-registry.md)

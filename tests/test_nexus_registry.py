@@ -133,23 +133,3 @@ def test_detector_tubes_translation_follows_the_registry(registry_name):
         assert get_attribute(tubes, 'NX_class') == 'NXcoordinate_system'
         assert find_child(tubes, 'data') is None
 
-
-def test_load_registry_imports_by_module_and_name():
-    from niess.nexus.bifrost import BIFROST_REGISTRY
-    from niess.nexus.cli import load_registry
-
-    assert load_registry(None) is None
-    assert load_registry('niess.nexus.bifrost:BIFROST_REGISTRY') is BIFROST_REGISTRY
-
-
-@pytest.mark.parametrize('specification', ['niess.nexus.bifrost', 'no_colon_here', ':X'])
-def test_load_registry_rejects_malformed_specifications(specification):
-    from niess.nexus.cli import load_registry
-    with pytest.raises(ValueError, match='module:attribute'):
-        load_registry(specification)
-
-
-def test_load_registry_reports_a_missing_attribute():
-    from niess.nexus.cli import load_registry
-    with pytest.raises(ValueError, match='defines no NOT_A_REGISTRY'):
-        load_registry('niess.nexus.bifrost:NOT_A_REGISTRY')

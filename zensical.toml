@@ -24,7 +24,6 @@ nav = [
   ] },
   { "Reference" = [
     { "Components" = "reference/components.md" },
-    { "Command line" = "reference/cli.md" },
     { "API: niess.nexus" = "reference/api/nexus.md" },
     { "API: niess.dispatch" = "reference/api/dispatch.md" },
     { "API: niess.tof" = "reference/api/tof.md" },

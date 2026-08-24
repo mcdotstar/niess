@@ -45,14 +45,6 @@ That yields `NXmoderator`, `NXguide`, `NXdisk_chopper`, `NXaperture`, `NXmonitor
 to an `NXlog`, because `chopperspeed` is settable at run time — see
 [constants become values, run-time knobs become links](how-to/nexus-structure.md#constants-become-values-run-time-knobs-become-links).
 
-## Or from the command line
-
-```console
-$ instr2ns my_instrument.instr --origin sample --indent 2 -o structure.json
-```
-
-`instr2ns` works on any `.instr` file, whether or not niess built it.
-
 ## Next
 
 - [Core concepts](concepts.md) — what a component, a section and a calibration actually are.

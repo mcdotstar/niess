@@ -15,47 +15,27 @@ runs on the assembled `mccode_antlr` instrument, not on niess objects.
 explicitly: without it niess looks for a component of McStas category `samples`, warns
 if there is none, and falls back to absolute positions.
 
-## From an existing `.instr`
+## Reading an existing `.instr`
 
-Nothing about the converter requires niess. `load_instr` reads `.instr`, `.json` and
-`.msgpack`:
+niess converts **niess instruments**. `to_nexus_structure` expects an instrument niess
+built; translating a `.instr` that niess did not build is not supported, and the
+`instr2ns` command that used to do it has been removed.
+
+`load_instr` remains, because *reading* a file is useful even though translating it is
+not. It reads `.instr`, `.json` and `.msgpack`, and returns an `mccode_antlr` `Instr`:
 
 ```python
-from niess.nexus import load_instr, to_nexus_structure
+from niess.nexus import load_instr
 
-structure = to_nexus_structure(load_instr('my_instrument.instr'), origin='sample')
+original = load_instr('my_instrument.instr')
+for instance in original.components:
+    print(instance.name, instance.type.name, instance.at_relative)
 ```
 
-What you get depends on how much the converter recognises. Component types it knows
-(guides, choppers, slits, monitors — see [the component reference](../reference/components.md))
-become their proper `NX` class with parameters filled in. Anything else falls back to
-its McStas category, then to `NXcoordinate_system` if it has a position, and finally to
-`NXnote`. A fallback group still carries correct placement, so the geometry is right
-even where the classification is generic.
-
-To do better than the fallback, [write a translator](custom-nexus-registry.md).
-
-## From the command line
-
-```console
-$ instr2ns my_instrument.instr --origin sample --indent 2 -o structure.json
-```
-
-| flag | effect |
-| --- | --- |
-| `--origin` | the component to treat as the coordinate origin |
-| `--registry` | an instrument-specific registry, as `module:ATTRIBUTE` |
-| `--nxlog-root` | where run-time parameter values are published (default `/entry/parameters`) |
-| `--absolute-depends-on` | write `depends_on` targets as absolute NeXus paths |
-| `--indent` | pretty-print the JSON |
-| `-o`, `--output` | write to a file instead of standard output |
-
-For BIFROST, pass its registry or the analyzers and detectors fall back:
-
-```console
-$ instr2ns bifrost.json --origin sample_origin \
-    --registry niess.nexus.bifrost:BIFROST_REGISTRY
-```
+The intended use is checking a niess submodule against the hand-written file it replaces
+— comparing resolved positions rather than text, since the two will never be
+byte-identical. See [verify a translation](../examples/verify_translation.py) and
+[build a new instrument submodule](new-instrument-submodule.md).
 
 ## Reading the output
 

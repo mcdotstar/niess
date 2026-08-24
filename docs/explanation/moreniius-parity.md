@@ -34,7 +34,7 @@ separate, human step.
 | `writer.py::convert_types` | `nodes.py::convert_type` | Minus the `NXattr`/`NXfield` branches |
 | `writer.py::_to_absolute` | `nodes.py::to_absolute` + `absolutize_depends_on` | The recursive rewrite is now its own pass rather than part of serialization |
 | `nxoff.py` — `NXoff.from_wedge`, `sphere`, `to_nexus` | `off.py` | |
-| `nexus_structure.py` — `load_instr`, `convert` (the `instr2ns` script) | `cli.py`, same `instr2ns` entry point | Gains `--origin`, `--nxlog-root`, `--absolute-depends-on`, `--indent`, `-o` |
+| `nexus_structure.py` — `load_instr` | `loader.py` | Reading a file survives; see below for `convert` |
 | `MorEniius.from_mccode` / `to_nexus_structure` | `to_nexus_structure(instr, ...)` | One function; there was never a reason for the two-stage object |
 
 ## Subsumed — the need disappeared with `nexusformat`
@@ -60,7 +60,8 @@ separate, human step.
 | `utils.get_mcstasscript_component_eniius_data`, `decode_component_eniius_data`, `mccode_component_eniius_data` | The legacy `eniius_data` escape hatch: a JSON blob under METADATA name `eniius_data`/mimetype `json`, or scraped out of an EXTEND block with a regex. niess never used it (only a stale TODO in `components/monitors.py` mentioned it), and `nexus_structure_stream_data` supersedes it for the streaming case it was mostly used for. If a non-niess instrument ever needs arbitrary extra NeXus content per component, add it as a fourth tier in `streams.resolve_stream` rather than reviving the EXTEND-block regex. |
 | `nxoff.NXoff.from_nexus`, `get_guide_params`, `_get_width_height` | Read geometry *back* out of NeXus; no consumer in the conversion path. |
 | `path_navigator.NexusStructureNavigator` | A reader for navigating finished NeXus Structure JSON — a consumer-side convenience, not conversion. `nodes.find_child` / `nodes.get_attribute` cover what the tests need. Worth porting properly if users want it. |
-| `Writer.to_json` | Wrote the structure to a file. `cli.py -o` covers the CLI case; callers hold a plain dict and can `json.dump` it. |
+| `Writer.to_json` | Wrote the structure to a file. Callers hold a plain dict and can `json.dump` it. |
+| `nexus_structure.convert` — the `instr2ns` script | **Removed.** It translated an instrument niess did not build, which meant every target carried a second front-end forever. niess translates niess instruments; a `.instr` is not the source of truth in a niess world. `load_instr` survives for *reading* a file — see [Translate a McStas `.instr`](../how-to/translate-an-instr.md), which is the migration story this served. |
 
 ## Dependencies
 

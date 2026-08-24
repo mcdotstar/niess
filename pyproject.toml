@@ -50,8 +50,6 @@ docs = [
   'mkdocstrings-python>=2.0.6',
 ]
 
-[project.scripts]
-instr2ns = "niess.nexus.cli:convert"
 
 [project.urls]
 Documentation = "https://mcdotstar.github.io/niess/"
