@@ -144,13 +144,26 @@ def instrument_structure(instrument) -> dict:
     }
 
 
-def instrument_graph(instrument) -> list[list[str]]:
-    """Particle-flow edges, sorted so the freeze does not pin iteration order."""
-    graph = instrument.build_flow_graph()
-    return sorted([source, target] for source, target in graph.edges())
+def _graph_data(graph) -> dict:
+    """Nodes and edges, sorted so the freeze does not pin iteration order.
+
+    Nodes as well as edges: freezing edges alone loses any node that has none, and the
+    tank has one -- the elastic monitor is attached to `upstream`, which is None at the
+    top level, so it ends up isolated. The first version of this baseline recorded 199
+    nodes for a 200-node graph and said nothing about it.
+    """
+    return {
+        'nodes': sorted(graph.nodes()),
+        'edges': sorted([source, target] for source, target in graph.edges()),
+    }
 
 
-def niess_tank_graph() -> list[list[str]]:
+def instrument_graph(instrument) -> dict:
+    """The particle flow through an emitted instrument."""
+    return _graph_data(instrument.build_flow_graph())
+
+
+def niess_tank_graph() -> dict:
     """``Tank.add_to_graph``'s own view of the secondary spectrometer.
 
     Frozen because the walk rewrite deletes the six hand-written ``add_to_graph``
@@ -168,7 +181,7 @@ def niess_tank_graph() -> list[list[str]]:
 
     graph = DiGraph()
     Tank.from_calibration(tank_parameters()).add_to_graph(None, 'tank', graph)
-    return sorted([source, target] for source, target in graph.edges())
+    return _graph_data(graph)
 
 
 def niess_objects() -> dict[str, str]:

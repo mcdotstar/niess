@@ -20,8 +20,17 @@ class Section(msgspec.Struct, tag=True):
         they are deliberately invisible to every introspection method here. Filtering
         in one place keeps the name, type and item views consistent with each other
         however many there are, and wherever they are declared.
+
+        The same rule applies to a Base, so it lives in :mod:`niess.tree` and this
+        defers to it -- Section is not a Base, and the two would otherwise drift.
         """
-        return [fi for fi in fields(cls) if not fi.name.startswith('_')]
+        from ..tree import component_fields
+        return component_fields(cls)
+
+    def __niess_children__(self):
+        """This section's components, in declaration order -- which is beam order."""
+        from ..tree import default_children
+        return default_children(self)
 
     @classmethod
     @lru_cache(maxsize=None)

@@ -270,6 +270,15 @@ class EllipticGuide(Guide):
     horizontal: PartialEllipse
     vertical:  PartialEllipse
 
+    def __niess_children__(self):
+        """None: `horizontal` and `vertical` describe this guide's cross-section.
+
+        PartialEllipse is a Base, so the default rule would report them as two child
+        components -- and a BIFROST primary would walk 187 leaves where it emits 158
+        components. They are the shape of this guide, not things inside it.
+        """
+        return ()
+
     @classmethod
     def from_calibration(cls, cal: dict):
         from scipp import sum, vector as v

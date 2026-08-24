@@ -61,6 +61,15 @@ class Base(msgspec.Struct):
                     return False
         return True
 
+    def __niess_children__(self):
+        """This object's child components, in declaration order.
+
+        See :mod:`niess.tree`. Overriding is a last resort: the default describes every
+        composite in the codebase except one.
+        """
+        from ..tree import default_children
+        return default_children(self)
+
     def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
         graph.add_node(name)
         if upstream is not None:
