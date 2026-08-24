@@ -1,5 +1,13 @@
 """BIFROST conversion parity against the pre-port moreniius baseline.
 
+Both sides of this comparison are frozen on purpose, and it should stay that way. The
+input is `bifrost.instr.json.gz`, a BIFROST instrument as it stood in August 2026 -- it
+still names its choppers `...phase`, which 0.6.0 renamed to `delay` -- and the golden is
+what `moreniius` produced for exactly that. Rebuilding the input from the live tree
+would compare today's instrument against yesterday's output and prove nothing about the
+port. What tracks the live tree is `tests/data/baseline/nexus.json.gz`.
+
+
 ``tests/data/bifrost_nexus_structure_golden.json`` is what ``moreniius`` produced for
 ``bifrost.instr.json`` before this port; ``bifrost_nexus_structure_golden.md`` explains
 how it was captured and classifies every remaining difference.

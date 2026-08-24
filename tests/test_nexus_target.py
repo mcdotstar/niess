@@ -165,3 +165,94 @@ def test_registering_wins_over_the_class():
     scoped = NiessNexusRegistry(parent=NEXUS_REGISTRY)
     scoped.register(DiscChopper)('mine')
     assert scoped.resolve_for_object.__self__ is scoped
+
+
+# -- BIFROST ------------------------------------------------------------------
+
+@pytest.fixture(scope='module')
+def bifrost():
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+    return Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
+        Mount(name='tank', content=Tank.from_calibration(tank_parameters()),
+              relative_to='sample_origin'),
+    ))
+
+
+def classes(structure):
+    import collections
+    return collections.Counter(
+        get_attribute(g, 'NX_class') for g in instrument_group(structure)['children']
+        if g.get('type') == 'group')
+
+
+def test_bifrost_converts(bifrost):
+    from niess.targets.nexus import BIFROST_REGISTRY
+    counted = classes(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
+    assert counted['NXcrystal'] == 45      # one per arm, not one per blade
+    assert counted['NXdetector'] == 45     # one per arm, not one per tube
+    assert counted['NXguide'] == 119
+    assert counted['NXdisk_chopper'] == 6
+    assert sum(counted.values()) == 357
+
+
+def test_reading_the_tree_classifies_more_than_reading_the_instrument(bifrost):
+    """The windows and collimators are recognisable here and were not before.
+
+    A Filter with nothing to say emits as a McStas Arm, so an instrument-reading
+    converter sees an Arm and files it under NXcoordinate_system. The tree says Filter.
+    """
+    from mccode_antlr import Flavor
+    from mccode_antlr.assembler import Assembler
+    from niess.nexus import to_nexus_structure as from_instrument
+    from niess.nexus.bifrost import BIFROST_REGISTRY as INSTRUMENT_REGISTRY
+    from niess.targets.nexus import BIFROST_REGISTRY
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+
+    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
+    Primary.from_calibration(primary_parameters()).to_mccode(assembler)
+    Tank.from_calibration(tank_parameters()).to_mccode(assembler, 'sample_origin')
+    old = classes(from_instrument(assembler.instrument, origin='sample_origin',
+                                  registry=INSTRUMENT_REGISTRY))
+    new = classes(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
+
+    # what both agree on
+    for shared in ('NXcrystal', 'NXdetector', 'NXguide', 'NXdisk_chopper',
+                   'NXmonitor', 'NXaperture', 'NXmoderator'):
+        assert old[shared] == new[shared], shared
+
+    assert old['NXfilter'] == 0 and new['NXfilter'] == 22
+    assert old['NXcollimator'] == 0 and new['NXcollimator'] == 9
+    # and the 31 that gains, plus the radial slit bank, are what it had as unclassified
+    assert old['NXcoordinate_system'] - new['NXcoordinate_system'] == 32
+
+
+def test_arc_and_triplet_come_from_the_tree(bifrost):
+    """Not from a regex over a generated WHEN clause."""
+    from niess.targets.nexus import BIFROST_REGISTRY, icd_pixel
+
+    structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
+    detector = find_child(instrument_group(structure), 'channel_3_2_triplet')
+    numbers = value(detector, 'detector_number')
+    # channel 3 is cassette index 2, arm 2 is arc index 1
+    resolution = len(numbers[0])
+    assert numbers[0][0] == icd_pixel(resolution, 1, 2, 0, 0)
+
+
+def test_the_radial_slit_bank_is_the_one_thing_missing(bifrost):
+    """It is emitted by Tank's McStas hook and has no object of its own yet.
+
+    Which is the remaining piece of "the McStas-only artefacts become real objects":
+    the slits are a physical aperture, and no target but McStas can currently see them.
+    """
+    from niess.targets.nexus import BIFROST_REGISTRY
+
+    structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
+    assert find_child(instrument_group(structure), 'slits') is None
+
+
+def test_the_frozen_structure_is_unchanged(bifrost):
+    from .baseline import NEXUS_STRUCTURES, frozen_json, nexus_structures
+    assert nexus_structures() == frozen_json(NEXUS_STRUCTURES)

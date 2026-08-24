@@ -191,6 +191,33 @@ def niess_flow_graphs() -> dict:
     }
 
 
+def nexus_structures() -> dict:
+    """NeXus Structure JSON built from the tree, for each instrument.
+
+    Distinct from tests/data/bifrost_nexus_structure_golden.json.gz, which is a frozen
+    historical artefact: it pins what `moreniius` produced for a BIFROST instrument
+    captured in August 2026, and its input instrument is frozen alongside it precisely
+    so the comparison stays meaningful. This one tracks the live tree.
+    """
+    from niess.instrument import Instrument, Mount
+    from niess.targets.nexus import BIFROST_REGISTRY, to_nexus_structure
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+    from niess.teaching import Primary as Teaching
+
+    teaching = Instrument(name='teaching', origin='sample_origin', parts=(
+        Mount(name='primary', content=Teaching.from_calibration()),))
+    bifrost = Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
+        Mount(name='tank', content=Tank.from_calibration(tank_parameters()),
+              relative_to='sample_origin'),
+    ))
+    return {
+        'teaching': to_nexus_structure(teaching),
+        'bifrost': to_nexus_structure(bifrost, registry=BIFROST_REGISTRY),
+    }
+
+
 def niess_objects() -> dict[str, str]:
     """The niess object model itself, as ``niess.io.json`` serialises it.
 
@@ -231,6 +258,7 @@ def graph_path(name: str) -> Path:
 
 NIESS_FLOW_GRAPHS = DATA / 'niess_flow.graph.json.gz'
 NIESS_OBJECTS = DATA / 'niess_objects.json.gz'
+NEXUS_STRUCTURES = DATA / 'nexus.json.gz'
 
 
 def frozen_text(name: str) -> str:
@@ -254,6 +282,7 @@ def mint() -> None:
         print(f'minted {name}')
     _write(NIESS_FLOW_GRAPHS, _dump(niess_flow_graphs()))
     _write(NIESS_OBJECTS, _dump(niess_objects()))
+    _write(NEXUS_STRUCTURES, _dump(nexus_structures()))
     print('minted niess object model')
 
 
