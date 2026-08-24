@@ -4,6 +4,11 @@ from niess.utilities import calibration
 from niess.components import He3Monitor
 from niess.components.component import Base
 
+#: How much narrower than the channel spacing each radial slit is cut, as a fraction of
+#: that spacing, so that neutrons on a boundary fall to one channel rather than to both.
+SLIT_BOUNDARY_MARGIN = 1e-6
+
+
 def _origin():
     """The sample position, as a fresh Variable every time.
 
@@ -85,33 +90,46 @@ class Tank(Base):
         return [*self.channel_angles, self.monitor_angle]
 
     @property
+    def channel_spacing(self) -> float:
+        """The smallest angle between adjacent channels, in radians.
+
+        The smallest rather than the nominal one: the nine channels are laid out on a
+        uniform grid by default, but a calibration is free to supply its own angles and
+        the slits must not overlap for any of them.
+        """
+        angles = sorted(self.channel_angles)
+        if len(angles) < 2:
+            raise ValueError(
+                'a tank with fewer than two channels has no channel spacing; give the '
+                'slits an explicit width instead'
+            )
+        return min(b - a for a, b in zip(angles, angles[1:]))
+
+    @property
     def slit_width(self) -> float:
         """The angular width shared by every radial slit, in radians.
 
-        Twice the largest vertical analyzer coverage in the tank. Slit_radial_multi
-        accepts a neutron within ``slit_width/2`` of a slit angle, and those angles are
-        azimuthal, so a *vertical* extent setting an azimuthal opening deserves an
-        explanation rather than a `# TODO`.
+        The radial slits are not an aperture -- they are how a neutron leaving the
+        sample gets tagged with the channel it entered. Slit_radial_multi accepts a
+        neutron within ``slit_width/2`` of a slit angle and reports which one, and the
+        emitted EXTEND turns that index into ``secondary_cassette``, which every
+        channel's components are then gated on.
 
-        In this frame x is along the beam, y is horizontal-transverse and z is vertical:
-        the nine channels fan out in x-y with every arm at z = 0. Analyzer.coverage
-        builds its own basis from the global vertical rather than from anything McStas
-        does, so the 90-degree turn Arm.to_mccode applies when it places the analyzer
-        never reaches it, and its second element really is the vertical extent -- 83 mm
-        of blade stack against 144 mm of blade width, subtending 4.0 and 7.0 degrees at
-        1.19 m.
+        So the only real constraints are that a slit be wide enough not to clip its
+        channel's analyzer, and narrow enough not to reach its neighbour. The channel
+        spacing gives both at once, and it is what the layout actually guarantees --
+        where deriving the width from the analyzer's angular coverage did not: that
+        route reached into every channel's blades to recover a number the geometry
+        already fixes, and it went through the analyzer's *vertical* extent to get
+        there, which only worked because doubling it happened to land below the
+        spacing.
 
-        Doubling the vertical gives 8.1 degrees, which fits inside the 10-degree channel
-        spacing. Twice the analyzer's horizontal coverage (13.9) or twice the detector's
-        (11.4) would overlap the neighbouring channels, so the emitted number is the
-        workable one of the three. Whether that is deliberate -- a slit sized to clear
-        the analyzer's 7.0-degree horizontal acceptance with margin -- or an axis that
-        got crossed and landed somewhere sensible anyway is not decidable from the code.
-        Either way it is unchanged here: this is a move, not a correction.
+        The margin exists so a neutron arriving exactly on a boundary is not claimed by
+        both neighbours. It only has to beat floating-point noise, so it is far too
+        small to lose anything real -- at a 10-degree spacing it is a hundred-thousandth
+        of a degree.
         """
-        from scipp import concat, max
-        coverage = [c.coverage(_origin(), unit='radian') for c in self.channels]
-        return 2 * max(concat([y for _, y in coverage], dim='channel')).value
+        return self.channel_spacing * (1 - SLIT_BOUNDARY_MARGIN)
 
     @classmethod
     def from_dict(cls, data):

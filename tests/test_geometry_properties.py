@@ -80,6 +80,44 @@ def test_arm_scattering_angle_is_twice_theta(tank):
     assert arm.analyzer_theta.value == pytest.approx(arm.scattering_angle.value / 2)
 
 
+def test_slit_width_stays_inside_the_channel_spacing(tank):
+    """Adjacent slits must not overlap, or a neutron is tagged with two channels."""
+    assert tank.slit_width < tank.channel_spacing
+
+
+def test_slit_width_clears_the_analyzer(tank):
+    """...and must not clip the analyzer it is there to tag neutrons into."""
+    from scipp import vector
+    origin = vector([0, 0, 0], unit='m')
+    widest = max(channel.pairs[0].analyzer.coverage(origin, unit='radian')[0].value
+                 for channel in tank.channels)
+    assert tank.slit_width > widest
+
+
+def test_no_two_slits_overlap(tank):
+    """Every slit, the elastic monitor's included, keeps clear of its neighbours."""
+    angles = sorted(tank.slit_angles)
+    for lower, upper in zip(angles, angles[1:]):
+        assert upper - lower >= tank.slit_width
+
+
+def test_channel_spacing_takes_the_smallest_gap(tank, monkeypatch):
+    """A calibration may supply its own angles, and they need not be evenly spaced."""
+    from niess.bifrost.tank import Tank
+    monkeypatch.setattr(Tank, 'channel_angles',
+                        property(lambda self: [0.0, 0.5, 0.7, 1.4]))
+    assert tank.channel_spacing == pytest.approx(0.2)
+    assert tank.slit_width < 0.2
+
+
+def test_channel_spacing_refuses_a_single_channel(tank, monkeypatch):
+    """Rather than inventing a width the layout does not imply."""
+    from niess.bifrost.tank import Tank
+    monkeypatch.setattr(Tank, 'channel_angles', property(lambda self: [0.0]))
+    with pytest.raises(ValueError, match='fewer than two channels'):
+        _ = tank.channel_spacing
+
+
 def test_tank_slit_geometry_is_what_the_radial_slits_are_built_from(tank, emitted):
     slits = emitted['slits']
     assert expr_float(slits.get_parameter('slit_width').value) == pytest.approx(
