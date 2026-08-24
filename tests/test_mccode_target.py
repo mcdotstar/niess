@@ -165,3 +165,77 @@ def test_a_multi_opening_disc_still_groups():
            ['pack_slit_0', 'pack_slit_1', 'pack_slit_2']
     assert {c.group for c in walked.components} == {'pack_group'}
     assert instrument_text(walked) == instrument_text(assembler.instrument)
+
+
+# -- where the conversion is written ------------------------------------------
+
+def test_a_class_describing_its_own_conversion_needs_no_registration():
+    """The ordinary case: write the method on the class and it is found.
+
+    Everything a class contributes to a McStas instrument lives on the class --
+    __mccode__ for what it is, to_mccode to contribute to the instrument around it,
+    __mccode_enter__/__mccode_exit__ for what a composite needs around its contents.
+    """
+    from niess.targets.mccode import MCCODE_REGISTRY, ObjectTranslator
+    from niess.bifrost.channel import Channel
+    from niess.bifrost.tank import Tank
+    from niess.components.section import Section
+
+    for klass in (Tank, Channel, Section):
+        assert hasattr(klass, '__mccode_enter__'), klass.__name__
+
+    from niess.bifrost.parameters import tank_parameters
+    tank = Tank.from_calibration(tank_parameters())
+    resolved = MCCODE_REGISTRY.resolve_for_object(tank)
+    assert isinstance(resolved, ObjectTranslator)
+    assert resolved.obj is tank
+
+
+def test_a_registered_translator_wins_over_the_class(bifrost_primary):
+    """Which is what an instrument-specific conversion needs, and a class you do not own.
+
+    The same reason niess.nexus keeps BIFROST's translators off the shared registry:
+    importing a module must not change another instrument's output.
+    """
+    from niess.targets.mccode import MCCODE_REGISTRY, NiessMcCodeRegistry
+    from niess.components.section import Section
+
+    scoped = NiessMcCodeRegistry(parent=MCCODE_REGISTRY)
+    entered = []
+
+    class Watch:
+        @staticmethod
+        def enter(visit):
+            entered.append(visit.id)
+            return None
+
+        @staticmethod
+        def exit(visit, opened):
+            pass
+
+    scoped.register(Section)(Watch)
+    to_mccode(bifrost_primary, registry=scoped)
+    assert entered, 'the registered translator was not used'
+    # and the default is untouched
+    from niess.targets.mccode import ObjectTranslator
+    from niess.bifrost import Primary
+    from niess.bifrost.parameters import primary_parameters
+    assert isinstance(
+        MCCODE_REGISTRY.resolve_for_object(
+            Primary.from_calibration(primary_parameters())),
+        ObjectTranslator)
+
+
+def test_the_target_module_names_no_component():
+    """It is machinery. What each class contributes is written on that class.
+
+    A user asking "what do I need for this to convert to an Instr?" should be able to
+    read one class, not hunt through a translator module for the half that lives there.
+    """
+    from pathlib import Path
+    import niess.targets.mccode as module
+
+    source = Path(module.__file__).read_text()
+    for name in ('Tank', 'Channel', 'DiscChopper', 'Analyzer', 'Triplet',
+                 'Slit_radial_multi', 'secondary_cassette'):
+        assert name not in source, f'{name} leaked into the target module'

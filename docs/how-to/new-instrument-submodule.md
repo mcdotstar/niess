@@ -277,6 +277,52 @@ how to write these for your own composite, is in
 The shape to copy is `niess/components/chopper.py::DiscChopper.to_mccode`: it calls
 `assembler.component(...)` once per instance and tags each one.
 
+### A composite that needs something around its contents
+
+A composite often needs more than components: a coordinate frame to hang them from, a
+user variable they share, an `%include` to put them in. Those go in `__mccode_enter__`,
+which runs before the composite's children are emitted, and `__mccode_exit__`, which
+runs after and closes whatever was opened.
+
+```python
+class Cassette(Base):
+    detectors: tuple[He3Tube, ...]
+
+    def __mccode_enter__(self, visit):
+        assembler = visit.context.assembler
+        frame = assembler.component(f'{visit.name}_arm', 'Arm',
+                                    at=((0, 0, 0), visit.frame),
+                                    rotate=((0, self.angle.value, 0), visit.frame))
+        add_niess_metadata(frame, self, source_name=f'{visit.name}_arm',
+                           role='reference-frame')
+        for child in visit.children():          # put the contents in that frame
+            visit.context.frames[child.id] = frame
+        return frame
+```
+
+`visit` is the composite's place in the instrument: `visit.name` is what it is called,
+`visit.frame` what it hangs from, `visit.index` its position among its siblings, and
+`visit.ancestor(SomeClass)` the enclosing thing of a given kind. Returning
+`niess.walk.SKIP` from `__mccode_enter__` means the composite emits its own children
+itself, which is what `Arm` does — its two frames interleave with its two components,
+so they cannot be walked in order.
+
+Nothing has to be registered anywhere. Everything a class contributes to a McStas
+instrument is written on the class:
+
+| on the class | for |
+| --- | --- |
+| `__mccode__` | what the thing *is*: one `COMPONENT` line and its parameters |
+| `to_mccode` | contributing to the instrument around it — see [above](#contributing-to-the-instrument-around-it) |
+| `__mccode_enter__` | what a composite needs around its contents |
+| `__mccode_exit__` | closing whatever that opened |
+
+A translator can also be *registered* against a class, which then wins over the class's
+own hooks. That is for the cases a method cannot serve: extending a class you do not
+own, or scoping a conversion so that importing a module does not change some other
+instrument's output — the same reason `niess.nexus` keeps BIFROST's translators off the
+shared registry.
+
 !!! danger "Tag every instance you build by hand"
 
     `Component.to_mccode` tags what it emits; hand-built instances are yours to tag.

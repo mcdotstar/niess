@@ -199,6 +199,36 @@ class Channel(Base):
 
         return sa, ad, x7, y7, a7, x9, y9, a9, ra0
 
+    def __mccode_enter__(self, visit):
+        """A cassette frame turned about the sample, and everything hung from it.
+
+        The frame is an Arm because that is how McStas says "measure the next things
+        from here". It is not a thing in the beam, which is why it exists only in this
+        conversion.
+        """
+        from niess.mccode import add_niess_metadata
+        assembler = visit.context.assembler
+        name = visit.own_label                      # channel_3
+        when = f'{1 + visit.index} == secondary_cassette'
+
+        cassette = assembler.component(
+            f'{name}_arm', 'Arm', at=((0, 0, 0), visit.frame),
+            rotate=((0, self.cassette_angle.value, 0), visit.frame))
+        add_niess_metadata(cassette, self, source_name=f'{name}_arm',
+                           role='reference-frame',
+                           extra={'frame': 'cassette', 'channel': name})
+        cassette.WHEN(when)
+
+        for declaration in ('int secondary_scattered;', 'int analyzer;', 'int flag;'):
+            assembler.ensure_user_var(declaration)
+
+        context = visit.context
+        for child in visit.children():
+            context.frames[child.id] = cassette
+        context.frames[visit.id] = cassette
+        context.whens[f'{visit.id}/radial_filter_collimator'] = when
+        return cassette
+
     def to_mccode(self, assembler: Assembler, relative: Instance, name: str, when: str = None, settings: dict = None, flat: bool=True, **kwargs):
         from niess.mccode import add_niess_metadata
         # For each channel we need to define the local coordinate system, relative to the provided sample
