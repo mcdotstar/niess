@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import msgspec
-from networkx import DiGraph
 from msgspec.structs import fields
 from functools import lru_cache
 from mccode_antlr.assembler import Assembler
@@ -106,16 +105,12 @@ class Section(msgspec.Struct, tag=True):
         #      scipp.Variable and mccode_antlr.? are converted
         return cls.from_calibration(d)
 
-    def to_graph(self):
-        from networkx import DiGraph
-        graph = DiGraph()
-        self.add_to_graph(None, '', graph)
-        return graph
+    def __niess_flow__(self, graph, path):
+        """Children in declaration order, which for a section is beam order."""
+        from ..tree import chain_flow
+        return chain_flow(self, graph, path)
 
-    def add_to_graph(self, upstream: str | None, unused_section_name: str, graph: DiGraph):
-        last = upstream
-        for name in self.__struct_fields__:
-            names = getattr(self, name).add_to_graph(last, name, graph)
-            if isinstance(names, list) and len(names) == 1:
-                last = names[0]
-        return [last]
+    def to_graph(self):
+        """The particle flow through this section, as a networkx DiGraph."""
+        from ..tree import flow_graph
+        return flow_graph(self)

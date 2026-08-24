@@ -86,3 +86,70 @@ def leaves(node):
     """Every node with no children of its own."""
     return [(path, found) for path, found in walk(node)
             if not found.__niess_children__()]
+
+
+# -- particle flow -------------------------------------------------------------
+#
+# McCode describes an instrument as a list, so the only flow it can express is the order
+# the components are declared in. That is enough for a guide, and not enough for the
+# BIFROST tank, where ten paths leave the sample -- nine channels and the elastic
+# monitor -- and a neutron takes one of them. NeXus can say so, through each group's
+# `inputs` and `outputs`, so niess has to know it.
+#
+# A composite therefore declares how flow passes through it, and gets the same default
+# every other structure question gets: children in declaration order. Only the ones that
+# branch, or that are one thing however many parts they have, need to say otherwise.
+#
+# Nodes are tree paths rather than the objects themselves: Base defines __eq__ without
+# __hash__, so its instances cannot be graph keys, and a path identifies a node without
+# borrowing any one target's names for it.
+
+
+def node_id(path: tuple[str, ...]) -> str:
+    """A tree path as one string, which is what the graph is keyed on."""
+    return '/'.join(path) if path else ''
+
+
+def chain_flow(node, graph, path):
+    """Children in declaration order, each feeding the next.
+
+    The default, and what a section, a segmented guide, a channel or an arm wants.
+    Returns the paths flow enters this node by and the paths it leaves by.
+    """
+    children = node.__niess_children__()
+    if not children:
+        graph.add_node(node_id(path), kind=type(node).__name__)
+        return (node_id(path),), (node_id(path),)
+
+    entries: tuple[str, ...] = ()
+    exits: tuple[str, ...] = ()
+    for label, child in children:
+        child_entries, child_exits = child.__niess_flow__(graph, path + (label,))
+        if not entries:
+            entries = child_entries
+        for source in exits:
+            for target in child_entries:
+                graph.add_edge(source, target)
+        exits = child_exits
+    return entries, exits
+
+
+def leaf_flow(node, graph, path):
+    """One node, however many parts it has.
+
+    An analyzer is seven blades and a triplet is three tubes, but a neutron meets each
+    as a single thing -- one component in McStas, one group in NeXus. They keep their
+    children, which is what lets a translator reach the real blade positions; they just
+    do not have flow running through them.
+    """
+    graph.add_node(node_id(path), kind=type(node).__name__)
+    return (node_id(path),), (node_id(path),)
+
+
+def flow_graph(root):
+    """The particle flow through ``root``, as a networkx DiGraph over tree paths."""
+    from networkx import DiGraph
+
+    graph = DiGraph()
+    root.__niess_flow__(graph, ())
+    return graph

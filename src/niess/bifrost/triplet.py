@@ -43,6 +43,13 @@ class Triplet(Base):
     tubes: tuple[He3Tube, He3Tube, He3Tube]
     resistances: Variable
 
+    def __niess_flow__(self, graph, path):
+        """One node. Three tubes, but they are one Detector_tubes component and one NXdetector. The
+        tubes stay walkable; flow does not run through them.
+        """
+        from ..tree import leaf_flow
+        return leaf_flow(self, graph, path)
+
     @classmethod
     def from_dict(cls, data):
         from ..components import He3Tube

@@ -4,7 +4,6 @@ import msgspec
 from msgspec.structs import fields
 from functools import lru_cache
 from scipp import Variable
-from networkx import DiGraph
 from mccode_antlr.assembler import Assembler
 from mccode_antlr.instr import Instance
 
@@ -70,11 +69,15 @@ class Base(msgspec.Struct):
         from ..tree import default_children
         return default_children(self)
 
-    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
-        graph.add_node(name)
-        if upstream is not None:
-            graph.add_edge(upstream, name)
-        return [name]
+    def __niess_flow__(self, graph, path):
+        """How particle flow passes through this object. See :mod:`niess.tree`."""
+        from ..tree import chain_flow
+        return chain_flow(self, graph, path)
+
+    def to_graph(self):
+        """The particle flow through this object, as a networkx DiGraph."""
+        from ..tree import flow_graph
+        return flow_graph(self)
 
 
 class Component(Base, kw_only=True):

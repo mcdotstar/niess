@@ -140,3 +140,92 @@ def test_walk_yields_the_root_first(teaching):
     (first_path, first_node), = [next(iter(walk(teaching)))]
     assert first_path == ()
     assert first_node is teaching
+
+
+# -- particle flow ------------------------------------------------------------
+
+def test_the_tank_has_ten_paths_out_of_the_sample(tank):
+    """The case McCode cannot state, and the reason niess keeps its own graph.
+
+    A McCode instrument is a list, so the only flow it can express is the order the
+    components are declared in. A neutron leaving the sample here takes one of ten
+    branches -- nine channels or the elastic monitor -- and NeXus says so through each
+    group's `inputs` and `outputs`.
+    """
+    graph = tank.to_graph()
+    roots = [node for node in graph if graph.in_degree(node) == 0]
+    assert len(roots) == 1
+    branches = sorted(graph.successors(roots[0]))
+    assert len(branches) == 10
+    assert branches == sorted(
+        [f'channels[{i}]/radial_filter_collimator' for i in range(9)] + ['monitor']
+    )
+
+
+def test_the_elastic_monitor_is_reachable_from_the_sample(tank):
+    """It used to be isolated: it was attached to `upstream`, None at the top level."""
+    import networkx as nx
+
+    graph = tank.to_graph()
+    assert nx.number_weakly_connected_components(graph) == 1
+    root, = [node for node in graph if graph.in_degree(node) == 0]
+    assert nx.has_path(graph, root, 'monitor')
+
+
+def test_the_radial_filter_comes_before_a_channels_analyzers(tank):
+    """The filter is what a neutron entering a channel meets first."""
+    import networkx as nx
+
+    graph = tank.to_graph()
+    filtered = 'channels[0]/radial_filter_collimator'
+    for arm in range(5):
+        assert nx.has_path(graph, filtered, f'channels[0]/pairs[{arm}]/analyzer')
+    assert graph.in_degree(filtered) == 1
+
+
+def test_a_channels_arms_are_chained_in_series(tank):
+    """A neutron that is not scattered by one analyzer meets the next."""
+    graph = tank.to_graph()
+    chain = ['channels[3]/radial_filter_collimator']
+    for arm in range(5):
+        chain += [f'channels[3]/pairs[{arm}]/analyzer',
+                  f'channels[3]/pairs[{arm}]/detector']
+    for source, target in zip(chain, chain[1:]):
+        assert graph.has_edge(source, target), f'{source} -> {target}'
+
+
+def test_an_analyzer_is_one_node_however_many_blades(tank):
+    """It emits one component and becomes one NeXus group; flow meets it once."""
+    graph = tank.to_graph()
+    assert 'channels[0]/pairs[0]/analyzer' in graph
+    assert not [n for n in graph if n.startswith('channels[0]/pairs[0]/analyzer/')]
+    assert not [n for n in graph if n.startswith('channels[0]/pairs[0]/detector/')]
+
+
+@pytest.mark.parametrize('fixture,expected', [('teaching', 7), ('primary', 158)])
+def test_a_linear_section_gives_a_linear_graph(request, fixture, expected):
+    """And it can be built at all.
+
+    Section.add_to_graph iterated __struct_fields__ rather than parts(), so it reached
+    the `_flat` bool and raised AttributeError on every section carrying one -- which is
+    both Primary classes. This has never run before.
+    """
+    import networkx as nx
+
+    graph = request.getfixturevalue(fixture).to_graph()
+    assert graph.number_of_nodes() == expected
+    assert graph.number_of_edges() == expected - 1
+    assert nx.number_weakly_connected_components(graph) == 1
+
+
+def test_flow_nodes_are_tree_paths(tank):
+    """Not the objects: Base defines __eq__ without __hash__, so it cannot be a key.
+
+    A path also identifies a node without borrowing any one target's names for it,
+    which is what lets the emitted-name rebuilding go away.
+    """
+    from niess.components.component import Base
+
+    with pytest.raises(TypeError, match='unhashable'):
+        hash(tank.channels[0])
+    assert all(isinstance(node, str) for node in tank.to_graph())

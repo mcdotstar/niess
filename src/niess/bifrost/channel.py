@@ -5,7 +5,6 @@ from niess.components import RadialFilterCollimator
 
 
 class Channel(Base):
-    from networkx import DiGraph
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
     from scipp import Variable
@@ -220,13 +219,6 @@ class Channel(Base):
                 with assembler.included(f"{assembler.name}_{arm_name}") as child:
                     arm.to_mccode(child, cassette, **to_mc, **kwargs)
 
-    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
-        radial_collimator_filter = f'{name}_radial_filter_collimator'
-        if upstream is not None:
-            graph.add_edge(upstream, radial_collimator_filter)
-        cassette = f'{name}_arm'
-        graph.add_edge(radial_collimator_filter, cassette)
-        return [arm.add_to_graph(cassette, f"{name}_{1 + arm_index}", graph) for arm_index, arm in enumerate(self.pairs)]
 
     def efu_calibration(self, channel_number: int):
         """The EFU calibration needs a unique 'group' number for each triplet

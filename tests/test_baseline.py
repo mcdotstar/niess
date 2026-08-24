@@ -11,7 +11,7 @@ import pytest
 from .baseline import (
     INSTRUMENTS,
     NIESS_OBJECTS,
-    NIESS_TANK_GRAPH,
+    NIESS_FLOW_GRAPHS,
     frozen_json,
     frozen_text,
     graph_path,
@@ -19,7 +19,7 @@ from .baseline import (
     instrument_structure,
     instrument_text,
     niess_objects,
-    niess_tank_graph,
+    niess_flow_graphs,
     structure_path,
 )
 
@@ -80,9 +80,9 @@ def test_flow_graph_is_unchanged(built, name):
     assert instrument_graph(built[name]) == frozen_json(graph_path(name))
 
 
-def test_niess_tank_graph_is_unchanged():
-    """What the re-derived child protocol has to reproduce."""
-    assert niess_tank_graph() == frozen_json(NIESS_TANK_GRAPH)
+def test_niess_flow_graphs_are_unchanged():
+    """niess's own flow, including the branching McCode cannot express."""
+    assert niess_flow_graphs() == frozen_json(NIESS_FLOW_GRAPHS)
 
 
 def test_niess_object_model_is_unchanged():
