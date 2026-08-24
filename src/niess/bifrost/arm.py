@@ -23,6 +23,18 @@ class Arm(Base):
     # Deliberately not unified: these are the quantities the emitted instrument is built
     # from, and this is a move, not a rewrite.
 
+    def __niess_label__(self, label: str) -> str:
+        """An arm contributes only its number, so an analyzer inside channel 3's first arm
+        is ``channel_3_1``-prefixed.
+        """
+        from ..tree import label_index
+        index = label_index(label)
+        if index is None:
+            raise ValueError(
+                f'a Arm is identified by its position; got the label {label!r}'
+            )
+        return str(index + 1)
+
     @property
     def sample_analyzer_vector(self) -> Variable:
         """Sample to the centre of the analyzer."""

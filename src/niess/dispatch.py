@@ -83,6 +83,36 @@ class NiessRegistry(Generic[B]):
             return builder
         return None if self.parent is None else self.parent.resolve_builder(instance)
 
+    def resolve_for_object(self, obj) -> B | None:
+        """Return the builder for a niess *object*, or ``None`` if none is registered.
+
+        The companion to :meth:`resolve_builder`, which resolves against an emitted
+        McStas instance. Same two meaningful tiers, read off the object rather than off
+        a metadata blob it left behind:
+
+        1. the niess class, walking the MRO -- so registering against ``Component``
+           catches every component that does not want anything more specific,
+        2. the role, if the object declares one.
+
+        There is no third tier: a McCode component-type name is something an object
+        acquires by being emitted, and nothing here has been.
+
+        As everywhere else, ``None`` means *unhandled*; it never means "handled, emit
+        nothing".
+        """
+        for klass in type(obj).__mro__:
+            builder = self._source_type_builders.get(niess_source_type(klass))
+            if builder is not None:
+                return builder
+        role = getattr(obj, '__mccode_role__', None)
+        if role is not None:
+            builder = self._role_builders.get(role())
+            if builder is not None:
+                return builder
+        if self.parent is not None:
+            return self.parent.resolve_for_object(obj)
+        return None
+
     def _resolve_local(self, instance, provenance) -> B | None:
         if provenance is not None:
             if provenance.source_type in self._source_type_builders:

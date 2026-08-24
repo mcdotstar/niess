@@ -105,6 +105,16 @@ def leaves(node):
 # borrowing any one target's names for it.
 
 
+def label_index(label: str) -> int | None:
+    """The index in a sequence label: ``pairs[3]`` is 3, ``analyzer`` is nothing."""
+    if label.endswith(']') and '[' in label:
+        try:
+            return int(label[label.rindex('[') + 1:-1])
+        except ValueError:
+            return None
+    return None
+
+
 def node_id(path: tuple[str, ...]) -> str:
     """A tree path as one string, which is what the graph is keyed on."""
     return '/'.join(path) if path else ''

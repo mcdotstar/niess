@@ -69,6 +69,20 @@ class Base(msgspec.Struct):
         from ..tree import default_children
         return default_children(self)
 
+    def __niess_label__(self, label: str) -> str | None:
+        """What this object contributes to the names of things emitted inside it.
+
+        ``None`` means transparent: a section adds nothing, so a guide declared inside
+        three nested sections is still emitted as ``unit_29_straight``. Overridden where
+        a composite does name its contents -- a BIFROST channel prefixes them
+        ``channel_3`` -- and by Component, which contributes the name it was calibrated
+        with.
+
+        ``label`` is this node's own path label, so a composite in a sequence can use
+        its index.
+        """
+        return None
+
     def __niess_flow__(self, graph, path):
         """How particle flow passes through this object. See :mod:`niess.tree`."""
         from ..tree import chain_flow
@@ -119,6 +133,10 @@ class Component(Base, kw_only=True):
     @classmethod
     def from_dict(cls, dictionary):
         return cls.from_calibration(dictionary)
+
+    def __niess_label__(self, label: str) -> str:
+        """A component is named, and that name is what gets emitted."""
+        return self.name
 
     def __mccode__(self) -> tuple[str, dict]:
         """Return the component type name and parameters needed to produce a McCode instance"""
