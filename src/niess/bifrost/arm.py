@@ -182,61 +182,48 @@ class Arm(Base):
             print(f'Detector under-illuminated: the detector width {det_hor} should be less than the analyzer width {ana_hor}')
         return det_hor, ana_ver
 
-    def __mccode_enter__(self, visit):
-        """An analyzer and the detector it reflects into, with the frames between them.
+    def __niess_children__(self):
+        """Two frames and the two things measured from them.
 
-        Emitted as one unit rather than walked, because the frames interleave with the
-        components: the detector's frame is placed relative to the monochromator, so it
-        cannot exist until the analyzer has been emitted. That is a McStas authoring
-        choice -- the same frame could be built from the analyzer point at twice the
-        angle -- so it lives here. It becomes four ordinary children once frames are
-        declared nodes in the tree.
+        The second frame is measured from the analyzer rather than from the arm, which
+        is why it is declared after it: a detector sits at twice the Bragg angle, and
+        the analyzer is what defines that angle.
         """
-        from scipp import vector
-        from niess.mccode import add_niess_metadata
-        from niess.walk import SKIP
+        from ..components.frame import Frame
+        from scipp import scalar, vector
+        point = Frame(
+            name='analyzer_point',
+            position=vector([0., 0., 1.]) * self.sample_analyzer_distance,
+            # a quarter turn about the beam: McStas' monochromator scatters in its own
+            # horizontal plane and BIFROST's analyzers scatter vertically
+            rotation=vector([0., 0., 1.]) * scalar(90.0, unit='degree'),
+            extra={'frame': 'analyzer-point'}, owner_key='arm')
+        turned = Frame(name='detector_angle', relative_to='analyzer',
+                       rotation=vector([0., 1., 0.]) * self.analyzer_theta,
+                       extra={'frame': 'detector-angle'}, owner_key='arm')
+        return (('analyzer_point', point), ('analyzer', self.analyzer),
+                ('detector_angle', turned), ('detector', self.detector))
+
+    def __niess_child_frame__(self, visit, label, default):
+        if label == 'analyzer':
+            return f'{visit.id}/analyzer_point'
+        if label == 'detector':
+            return f'{visit.id}/detector_angle'
+        return default
+
+    def __mccode_enter__(self, visit):
+        """The per-particle state this arm's analyzer and detector are gated on."""
         from .channel import Channel
-
         context = visit.context
-        assembler = context.assembler
-        reference = context.frames.get(visit.id, visit.frame)
-
         channel = visit.ancestor(Channel)
         when = f'{1 + channel.index} == secondary_cassette'
         analyzer_when = f'0 == secondary_scattered && {when}'
-        analyzer_extend = (f'secondary_scattered = (SCATTERED) ? 1 : 0;\n'
-                           f'analyzer = (SCATTERED) ? {1 + visit.index} : 0;')
         detector_when = f'{when} && {1 + visit.index}==analyzer'
-
-        stem = visit.name                            # channel_3_1
-        point, mono = f'{stem}_analyzer_point', f'{stem}_monochromator'
-        orient, triplet = f'{stem}_detector_angle', f'{stem}_triplet'
-        theta = self.analyzer_theta.value
-
-        frame = assembler.component(
-            point, 'Arm',
-            at=((0, 0, self.sample_analyzer_distance.value), reference),
-            rotate=((0, 0, 90), reference))
-        add_niess_metadata(frame, self, source_name=point, role='reference-frame',
-                           extra={'frame': 'analyzer-point', 'arm': stem})
-        frame.WHEN(analyzer_when)
-
-        self.analyzer.to_mccode(assembler, source=reference.name, relative=point,
-                                sink=triplet, theta=theta, name=mono,
-                                when=analyzer_when, extend=analyzer_extend,
-                                origin=vector([0, 0, 0], unit='m'))
-
-        turned = assembler.component(orient, 'Arm', at=((0, 0, 0), mono),
-                                     rotate=((0, theta, 0), mono))
-        add_niess_metadata(turned, self, source_name=orient, role='reference-frame',
-                           extra={'frame': 'detector-angle', 'arm': stem})
-        turned.WHEN(detector_when)
-
-        self.detector.to_mccode(assembler, relative=orient,
-                                distance=self.analyzer_detector_distance.value,
-                                name=triplet, when=detector_when,
-                                extend='flag = (SCATTERED) ? 1 : 0;')
-        return SKIP
+        context.whens[f'{visit.id}/analyzer_point'] = analyzer_when
+        context.whens[f'{visit.id}/analyzer'] = analyzer_when
+        context.whens[f'{visit.id}/detector_angle'] = detector_when
+        context.whens[f'{visit.id}/detector'] = detector_when
+        return None
 
     def to_mccode(self, assembler: Assembler, ref: Instance, name: str,
                   analyzer_when: str = None, analyzer_extend: str = None,

@@ -112,7 +112,7 @@ class Instrument(Base):
         """The pieces, under their own labels -- the Mount itself is not a node."""
         return tuple((mount.name, mount.content) for mount in self.parts)
 
-    def __niess_child_frame__(self, label: str, default):
+    def __niess_child_frame__(self, visit, label: str, default):
         """Each piece hangs where its Mount says, not where the one before it did."""
         return self.mount_of(label).relative_to or default
 

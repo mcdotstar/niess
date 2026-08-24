@@ -199,35 +199,38 @@ class Channel(Base):
 
         return sa, ad, x7, y7, a7, x9, y9, a9, ra0
 
-    def __mccode_enter__(self, visit):
-        """A cassette frame turned about the sample, and everything hung from it.
+    def __niess_children__(self):
+        """The cassette frame, the filter, then the five arms.
 
-        The frame is an Arm because that is how McStas says "measure the next things
-        from here". It is not a thing in the beam, which is why it exists only in this
-        conversion.
+        The frame is declared rather than emitted: it is where everything in the channel
+        is measured from, which is a fact about the channel and not about McStas.
         """
-        from niess.mccode import add_niess_metadata
-        assembler = visit.context.assembler
-        name = visit.own_label                      # channel_3
-        when = f'{1 + visit.index} == secondary_cassette'
+        from ..components.frame import Frame
+        from scipp import vector
+        cassette = Frame(name='arm',
+                         rotation=vector([0., 1., 0.]) * self.cassette_angle,
+                         extra={'frame': 'cassette'}, owner_key='channel')
+        return (('cassette', cassette),
+                ('radial_filter_collimator', self.radial_filter_collimator),
+                *((f'pairs[{i}]', arm) for i, arm in enumerate(self.pairs)))
 
-        cassette = assembler.component(
-            f'{name}_arm', 'Arm', at=((0, 0, 0), visit.frame),
-            rotate=((0, self.cassette_angle.value, 0), visit.frame))
-        add_niess_metadata(cassette, self, source_name=f'{name}_arm',
-                           role='reference-frame',
-                           extra={'frame': 'cassette', 'channel': name})
-        cassette.WHEN(when)
+    def __niess_child_frame__(self, visit, label, default):
+        """Everything in the channel sits in its cassette frame; the frame itself does not."""
+        return default if label == 'cassette' else f'{visit.id}/cassette'
 
-        for declaration in ('int secondary_scattered;', 'int analyzer;', 'int flag;'):
-            assembler.ensure_user_var(declaration)
+    def __mccode_enter__(self, visit):
+        """The per-particle state the channel's contents are gated on.
 
+        Which channel a neutron was tagged with by the radial slits is a fact about one
+        Monte Carlo history, so it lives here and nowhere else.
+        """
         context = visit.context
-        for child in visit.children():
-            context.frames[child.id] = cassette
-        context.frames[visit.id] = cassette
+        when = f'{1 + visit.index} == secondary_cassette'
+        for declaration in ('int secondary_scattered;', 'int analyzer;', 'int flag;'):
+            context.assembler.ensure_user_var(declaration)
+        context.whens[f'{visit.id}/cassette'] = when
         context.whens[f'{visit.id}/radial_filter_collimator'] = when
-        return cassette
+        return None
 
     def to_mccode(self, assembler: Assembler, relative: Instance, name: str, when: str = None, settings: dict = None, flat: bool=True, **kwargs):
         from niess.mccode import add_niess_metadata

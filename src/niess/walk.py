@@ -128,7 +128,7 @@ class Visit:
         coordinates and its tank about the sample, so they hang from different things.
         """
         per_child = getattr(self.obj, '__niess_child_frame__', None)
-        return default if per_child is None else per_child(label, default)
+        return default if per_child is None else per_child(self, label, default)
 
     def frame_for_children(self) -> Optional[str]:
         """The frame this node places its contents in.

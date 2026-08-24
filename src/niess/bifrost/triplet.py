@@ -185,6 +185,29 @@ class Triplet(Base):
         )
         return params
 
+    def __mccode_enter__(self, visit):
+        """One Detector_tubes, however many tubes.
+
+        SKIP for the same reason an analyzer skips its blades: the tubes reach McStas as
+        declared arrays of resistances, not as three components.
+        """
+        from niess.walk import SKIP
+        from .arm import Arm
+
+        context = visit.context
+        arm = visit.ancestor(Arm)
+        name = arm.emit_name('triplet')
+        self.to_mccode(
+            context.assembler,
+            relative=context.reference(visit.frame),
+            distance=arm.obj.analyzer_detector_distance.value,
+            name=name,
+            when=context.whens.get(visit.id),
+            extend='flag = (SCATTERED) ? 1 : 0;',
+        )
+        context.emitted[visit.id] = name
+        return SKIP
+
     def to_mccode(self, assembler: Assembler, relative: str, distance: float, name: str,
                   when: str = None, extend: str = None, add_metadata: bool = False,
                   component: str = None, parameters: dict = None):

@@ -30,13 +30,13 @@ class McCodeContext(Context):
     """The assembler being built into, and the section scopes open around it."""
     assembler: Any = None
     scopes: list = field(default_factory=list)
-    #: Per-visit frame overrides, keyed by visit id. A composite that emits a coordinate
-    #: frame of its own puts its contents in it this way. Once frames are declared nodes
-    #: in the tree rather than emission artefacts, this goes away.
-    frames: dict = field(default_factory=dict)
     #: Per-visit WHEN clauses, same idea: which channel a neutron was tagged with is
     #: per-particle state, so it is McStas's business and not the tree's.
     whens: dict = field(default_factory=dict)
+    #: The name emitted at each visit, so a frame can be named as the thing another
+    #: component is placed relative to. Names rather than instances because that is what
+    #: a placement refers to, and what an Assembler resolves.
+    emitted: dict = field(default_factory=dict)
 
     def push(self, opened) -> Any:
         """Open a nested `%include` and emit into it until it is closed."""
@@ -44,6 +44,16 @@ class McCodeContext(Context):
         self.scopes.append((opened, self.assembler))
         self.assembler = child
         return opened
+
+    def reference(self, frame):
+        """What a frame reference names in the instrument being built.
+
+        The walk hands down a *tree path* -- ``tank/channels[0]/cassette`` -- because a
+        path identifies a frame without borrowing any one target's names for it. This is
+        where it becomes the thing McStas places against. A reference that is not a path
+        is a component name, which is what a Mount's ``relative_to`` gives.
+        """
+        return self.emitted.get(frame, frame)
 
     def pop(self) -> None:
         opened, parent = self.scopes.pop()
@@ -80,7 +90,12 @@ class ObjectTranslator:
     @staticmethod
     def handles(obj) -> bool:
         return any(hasattr(obj, hook)
-                   for hook in ('__mccode_enter__', '__mccode_exit__'))
+                   for hook in ('__mccode_enter__', '__mccode_exit__',
+                                '__mccode_leaf__'))
+
+    def leaf(self, visit: Visit):
+        hook = getattr(self.obj, '__mccode_leaf__', None)
+        return None if hook is None else hook(visit)
 
     def enter(self, visit: Visit):
         hook = getattr(self.obj, '__mccode_enter__', None)
@@ -126,11 +141,17 @@ class ComponentTranslator:
         obj = visit.obj
         if visit.name != obj.name:
             obj = replace(obj, name=visit.name)
-        frame = context.frames.get(visit.id, visit.frame)
+        frame = context.reference(visit.frame)
         instance = obj.to_mccode(context.assembler, at=frame, rotate=frame)
+        # a component may emit more than one: a disc chopper whose openings are neither
+        # identical nor evenly spaced becomes one grouped component per opening
+        emitted = instance if isinstance(instance, (list, tuple)) else [instance]
         when = context.whens.get(visit.id)
         if when is not None:
-            instance.WHEN(when)
+            for one in emitted:
+                one.WHEN(when)
+        # the first is what anything placed against this node refers to
+        context.emitted[visit.id] = emitted[0].name
         return instance
 
 
