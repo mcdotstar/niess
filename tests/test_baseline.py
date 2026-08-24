@@ -86,13 +86,28 @@ def test_niess_tank_graph_is_unchanged():
 
 
 def test_niess_object_model_is_unchanged():
-    """A calibration or field-order change the emission goldens could miss."""
+    """A calibration change the emission goldens could miss."""
     frozen = frozen_json(NIESS_OBJECTS)
     actual = niess_objects()
     assert sorted(actual) == sorted(frozen)
     for key in sorted(frozen):
         # compare as data: these are 100+ kB of JSON, and a text diff is unreadable
         assert json.loads(actual[key]) == json.loads(frozen[key]), f'{key} changed'
+
+
+def test_niess_struct_field_order_is_unchanged():
+    """Declaration order is emission order, so it is a contract and not a detail.
+
+    Separate from the test above because that one compares *parsed* JSON, and two
+    dicts with the same items compare equal whatever order they are in -- so it is
+    blind to exactly the change this is here to catch. Reordering Tank's fields
+    passed it.
+    """
+    frozen = frozen_json(NIESS_OBJECTS)
+    actual = niess_objects()
+    for key in sorted(frozen):
+        assert list(json.loads(actual[key])['obj']) == \
+               list(json.loads(frozen[key])['obj']), f'{key} field order changed'
 
 
 def test_the_baseline_describes_the_instruments_we_think_it_does(built):

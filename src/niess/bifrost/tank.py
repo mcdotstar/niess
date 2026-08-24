@@ -4,6 +4,16 @@ from niess.utilities import calibration
 from niess.components import He3Monitor
 from niess.components.component import Base
 
+def _origin():
+    """The sample position, as a fresh Variable every time.
+
+    Fresh because scipp's in-place operators would let a caller shift a shared one --
+    the same trap Component.to_mccode documents for `position + offset`.
+    """
+    from scipp import vector
+    return vector([0, 0, 0], unit='m')
+
+
 def _elastic_monitor_from_params(params):
     from scipp import vector
     from scipp.spatial import rotations_from_rotvecs
@@ -34,8 +44,57 @@ class Tank(Base):
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
 
-    channels: tuple[Channel, ...]
+    # Declaration order is emission order: to_mccode emits the radial slits, then the
+    # elastic monitor, then the channels. The walk rewrite derives emission order from
+    # the child protocol, so a composite whose fields are declared in a different order
+    # from the one it emits in would need an event API rich enough to interleave its own
+    # emissions between groups of children -- permanent API surface to preserve one
+    # accident. Cheaper to make the declaration honest.
+    #
+    # The slits themselves have no field yet; they become a component object of their
+    # own when the McStas-only artefacts move onto the McStas translator, and they go
+    # first when they do.
     monitor: He3Monitor
+    channels: tuple[Channel, ...]
+
+    # -- the radial slit geometry ---------------------------------------------
+    # What the emitted Slit_radial_multi is built from. It used to be worked out inside
+    # to_mccode, which meant the tank reached into every channel's coverage at emission
+    # time and no other target could see the result.
+
+    @property
+    def channel_angles(self) -> list[float]:
+        """Where each channel sits about the sample, in radians."""
+        return [c.sample_space_angle(_origin()).to(unit='radian').value
+                for c in self.channels]
+
+    @property
+    def monitor_angle(self) -> float:
+        """Where the elastic (Bragg peak) monitor sits, in radians.
+
+        It is outside the slits and gets a slit of its own, added last -- which is what
+        lets the emitted WHEN clause identify it by index.
+        """
+        from scipp import atan2
+        at = self.monitor.position - _origin().to(unit=self.monitor.position.unit)
+        return atan2(y=at.fields.x, x=at.fields.z).to(unit='radian').value
+
+    @property
+    def slit_angles(self) -> list[float]:
+        """Every radial slit opening, in radians: one per channel, then the monitor."""
+        return [*self.channel_angles, self.monitor_angle]
+
+    @property
+    def slit_width(self) -> float:
+        """The angular width shared by every slit, in radians.
+
+        Twice the widest channel coverage. Note this takes the *second* element of
+        Channel.coverage, which Arm.coverage documents as the analyser's vertical
+        extent -- preserved as it was; see the note on Arm's geometry properties.
+        """
+        from scipp import concat, max
+        coverage = [c.coverage(_origin(), unit='radian') for c in self.channels]
+        return 2 * max(concat([y for _, y in coverage], dim='channel')).value
 
     @classmethod
     def from_dict(cls, data):
@@ -47,7 +106,7 @@ class Tank(Base):
         mn = data['monitor']
         if not isinstance(mn, He3Monitor):
             mn = He3Monitor.from_dict(mn)
-        return cls(cs, mn)
+        return cls(monitor=mn, channels=cs)
 
     @staticmethod
     @calibration
@@ -87,7 +146,8 @@ class Tank(Base):
             val.update(variant_parameters(val, params))
 
         channels = [Channel.from_calibration(angles[i], **channel_params[i]) for i in range(9)]
-        return Tank(tuple(channels), _elastic_monitor_from_params(cal))
+        return Tank(monitor=_elastic_monitor_from_params(cal),
+                    channels=tuple(channels))
 
     @staticmethod
     def unique_from_calibration(**params):
@@ -102,7 +162,8 @@ class Tank(Base):
                             array(values=[-40, -30, -20, -10, 0, 10, 20, 30, 40.], unit='degree', dims=['channel']))
 
         channels = [Channel.from_calibration(angles[i], **channel_params[i]) for i in range(3)]
-        return Tank(tuple(channels), _elastic_monitor_from_params(params))
+        return Tank(monitor=_elastic_monitor_from_params(params),
+                    channels=tuple(channels))
 
     def to_secondary(self, **params):
         from scipp import vector
@@ -163,19 +224,12 @@ class Tank(Base):
             flat: bool = True,
             **kwargs
     ):
-        from scipp import vector, concat, max, atan2
         from ..mccode import add_niess_metadata, ensure_user_var, ensure_registry
         ensure_registry(assembler, "mcdotstar/mcstas-slit-radial@main") # for slits
         ensure_user_var(assembler, 'int', 'secondary_cassette', 'Secondary spectrometer analyzer cassette index')
 
-        origin = vector([0, 0, 0], unit='m')
-        positions = [c.sample_space_angle(origin).to(unit='radian').value for c in self.channels]
-        cov_xy = [c.coverage(origin, unit='radian') for c in self.channels]
-        cov_x = 2 * max(concat([y for _, y in cov_xy], dim='channel')).value
-
-        # Add the elastic (Bragg peak) monitor to the slits:
-        mon_at = self.monitor.position - origin.to(unit=self.monitor.position.unit)
-        positions.append(atan2(y=mon_at.fields.x, x=mon_at.fields.z).to(unit='radian').value)
+        positions = self.slit_angles
+        cov_x = self.slit_width
 
         slits_name = 'slits'
         declared_positions = f'{slits_name}_positions'

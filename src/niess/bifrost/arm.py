@@ -13,6 +13,60 @@ class Arm(Base):
     analyzer: Analyzer
     detector: Triplet
 
+    # -- geometry -------------------------------------------------------------
+    # These describe where the analyzer and detector are relative to the sample. They
+    # were computed inside to_mccode, which meant only the McStas conversion could see
+    # them; they are properties of the arm, so they live on the arm.
+    #
+    # Note the sample is at the origin here. Arm.mcstas_parameters and
+    # Arm.rtp_parameters take an explicit `sample` and subtract it, and they derive the
+    # scattering angle a different way (acos of a dot product, unsigned, in radians).
+    # Deliberately not unified: these are the quantities the emitted instrument is built
+    # from, and this is a move, not a rewrite.
+
+    @property
+    def sample_analyzer_vector(self) -> Variable:
+        """Sample to the centre of the analyzer."""
+        return self.analyzer.central_blade.position
+
+    @property
+    def analyzer_detector_vector(self) -> Variable:
+        """Analyzer centre to the middle of the central detector tube."""
+        centre = (self.detector.tubes[1].at + self.detector.tubes[1].to) / 2
+        return centre - self.sample_analyzer_vector
+
+    @property
+    def sample_analyzer_distance(self) -> Variable:
+        from scipp import dot, sqrt
+        vec = self.sample_analyzer_vector
+        return sqrt(dot(vec, vec)).to(unit='m')
+
+    @property
+    def analyzer_detector_distance(self) -> Variable:
+        from scipp import dot, sqrt
+        vec = self.analyzer_detector_vector
+        return sqrt(dot(vec, vec)).to(unit='m')
+
+    @property
+    def scattering_angle(self) -> Variable:
+        """The total scattering angle, signed, in the arm's vertical plane.
+
+        Measured from the incoming direction to the analyzer-detector direction, so it
+        carries the sign that says which way the arm bends -- unlike the unsigned
+        ``acos`` form in ``mcstas_parameters``.
+        """
+        from scipp import atan2, dot, vector
+        sa_vec = self.sample_analyzer_vector
+        ad_vec = self.analyzer_detector_vector
+        x = dot(ad_vec, sa_vec / self.sample_analyzer_distance)
+        y = dot(ad_vec, vector([0, 0, 1]))
+        return atan2(y=y, x=x).to(unit='degree')
+
+    @property
+    def analyzer_theta(self) -> Variable:
+        """Half the scattering angle: how far the analyzer is turned to reflect."""
+        return self.scattering_angle / 2
+
     @classmethod
     def from_dict(cls, data):
         from .analyzer import Analyzer
@@ -120,21 +174,14 @@ class Arm(Base):
     def to_mccode(self, assembler: Assembler, ref: Instance, name: str,
                   analyzer_when: str = None, analyzer_extend: str = None,
                   detector_when: str = None, detector_extend: str = None, **kwargs):
-        from scipp import concat, all, isclose, vector, dot, sqrt, atan2
+        from scipp import vector
         from niess.mccode import add_niess_metadata
         # For each channel we need to define the local coordinate system, relative to the provided sample
         origin = vector([0, 0, 0], unit='m')
 
-        sa_vec = self.analyzer.central_blade.position
-        ad_vec = (self.detector.tubes[1].at + self.detector.tubes[1].to) / 2 - sa_vec
-
-        sample_analyzer_d = sqrt(dot(sa_vec, sa_vec)).to(unit='m')
-        analyzer_detector_distance = sqrt(dot(ad_vec, ad_vec)).to(unit='m')
-
-        x = dot(ad_vec, sa_vec / sample_analyzer_d)
-        y = dot(ad_vec, vector([0, 0, 1]))
-        two_theta = atan2(y=y, x=x).to(unit='degree').value
-        theta = two_theta / 2
+        sample_analyzer_d = self.sample_analyzer_distance
+        analyzer_detector_distance = self.analyzer_detector_distance
+        theta = self.analyzer_theta.value
 
         point = f'{name}_analyzer_point'    # component name of the location of the analyzer
         mono = f'{name}_monochromator'      # component name of the analyzer itself
