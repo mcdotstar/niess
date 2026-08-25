@@ -53,9 +53,9 @@ def instr():
 @pytest.fixture
 def registry():
     """A registry that folds a tagged group into one node."""
-    from niess.nexus import component_body
+    from niess.nexus.via_instr import component_body
     from niess.nexus.nodes import dataset
-    from niess.nexus.registry import NiessNexusRegistry
+    from niess.nexus.via_instr.registry import NiessNexusRegistry
 
     reg = NiessNexusRegistry()
 
@@ -85,7 +85,7 @@ def registry():
 
 @pytest.fixture
 def structure(instr, registry):
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
     return to_nexus_structure(instr, origin='sample', registry=registry)
 
 
@@ -118,7 +118,7 @@ def test_the_merged_node_carries_every_siblings_openings(structure):
 
 def test_group_members_are_ordered_by_tag_not_by_declaration(instr, registry):
     """Reordering the instances must not reorder the merged node's content."""
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
 
     components = list(instr.components)
     order = {name: i for i, name in enumerate(c.name for c in components)}

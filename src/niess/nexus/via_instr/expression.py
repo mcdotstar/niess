@@ -12,8 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .nodes import dataset, group
-from .streams import link_specifier, linked_nxlog
+from ..nodes import dataset, group
+from ..streams import link_specifier, linked_nxlog
 
 
 @dataclass(frozen=True)

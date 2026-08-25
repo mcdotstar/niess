@@ -13,7 +13,7 @@ from mccode_antlr import Flavor
 from mccode_antlr.assembler import Assembler
 from networkx import DiGraph
 
-from niess.nexus import to_nexus_structure
+from niess.nexus.via_instr import to_nexus_structure
 
 
 def branching():

@@ -12,7 +12,7 @@ def main(outdir: Path) -> None:
     ))
 
     # --8<-- [start:convert]
-    from niess.targets.nexus import to_nexus_structure
+    from niess.nexus import to_nexus_structure
 
     structure = to_nexus_structure(teaching)
     # --8<-- [end:convert]

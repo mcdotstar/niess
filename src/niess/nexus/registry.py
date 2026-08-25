@@ -1,20 +1,27 @@
-"""Translator registry for the NeXus target.
+"""Translator lookup for the NeXus target.
 
-A translator takes a :class:`niess.nexus.instrument.Translation` and returns a
-component body (see ``component_body``) -- or ``None`` to suppress the instance,
-which the walk treats as a normal outcome distinct from "no translator found".
+Created with ``hooks='nexus'``, so a class carrying ``__nexus_leaf__`` and friends is its
+own translator and needs no registration -- which is how `RadialSlitBank` writes its own
+NeXus without this package having to know it exists.
+
+Its own module so that `niess.nexus.structure` and `niess.nexus.bifrost` can both fill it
+without either importing the other.
 """
 from __future__ import annotations
 
-from typing import Any, Callable
-
 from ..dispatch import NiessRegistry
 
-NexusTranslator = Callable[[Any], dict | None]
 
+class NiessNexusRegistry(NiessRegistry):
+    """Translator lookup for the NeXus target.
 
-class NiessNexusRegistry(NiessRegistry[NexusTranslator]):
-    """Three-tier translator lookup: niess source type, niess role, McCode type."""
+    Created with ``hooks='nexus'``, so a class carrying ``__nexus_leaf__`` is its own
+    translator. Registering wins, which is what an instrument-specific conversion needs
+    -- BIFROST's detectors must not give another instrument's their pixel numbering
+    merely because a module was imported.
+    """
 
+    def __init__(self, parent=None):
+        super().__init__(parent=parent, hooks='nexus')
 
-DEFAULT_NEXUS_REGISTRY = NiessNexusRegistry()
+NEXUS_REGISTRY = NiessNexusRegistry()

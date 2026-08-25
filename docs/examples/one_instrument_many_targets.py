@@ -32,7 +32,8 @@ def main(outdir: Path) -> None:
     assert len(instrument.components) == 358
 
     # --8<-- [start:nexus]
-    from niess.targets.nexus import BIFROST_REGISTRY, to_nexus_structure
+    from niess.nexus import to_nexus_structure
+    from niess.nexus.bifrost import BIFROST_REGISTRY
 
     structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
     # --8<-- [end:nexus]

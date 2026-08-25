@@ -1,48 +1,32 @@
-"""ESS NeXus Structure JSON, from the tree rather than from an emitted instrument.
+"""ESS NeXus Structure JSON, from the tree.
 
-`niess.nexus` converts an assembled McStas instrument. Everything it needs, it recovers:
-the placement from `Instr.resolve_orientations`, the run-time values by constant-folding
-DECLARE blocks, a detector's arc and triplet by matching a regex against a generated
-`WHEN` clause. It works, and it costs a thousand lines of reading back what the tree
-said in the first place.
-
-This reads the tree. A component's position and orientation are on the component; a
-frame is a declared node, so a `depends_on` chain is the chain of frames a thing hangs
-from; and a detector's arc and triplet are `visit.ancestor(...).index`.
+A component's position and orientation are on the component; a frame is a declared node,
+so a `depends_on` chain is the chain of frames a thing hangs from; and a detector's arc
+and triplet are `visit.ancestor(...).index`. The route that recovers all of that from an
+emitted instrument instead is `niess.nexus.via_instr`, and it is a thousand lines longer.
 
 Translators are registered per niess class, or written on the class as ``__nexus_leaf__``
 and friends -- both work, and which reads better depends on the target. NeXus is mostly a
 table of per-type mappings, so registration suits it; McStas has scaffolding to place, so
 methods suit that.
+
+Instrument-specific translators are not here: they live in registries of their own, such
+as `niess.nexus.bifrost.BIFROST_REGISTRY`, and are selected by passing ``registry=``.
+Importing this module must not give another instrument's detectors BIFROST's numbering.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ..dispatch import NiessRegistry
-from ..nexus.nodes import add_child, attribute, dataset, group
 from ..walk import SKIP, Context, Visit, walk
+from .nodes import add_child, attribute, dataset, group
+from .registry import NEXUS_REGISTRY, NiessNexusRegistry
+
 
 INSTRUMENT_PATH = '/entry/instrument'
+
 DEFAULT_NXLOG_ROOT = '/entry/parameters'
-
-
-class NiessNexusRegistry(NiessRegistry):
-    """Translator lookup for the NeXus target.
-
-    Created with ``hooks='nexus'``, so a class carrying ``__nexus_leaf__`` is its own
-    translator. Registering wins, which is what an instrument-specific conversion needs
-    -- BIFROST's detectors must not give another instrument's their pixel numbering
-    merely because a module was imported.
-    """
-
-    def __init__(self, parent=None):
-        super().__init__(parent=parent, hooks='nexus')
-
-
-NEXUS_REGISTRY = NiessNexusRegistry()
-
 
 @dataclass
 class NexusContext(Context):
@@ -103,7 +87,6 @@ class NexusContext(Context):
             return '.'
         return self.paths.get(frame, '.')
 
-
 def _transformations(visit: Visit, position, rotation_deg) -> list:
     """A component's placement, as an NXtransformations group and a depends_on.
 
@@ -143,7 +126,6 @@ def _transformations(visit: Visit, position, rotation_deg) -> list:
     return [group('transformations', nx_class='NXtransformations',
                   children=children)], previous
 
-
 def component_body(nx_class: str, children=None, attrs=None, name=None,
                    position=None, rotation=None) -> dict:
     """What a translator returns: the class and contents of one component's group.
@@ -156,7 +138,6 @@ def component_body(nx_class: str, children=None, attrs=None, name=None,
     return {'nx_class': nx_class, 'children': list(children or []),
             'attrs': dict(attrs or {}), 'name': name,
             'position': position, 'rotation': rotation}
-
 
 def _placed(visit: Visit, body: dict) -> dict:
     """One component's group, with its placement attached."""
@@ -190,12 +171,10 @@ def _placed(visit: Visit, body: dict) -> dict:
     visit.context.paths[visit.id] = depends
     return node
 
-
 def emit(visit: Visit, body: dict) -> None:
     """Put one component's group into the instrument."""
     context = visit.context
     add_child(context.instrument_group, _placed(visit, body))
-
 
 def to_nexus_structure(instrument, registry=None, nxlog_root: str | None = None) -> dict:
     """Convert ``instrument`` to ESS NeXus Structure JSON."""
@@ -206,7 +185,6 @@ def to_nexus_structure(instrument, registry=None, nxlog_root: str | None = None)
     entry = group('entry', nx_class='NXentry',
                   children=[context.instrument_group])
     return {'children': [entry]}
-
 
 def translator(*classes):
     """Register a function returning a component body for one or more niess classes."""
@@ -224,17 +202,6 @@ def translator(*classes):
         return func
 
     return decorate
-
-
-def _import(dotted: str):
-    from importlib import import_module
-    module, _, name = dotted.rpartition('.')
-    return getattr(import_module(module), name)
-
-
-def _lazy(*dotted: str):
-    return [_import(name) for name in dotted]
-
 
 def _da00_config(topic: str, source: str, bins: int) -> dict:
     """The da00 configuration for a monitor's histogram.
@@ -258,7 +225,6 @@ def _da00_config(topic: str, source: str, bins: int) -> dict:
                                       variables=[configs['signal'], configs['errors']],
                                       constants=[configs['t']])
     return directive.get('config', directive)
-
 
 def register_defaults() -> None:
     """Attach the per-type translators. Called on import; separate so it reads as a list."""
@@ -370,166 +336,4 @@ def register_defaults() -> None:
                     attrs={'units': 'm'}),
         ])
 
-
 register_defaults()
-
-
-# -- BIFROST -------------------------------------------------------------------
-#
-# Instrument-specific, and kept off the shared registry: Detector_tubes is not a
-# BIFROST-only component, and importing this module must not give another instrument's
-# detectors BIFROST's pixel numbering. Ask for BIFROST_REGISTRY to get these.
-
-BIFROST_DETECTOR_TOPIC = 'bifrost_detector'
-BIFROST_REGISTRY = NiessNexusRegistry(parent=NEXUS_REGISTRY)
-
-
-def icd_pixel(resolution, arc, triplet, tube, position):
-    """Pixel id per ICD 01 v6; ``position`` runs from 0 to ``resolution - 1``."""
-    return 27 * resolution * arc + 9 * resolution * tube + resolution * triplet + position + 1
-
-
-def bifrost_detector_source(arc, triplet) -> str:
-    return f'arc={arc};triplet={triplet}'
-
-
-def arc_and_triplet(visit: Visit) -> tuple[int, int]:
-    """Which arc and which triplet, from where the thing sits in the instrument.
-
-    `niess.nexus` matches a regex against a generated ``WHEN`` clause for this, because
-    an emitted McStas instrument is all it has. The tree knows: a triplet is the arm it
-    belongs to, in the channel that arm belongs to.
-    """
-    from ..bifrost.arm import Arm
-    from ..bifrost.channel import Channel
-    arm, channel = visit.ancestor(Arm), visit.ancestor(Channel)
-    return (0 if arm is None else arm.index, 0 if channel is None else channel.index)
-
-
-def _arm():
-    from ..bifrost.arm import Arm
-    return Arm
-
-
-def register_bifrost() -> None:
-    """BIFROST's analyzers and detectors, read off the objects."""
-    from ..bifrost.analyzer import Analyzer
-    from ..bifrost.triplet import Triplet
-    from ..components.filter import RadialFilterCollimator
-    from ..nexus.nodes import group as nx_group
-    from ..nexus.off import NXoff
-
-    def register(klass, func):
-        def run(visit):
-            body = func(visit)
-            if body is not None:
-                emit(visit, body)
-            return SKIP
-
-        BIFROST_REGISTRY.register(klass)(
-            type(func.__name__, (), {'enter': staticmethod(run),
-                                     'leaf': staticmethod(run),
-                                     '__doc__': func.__doc__}))
-
-    def analyzer(visit):
-        """A Rowland-geometry analyzer, as a segmented NXcrystal.
-
-        The blade count, shape and mosaic are the analyzer's own fields. The other way
-        round they are McStas component parameters -- NH, zwidth, yheight, mosaic --
-        read back out of a component call.
-        """
-        obj = visit.obj
-        blade = obj.central_blade
-        perp_q, perp_plane, _ = blade.shape.to(unit='m').value
-        mosaic = float(blade.mosaic.to(unit='arcminute').value)
-        count = int(obj.count)
-
-        half_width, half_height = float(perp_q) / 2, float(perp_plane) / 2
-        vertices, faces = [], []
-        for i in range(count):
-            x0 = (i - count // 2) * (2 * half_width)
-            vertices.extend([
-                [0, -half_height, x0 - half_width], [0, -half_height, x0 + half_width],
-                [0, half_height, x0 + half_width], [0, half_height, x0 - half_width],
-            ])
-            faces.append([4 * i, 4 * i + 1, 4 * i + 2, 4 * i + 3])
-
-        return component_body('NXcrystal', [
-            dataset('usage', 'Bragg'),
-            dataset('d_spacing', float(obj.central_blade.plane_spacing.to(unit='angstrom').value),
-                    attrs={'units': 'angstrom'}),
-            dataset('segment_width', float(perp_q), attrs={'units': 'm'}),
-            dataset('segment_height', float(perp_plane), attrs={'units': 'm'}),
-            dataset('segment_columns', count),
-            dataset('segment_rows', 1),
-            dataset('mosaic_horizontal', mosaic, attrs={'units': 'arcminutes'}),
-            dataset('mosaic_vertical', mosaic, attrs={'units': 'arcminutes'}),
-            NXoff(vertices, faces).to_nexus('geometry'),
-        ], name=visit.emit_name('monochromator'),
-           rotation=(0.0, float(visit.ancestor(_arm()).obj.analyzer_theta.value), 0.0))
-
-    def detector(visit):
-        """A triplet of He3 tubes: one shared cylinder, repositioned per pixel."""
-        import numpy as np
-        from scipp import dot, sqrt, vector
-
-        obj = visit.obj
-        arc, triplet = arc_and_triplet(visit)
-        tubes = obj.tubes
-        ni = len(tubes)
-        nj = int(tubes[0].elements)
-        radius = float(sum(t.radius.to(unit='m').value for t in tubes) / ni)
-        lengths = [sqrt(dot(t.to - t.at, t.to - t.at)).to(unit='m').value for t in tubes]
-        height = float(sum(lengths) / ni)
-        centres = [(t.to + t.at) / 2 for t in tubes]
-        span = centres[-1] - centres[0]
-        width = float(sqrt(dot(span, span)).to(unit='m').value) + 2 * radius
-
-        half_i = (width - 2 * radius) / 2
-        di = np.linspace(-half_i, half_i, ni)
-        half_pixel = height / nj / 2
-        dj = -np.linspace(-height / 2 + half_pixel, height / 2 - half_pixel, nj)
-        grid_j, grid_i = np.meshgrid(dj, di)
-
-        numbers = [[icd_pixel(nj, arc, triplet, tube, position)
-                    for position in range(nj)] for tube in range(ni)]
-
-        geometry = nx_group('geometry', 'NXcylindrical_geometry', children=[
-            dataset('vertices', [[0.0, -half_pixel, 0.0], [radius, -half_pixel, 0.0],
-                                 [0.0, half_pixel, 0.0]],
-                    dtype='double', attrs={'units': 'm'}),
-            dataset('cylinders', [[0, 1, 2]]),
-        ])
-
-        return component_body('NXdetector', [
-            dataset('detector_number',
-                    np.array(numbers).astype('int32').tolist(), dtype='int32'),
-            dataset('x_pixel_offset', grid_i.tolist(), dtype='double',
-                    attrs={'units': 'm'}),
-            dataset('y_pixel_offset', grid_j.tolist(), dtype='double',
-                    attrs={'units': 'm'}),
-            dataset('x_pixel_size', 2 * radius, attrs={'units': 'm'}),
-            dataset('y_pixel_size', height / nj, attrs={'units': 'm'}),
-            dataset('diameter', 2 * radius, attrs={'units': 'm'}),
-            dataset('type', f'{ni} He3 tubes in series'),
-            geometry,
-        ], name=visit.emit_name('triplet'),
-           position=vector([0., 0., 1.]) * visit.ancestor(_arm()).obj.analyzer_detector_distance)
-
-    def collimator(visit):
-        obj = visit.obj
-        return component_body('NXcollimator', [
-            dataset('type', 'radial'),
-            dataset('divergence_x',
-                    float(obj.collimation_angle.to(unit='degree').value),
-                    attrs={'units': 'degrees'}),
-        ])
-
-    register(Analyzer, analyzer)
-    register(Triplet, detector)
-    BIFROST_REGISTRY.register(RadialFilterCollimator)(
-        type('collimator', (), {'leaf': staticmethod(
-            lambda visit: emit(visit, collimator(visit)))}))
-
-
-register_bifrost()

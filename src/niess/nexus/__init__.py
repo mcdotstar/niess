@@ -1,28 +1,24 @@
-"""McCode to ESS NeXus Structure JSON conversion.
+"""ESS NeXus Structure JSON from a niess instrument.
 
-Dispatches translators over the assembled ``mccode_antlr`` ``Instance`` tree, the
-same handoff point :mod:`niess.brep` uses, and builds NeXus Structure JSON dicts
-directly -- there is no intermediate NeXus object model.
-
+    from niess.instrument import Instrument, Mount
     from niess.nexus import to_nexus_structure
-    structure = to_nexus_structure(assembler.instrument, origin='sample_origin')
 
-Instrument-specific translators are opt-in per conversion, through a registry that
-extends the default one:
+    structure = to_nexus_structure(instrument)
 
-    from niess.nexus.bifrost import BIFROST_REGISTRY
-    structure = to_nexus_structure(instr, origin='sample_origin',
-                                   registry=BIFROST_REGISTRY)
+Reads the tree: a component's position and orientation are on the component, a declared
+`Frame` is a node, and a `depends_on` chain is the chain of frames a thing hangs from.
+
+Writing a translator needs the node constructors, which are re-exported here so that takes
+one import. They are shared with the other route, being format rather than route.
+
+Two things this module deliberately does not import:
+
+* `niess.nexus.bifrost` -- instrument-specific translators live in registries of their
+  own, and generic NeXus has no business loading `niess.bifrost` to publish them.
+* `niess.nexus.via_instr` -- converting an instrument niess did *not* build, by reading
+  the emitted McStas back. It is the older route and a different function; loading the
+  tree route used to drag all 1500 lines of it in.
 """
-from .instrument import (
-    DEFAULT_NXLOG_ROOT,
-    NexusContext,
-    Translation,
-    component_body,
-    to_nexus_structure,
-)
-# The node constructors a translator builds its output from, and the readers used to
-# inspect a finished structure. Re-exported so writing a translator needs one import.
 from .nodes import (
     attribute,
     children_of,
@@ -34,14 +30,16 @@ from .nodes import (
     stream,
 )
 from .off import NXoff
-from .registry import DEFAULT_NEXUS_REGISTRY, NiessNexusRegistry
+from .registry import NEXUS_REGISTRY, NiessNexusRegistry
 from .streams import resolve_stream
-
-# Registers the default per-component-type translators on DEFAULT_NEXUS_REGISTRY.
-# Instrument-specific translators are deliberately absent: they live in registries
-# of their own (niess.nexus.bifrost.BIFROST_REGISTRY) and are selected per
-# conversion by passing registry= to to_nexus_structure.
-from . import translators as _translators  # noqa: F401
+from .structure import (
+    DEFAULT_NXLOG_ROOT,
+    NexusContext,
+    component_body,
+    emit,
+    to_nexus_structure,
+    translator,
+)
 
 __all__ = [
     # conversion
@@ -49,10 +47,11 @@ __all__ = [
     'NexusContext',
     'DEFAULT_NXLOG_ROOT',
     # writing translators
-    'DEFAULT_NEXUS_REGISTRY',
+    'NEXUS_REGISTRY',
     'NiessNexusRegistry',
-    'Translation',
     'component_body',
+    'emit',
+    'translator',
     'resolve_stream',
     # building and reading nodes
     'attribute',

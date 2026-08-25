@@ -11,11 +11,11 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..dispatch import component_type_category, component_type_name, expr_float
-from ..provenance import NiessProvenance
-from ..spatial import mccode_angles_without_turn
+from ...dispatch import component_type_category, component_type_name, expr_float
+from ...provenance import NiessProvenance
+from ...spatial import mccode_angles_without_turn
 from . import expression
-from .nodes import (
+from ..nodes import (
     absolutize_depends_on,
     add_attribute,
     dataset,

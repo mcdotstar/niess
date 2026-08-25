@@ -14,7 +14,7 @@ def main(outdir: Path) -> None:
     # --8<-- [start:registry]
     from niess.components.aperture import Jaw
     from niess.nexus.nodes import dataset
-    from niess.targets.nexus import (
+    from niess.nexus import (
         NEXUS_REGISTRY, NiessNexusRegistry, component_body, emit,
     )
 
@@ -44,7 +44,7 @@ def main(outdir: Path) -> None:
     ))
 
     # --8<-- [start:use]
-    from niess.targets.nexus import to_nexus_structure
+    from niess.nexus import to_nexus_structure
 
     structure = to_nexus_structure(teaching, registry=TEACHING_REGISTRY)
     # --8<-- [end:use]

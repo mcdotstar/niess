@@ -67,7 +67,7 @@ def main(outdir: Path) -> None:
 
     # --8<-- [start:nexus]
     from niess.nexus.nodes import find_child, get_attribute
-    from niess.targets.nexus import to_nexus_structure
+    from niess.nexus import to_nexus_structure
 
     structure = to_nexus_structure(chopped)
     instrument_group = structure['children'][0]['children'][0]

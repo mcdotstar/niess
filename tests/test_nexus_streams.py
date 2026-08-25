@@ -98,7 +98,7 @@ END
 def structure_with_metadata():
     from json import dumps
     from mccode_antlr.loader import parse_mcstas_instr
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
 
     config = dumps({'module': 'da00', 'config': {'topic': 'mon_histograms', 'source': 'mon'}})
     src = INSTR.replace(
@@ -110,7 +110,7 @@ def structure_with_metadata():
 
 def test_monitor_without_a_stream_gets_geometry_only():
     from mccode_antlr.loader import parse_mcstas_instr
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
 
     structure = to_nexus_structure(parse_mcstas_instr(INSTR), origin='sample')
     monitor = find_child(structure['children'][0]['children'][0], 'mon')
@@ -130,7 +130,7 @@ def test_monitor_metadata_becomes_a_da00_stream(structure_with_metadata):
 
 def test_bifrost_detector_defaults_to_ev44():
     """The BIFROST tubes keep event streaming when the instrument says nothing."""
-    from niess.nexus.bifrost import (
+    from niess.nexus.via_instr.bifrost import (
         BIFROST_DETECTOR_TOPIC, BIFROST_REGISTRY, detector_tubes_translator,
     )
     from niess.nexus.streams import resolve_stream
@@ -158,7 +158,7 @@ def test_ess_moderator_is_classified_without_instrument_specific_translators():
     to NXcoordinate_system.
     """
     from mccode_antlr.loader import parse_mcstas_instr
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
 
     src = """DEFINE INSTRUMENT moderator_test(dummy=0)
 TRACE
@@ -186,7 +186,7 @@ def test_generic_niess_monitor_keeps_its_da00_stream():
     from scipp import scalar, vector
     from scipp.spatial import rotations_from_rotvecs
     from niess.components import FissionChamber
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
 
     assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
     assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))

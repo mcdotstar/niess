@@ -2,7 +2,7 @@
 
 They used to be registered on the shared ``DEFAULT_NEXUS_REGISTRY`` at import time,
 which made the opt-in per *process* rather than per conversion: once anything imported
-``niess.nexus.bifrost``, every later conversion in that process picked up BIFROST's
+``niess.nexus.via_instr.bifrost``, every later conversion in that process picked up BIFROST's
 translators. That is not hypothetical -- ``Detector_tubes`` is not a BIFROST-only
 component, so another instrument using it would silently inherit BIFROST's ICD pixel
 numbering and detector topic. Now each instrument has its own registry, extending the
@@ -10,7 +10,7 @@ default one.
 """
 import pytest
 
-from niess.nexus.registry import DEFAULT_NEXUS_REGISTRY, NiessNexusRegistry
+from niess.nexus.via_instr.registry import DEFAULT_NEXUS_REGISTRY, NiessNexusRegistry
 
 
 class FakeInstance:
@@ -26,7 +26,7 @@ class FakeInstance:
 
 def test_importing_bifrost_leaves_the_default_registry_alone():
     before = DEFAULT_NEXUS_REGISTRY.registered_component_types()
-    from niess.nexus import bifrost  # noqa: F401
+    from niess.nexus.via_instr import bifrost  # noqa: F401
     assert DEFAULT_NEXUS_REGISTRY.registered_component_types() == before
 
     for type_name in ('Monochromator_Rowland', 'Detector_tubes', 'Detector_time_tubes'):
@@ -40,14 +40,14 @@ def test_frame_monitor_is_generic_not_bifrost_specific():
     NXcoordinate_system, silently discarding the da00 stream their METADATA carries,
     so it belongs on the default registry with the other monitor types.
     """
-    from niess.nexus.translators import monitor_translator
+    from niess.nexus.via_instr.translators import monitor_translator
 
     assert DEFAULT_NEXUS_REGISTRY.resolve_builder(
         FakeInstance('Frame_monitor')) is monitor_translator
 
 
 def test_bifrost_registry_resolves_its_own_translators():
-    from niess.nexus.bifrost import (
+    from niess.nexus.via_instr.bifrost import (
         BIFROST_REGISTRY, detector_tubes_translator, monochromator_rowland_translator,
     )
 
@@ -60,8 +60,8 @@ def test_bifrost_registry_resolves_its_own_translators():
 
 def test_bifrost_registry_inherits_the_generic_translators():
     """Extending the default must not mean losing it."""
-    from niess.nexus.bifrost import BIFROST_REGISTRY
-    from niess.nexus.translators import diskchopper_translator
+    from niess.nexus.via_instr.bifrost import BIFROST_REGISTRY
+    from niess.nexus.via_instr.translators import diskchopper_translator
 
     assert BIFROST_REGISTRY.resolve_builder(
         FakeInstance('DiskChopper')) is diskchopper_translator
@@ -70,7 +70,7 @@ def test_bifrost_registry_inherits_the_generic_translators():
 
 
 def test_unknown_types_still_resolve_to_nothing():
-    from niess.nexus.bifrost import BIFROST_REGISTRY
+    from niess.nexus.via_instr.bifrost import BIFROST_REGISTRY
     assert BIFROST_REGISTRY.resolve_builder(FakeInstance('Some_Other_Component')) is None
 
 
@@ -109,8 +109,8 @@ def test_detector_tubes_translation_follows_the_registry(registry_name):
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
     from niess.assembler import ensure_registry
-    from niess.nexus import to_nexus_structure
-    from niess.nexus.bifrost import BIFROST_REGISTRY
+    from niess.nexus.via_instr import to_nexus_structure
+    from niess.nexus.via_instr.bifrost import BIFROST_REGISTRY
     from niess.nexus.nodes import find_child, get_attribute
 
     assembler = Assembler('not_bifrost', flavor=Flavor.MCSTAS)

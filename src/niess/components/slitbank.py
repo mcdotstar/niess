@@ -100,7 +100,7 @@ class RadialSlitBank(Component):
 
     def __nexus_leaf__(self, visit):
         """A ring of openings, as an NXslit."""
-        from ..targets.nexus import component_body, emit
+        from ..nexus.structure import component_body, emit
         from ..nexus.nodes import dataset
 
         emit(visit, component_body('NXslit', [

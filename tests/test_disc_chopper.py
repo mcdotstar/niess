@@ -152,7 +152,7 @@ def test_a_disc_writes_its_openings_to_nexus_in_the_mark_frame():
     beam-relative edges from `theta_0`, while a multi-opening one wrote mark-relative
     ones. Both go through the same translator now.
     """
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
     disc = DiscChopper.from_calibration(calibration(beam_angle=scalar(180.0, unit='deg')))
     assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
     assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
@@ -173,7 +173,7 @@ def test_a_disc_writes_its_openings_to_nexus_in_the_mark_frame():
 
 def nexus_slit_edges_of(edges):
     """The `slit_edges` a disc with these `windows` writes into NeXus."""
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
     disc = DiscChopper.from_calibration(calibration(
         windows=array(values=edges, dims=['edges'], unit='deg')))
     assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
@@ -230,7 +230,7 @@ def test_pairs_survive_being_reordered():
 
 def test_openings_that_overlap_are_refused_rather_than_written():
     """They cannot be put in the standard's order, and a disc cannot have them anyway."""
-    from niess.nexus.translators import nexus_slit_edges
+    from niess.nexus.via_instr.translators import nexus_slit_edges
     with pytest.raises(ValueError, match='overlap'):
         nexus_slit_edges([0.0, 200.0, 100.0, 300.0])
 
@@ -238,7 +238,7 @@ def test_openings_that_overlap_are_refused_rather_than_written():
 # -- the McStas frame twist stays in McStas ------------------------------------
 
 def nexus_body(disc, name='chopper'):
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
     assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
     assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
     disc.to_mccode(assembler)
@@ -295,7 +295,7 @@ def test_nexus_puts_the_disc_on_its_spindle():
     expects to be. An NXdisk_chopper is centred on the disc, so the file records the
     spindle -- the point the calibration actually gave.
     """
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
     disc = DiscChopper.from_calibration(calibration(beam_angle=scalar(180.0, unit='deg')))
     assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
     assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
@@ -322,7 +322,7 @@ def test_the_spindle_is_recovered_against_a_rotated_reference():
     against, so it has to come back out of the same quantity -- not out of a resolved
     absolute position, which a rotated reference has already turned.
     """
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
     tilt = rotations_from_rotvecs(vector(value=[0.0, 37.0, 0.0], unit='deg'))
     disc = DiscChopper.from_calibration(calibration(
         orientation=tilt, beam_angle=scalar(180.0, unit='deg')))
@@ -366,7 +366,7 @@ def test_nexus_records_the_discs_own_orientation():
 
 def test_a_turned_disc_matches_a_component_placed_where_it_really_is():
     """The strongest form of the check: same rotation chain as an untwisted stand-in."""
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
     from niess.spatial import mccode_ordered_angles
     tilt = rotations_from_rotvecs(vector(value=[0.0, -12.5, 0.0], unit='deg'))
     disc = DiscChopper.from_calibration(calibration(
@@ -392,7 +392,7 @@ def test_every_opening_of_a_split_disc_is_untwisted():
     disc = DiscChopper.from_calibration(calibration(
         beam_angle=scalar(180.0, unit='deg'),
         windows=array(values=[95.0, 115.0, 245.0, 265.0], dims=['edges'], unit='deg')))
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
     assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
     assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
     instances = disc.to_mccode(assembler)
