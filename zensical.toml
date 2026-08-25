@@ -15,6 +15,7 @@ nav = [
     { "Core concepts" = "concepts.md" },
   ] },
   { "How-to guides" = [
+    { "Convert an instrument" = "how-to/convert-an-instrument.md" },
     { "Translate a McStas .instr" = "how-to/translate-an-instr.md" },
     { "Build a new instrument submodule" = "how-to/new-instrument-submodule.md" },
     { "Produce NeXus Structure JSON" = "how-to/nexus-structure.md" },
