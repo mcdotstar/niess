@@ -48,6 +48,32 @@ def instrument_units(instrument) -> dict[str, str | None]:
             for p in instrument.parameters}
 
 
+def as_declared(name: str, value, unit: str | None) -> float:
+    """A supplied value as a plain number, in the unit whatever reads it declares.
+
+    A chopper speed calculated elsewhere arrives as a scipp scalar carrying its own unit
+    -- and a calculator is as entitled to hand back a period in milliseconds or a speed in
+    rpm as it is to match what the instrument happens to say. The thing being set knows
+    what unit it wants, so convert rather than making the caller strip the unit and hope
+    the two agree.
+
+    ``unit`` of ``None`` means nothing declared one, so there is nothing to convert to and
+    the number is taken as it comes. Shared with the tree-reading route, which knows the
+    unit from the disc rather than from a DEFINE line, so that a value carrying its unit
+    is accepted the same way whichever way the instrument was read.
+    """
+    if not hasattr(value, 'unit'):
+        return float(value)
+    if unit is None:
+        return float(value.value)
+    try:
+        return float(value.to(unit=unit, dtype='float64').value)
+    except Exception as error:
+        raise ValueError(
+            f'{name} is declared in {unit!r} and {value.unit} does not convert to it'
+        ) from error
+
+
 class ParameterValues:
     """The values to evaluate expressions against, and a note of what got used."""
 
@@ -89,26 +115,8 @@ class ParameterValues:
             return None
 
     def _as_declared(self, name: str, value):
-        """An override as a plain number, in the unit the instrument declares.
-
-        A chopper speed calculated elsewhere arrives as a scipp scalar carrying its own
-        unit -- and a calculator is as entitled to hand back a period in milliseconds or a
-        speed in rpm as it is to match what the instrument happens to say. The instrument
-        knows what it wants, so convert rather than making the caller strip the unit and
-        hope the two agree.
-        """
-        if not hasattr(value, 'unit'):
-            return float(value)
-        declared = self.units.get(name)
-        if declared is None:
-            return float(value.value)
-        try:
-            return float(value.to(unit=declared, dtype='float64').value)
-        except Exception as error:
-            raise ValueError(
-                f'{name} is declared in {declared!r} and {value.unit} does not convert '
-                f'to it'
-            ) from error
+        """An override in the unit this instrument declares for it."""
+        return as_declared(name, value, self.units.get(name))
 
     def evaluate_text(self, text, *, used_by: str | None = None) -> float | None:
         """A `chopcalc` field -- C text naming instrument parameters -- as a number.
