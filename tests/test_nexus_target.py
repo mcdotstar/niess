@@ -319,3 +319,47 @@ def test_the_instrument_chooses_the_protocol():
     assert get_attribute(data, 'NX_class') == 'NXevent_data'
     assert data['children'][0]['module'] == 'ev44'
     assert data['children'][0]['config']['topic'] == 'teaching_events'
+
+
+def test_a_linked_log_deep_links_rather_than_linking_the_group(teaching):
+    """Why it is a group of links and not one link to a group.
+
+    A `link` module pointing at the NXlog itself would give the file the value, but
+    nothing could be added to it. Mirroring each dataset instead leaves the group ours,
+    so it can carry attributes the original has no reason to have -- which it must when
+    it is part of an NXtransformations chain and needs a transformation_type and a
+    vector alongside the value.
+    """
+    structure = to_nexus_structure(teaching)
+    speed = find_child(find_child(instrument_group(structure), 'chopper'),
+                       'rotation_speed')
+
+    assert get_attribute(speed, 'NX_class') == 'NXlog'
+    assert speed['type'] == 'group', 'a group of links, not a link to a group'
+
+    modules = {c['module'] for c in speed['children']}
+    assert modules == {'link'}
+    sources = {c['config']['source'] for c in speed['children']}
+    assert '/entry/parameters/chopperspeed/value' in sources
+    assert '/entry/parameters/chopperspeed/time' in sources
+
+    # and the group takes attributes of its own
+    assert get_attribute(speed, 'units') == 'Hz'
+
+
+def test_a_linked_log_can_carry_transformation_attributes(teaching):
+    """The case the deep links exist for.
+
+    Nothing in niess builds a driven transformation yet -- a tank rotated by a4 will --
+    so this checks the mechanism rather than a caller of it.
+    """
+    from niess.targets.nexus import NexusContext
+
+    context = NexusContext(instrument=teaching)
+    node = context.linked_log('rotation', 'a4', attrs={
+        'units': 'degrees', 'transformation_type': 'rotation',
+        'vector': [0.0, 1.0, 0.0], 'depends_on': '.'})
+
+    assert get_attribute(node, 'transformation_type') == 'rotation'
+    assert get_attribute(node, 'vector') == [0.0, 1.0, 0.0]
+    assert {c['module'] for c in node['children']} == {'link'}

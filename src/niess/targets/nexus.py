@@ -58,13 +58,32 @@ class NexusContext(Context):
                 'instrument', nx_class='NXinstrument',
                 children=[dataset('name', self.instrument.name)])
 
-    def link(self, name: str, parameter: str, attrs: dict | None = None) -> dict:
-        """A value a run sets, as a link to the NXlog carrying it.
+    def linked_log(self, name: str, parameter: str,
+                   attrs: dict | None = None) -> dict:
+        """A value a run sets, as an NXlog whose datasets link to an existing one.
 
         A chopper's speed is not a number an instrument has; it is a knob, and what the
         file should say is where to read it. `niess.nexus` decides this by folding a
         McCode expression and seeing whether an instrument parameter survives. Here the
         component names the knob it declared.
+
+        This builds an ``NXlog`` group whose *datasets* are `link` modules pointing into
+        an ``NXlog`` published elsewhere in the file -- deep links to the value and time
+        of one that already exists, rather than a link to the group itself. That is what
+        lets the group carry attributes of its own, which it must when it is part of an
+        ``NXtransformations`` chain and needs a ``transformation_type`` and a ``vector``
+        the original has no reason to have.
+
+        Not to be confused with the filewriter's ``link`` module, which is what the
+        datasets inside it are; :func:`niess.nexus.streams.link_specifier` writes those.
+
+        .. note::
+
+           This assumes there *is* an ``NXlog`` elsewhere to point at -- somewhere an
+           f144 module is publishing the parameter. Where that is not true the group has
+           to be written directly instead, carrying its own value and time rather than
+           links to someone else's. Nothing in niess needs that yet, and when something
+           does this is where the choice belongs.
         """
         from ..nexus.streams import linked_nxlog
         return linked_nxlog(name, f'{self.nxlog_root}/{parameter}', attrs=attrs)
@@ -294,7 +313,7 @@ def register_defaults() -> None:
         ]
         edges = getattr(obj, 'edge_parameters', None)
         if edges is not None:
-            children.extend(context.link(edge, parameter, attrs={'units': 'm'})
+            children.extend(context.linked_log(edge, parameter, attrs={'units': 'm'})
                             for edge, parameter in edges().items())
         return component_body('NXaperture', children)
 
@@ -333,9 +352,9 @@ def register_defaults() -> None:
         return component_body('NXdisk_chopper', [
             dataset('slits', len(obj.slits())),
             # what a run sets, so the file says where to read it rather than guessing
-            context.link('rotation_speed', obj.speed_parameter(),
+            context.linked_log('rotation_speed', obj.speed_parameter(),
                          attrs={'units': 'Hz'}),
-            context.link('delay', obj.delay_parameter(), attrs={'units': 's'}),
+            context.linked_log('delay', obj.delay_parameter(), attrs={'units': 's'}),
             dataset('slit_edges', edges, dtype='double', attrs={'units': 'degrees'}),
             dataset('top_dead_center',
                     float(obj.zero_angle.to(unit='deg').value),
