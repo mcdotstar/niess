@@ -27,7 +27,7 @@ def assembly():
 
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.brep import instrument_to_assembly
+    from niess.brep.via_instr import instrument_to_assembly
 
     def build(*parts, name='instrument'):
         assembler = Assembler(name, flavor=Flavor.MCSTAS)
@@ -100,9 +100,9 @@ def test_both_routes_place_things_in_the_same_places():
     from mccode_antlr.assembler import Assembler
     from niess.bifrost import Primary
     from niess.bifrost.parameters import primary_parameters
-    from niess.brep import instrument_to_assembly
+    from niess.brep.via_instr import instrument_to_assembly
     from niess.instrument import Instrument, Mount
-    from niess.targets.brep import to_assembly
+    from niess.brep import to_assembly
 
     part = Primary.from_calibration(primary_parameters())
     assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
@@ -133,8 +133,8 @@ def test_every_registered_builder_is_reached(assembly):
     from mccode_antlr.assembler import Assembler
     from niess.bifrost import Primary
     from niess.bifrost.parameters import primary_parameters
-    import niess.brep.components  # noqa: F401 -- registers the builders
-    from niess.brep.registry import DEFAULT_BREP_REGISTRY
+    import niess.brep.builders  # noqa: F401 -- registers the builders
+    from niess.brep import BREP_REGISTRY
     from niess.provenance import NiessProvenance
 
     assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
@@ -142,7 +142,7 @@ def test_every_registered_builder_is_reached(assembly):
 
     resolved = collections.Counter()
     for instance in assembler.instrument.components:
-        if DEFAULT_BREP_REGISTRY.resolve_builder(instance) is not None:
+        if BREP_REGISTRY.resolve_builder(instance) is not None:
             provenance = NiessProvenance.from_instance(instance)
             resolved[provenance.source_type.rsplit('.', 1)[-1]] += 1
 
@@ -169,7 +169,7 @@ def test_the_tree_route_needs_no_expression_evaluated():
     importorskip('build123d', reason='niess.brep needs the brep extra')
 
     from niess.instrument import Instrument, Mount
-    from niess.targets.brep import BRepContext, _local_placement
+    from niess.brep.assembly import BRepContext, _local_placement
     from niess.teaching import Primary
     from niess.walk import visits
 
@@ -197,11 +197,11 @@ def test_a_marker_is_only_for_a_marker():
     """
     importorskip('build123d', reason='niess.brep needs the brep extra')
 
-    import niess.brep.components  # noqa: F401 -- registers the builders
-    from niess.brep.components import build_arm
+    import niess.brep.builders  # noqa: F401 -- registers the builders
+    from niess.brep.builders import build_arm
     from niess.components.component import Component
     from niess.components.filter import Filter
-    from niess.targets.brep import Subject
+    from niess.brep import Subject
 
     import scipp as sc
     place = dict(position=sc.vector([0., 0., 0.], unit='m'),

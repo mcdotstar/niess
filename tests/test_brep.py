@@ -52,7 +52,7 @@ def test_straight_guide_brep_override():
     import scipp as sc
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.brep import instrument_to_assembly
+    from niess.brep.via_instr import instrument_to_assembly
     from niess.components import StraightGuide
     from niess.provenance import add_niess_metadata
 
@@ -89,7 +89,7 @@ def test_slit_brep_override_uses_metadata_dimensions():
     import scipp as sc
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.brep import instrument_to_assembly
+    from niess.brep.via_instr import instrument_to_assembly
     from niess.components import Slit
 
     slit = Slit(
@@ -116,7 +116,7 @@ def test_filter_brep_override():
     import scipp as sc
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.brep import instrument_to_assembly
+    from niess.brep.via_instr import instrument_to_assembly
     from niess.components import NCrystalFilter
 
     filt = NCrystalFilter(
