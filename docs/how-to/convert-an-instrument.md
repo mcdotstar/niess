@@ -89,8 +89,9 @@ an f-string, which is how the same name used to get written in two places and dr
 ## Converting an instrument niess did not build
 
 The tree-reading targets need a tree. For a `.instr` file there isn't one, and the
-older instrument-reading entry points remain for that: `niess.nexus.to_nexus_structure`,
-`niess.brep.via_instr.instrument_to_assembly`, `niess.tof.to_tof_model` and
+older instrument-reading entry points remain for that, each under `via_instr` in its own
+package: `niess.nexus.via_instr.to_nexus_structure`,
+`niess.brep.via_instr.instrument_to_assembly`, `niess.tof.via_instr.to_tof_model` and
 `niess.chopcalc.narrow_source_wavelengths` all take an assembled instrument and recover
 what they can from it. See [Translate a McStas `.instr`](translate-an-instr.md) for
 turning one into a niess submodule, which is the better answer where it is available.

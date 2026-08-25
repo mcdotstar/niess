@@ -1,8 +1,12 @@
 # moreniius parity
 
-`niess.nexus` replaces [`moreniius`](https://github.com/g5t/moreniius), which converted
-McCode instruments to ESS NeXus Structure JSON through a `nexusformat` object model.
-This page records what happened to every part of it, so nothing was lost silently.
+`niess.nexus.via_instr` replaces [`moreniius`](https://github.com/g5t/moreniius), which
+converted McCode instruments to ESS NeXus Structure JSON through a `nexusformat` object
+model. This page records what happened to every part of it, so nothing was lost silently.
+
+The module paths below are all relative to `niess/nexus/via_instr/`. That subpackage is
+where the instrument-reading route now lives: `niess.nexus` itself reads the niess object
+tree, which is a rewrite rather than a port and so has nothing to do with this audit.
 
 The regression baseline that pins the two against each other, and the classification of
 every remaining difference, is documented in
@@ -19,7 +23,7 @@ separate, human step.
 
 ## Ported
 
-| moreniius | niess.nexus | Notes |
+| moreniius | niess.nexus.via_instr | Notes |
 | --- | --- | --- |
 | `mccode/orientation.py` — `NXPart`, `NXParts`, `NXOrient` | `orientation.py` | Same algebra, emitting transformation dicts instead of `NXfield`s |
 | `mccode/instr.py` — `make_transformations`, `resolve_target`, `build_graph`, `inputs`/`outputs`, `guess_origin`, `to_nx` | `instrument.py::NexusContext` | `guess_origin` → `_find_origin`; `to_nx` → the `mcstas` dataset |

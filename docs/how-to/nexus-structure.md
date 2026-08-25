@@ -1,9 +1,13 @@
 # Produce NeXus Structure JSON
 
-`niess.nexus` turns a McCode instrument into the JSON the ESS
-[kafka-to-nexus filewriter](https://github.com/ess-dmsc/kafka-to-nexus) consumes. It
-works on an instrument niess built and on a `.instr` file it has never seen, because it
-runs on the assembled `mccode_antlr` instrument, not on niess objects.
+`niess.nexus` turns a niess instrument into the JSON the ESS
+[kafka-to-nexus filewriter](https://github.com/ess-dmsc/kafka-to-nexus) consumes. It reads
+the tree: a component's position and orientation are on the component, and a declared
+`Frame` is what a `depends_on` chain points at.
+
+A `.instr` file has no tree. Converting one means `niess.nexus.via_instr`, which recovers
+what it can from the assembled `mccode_antlr` instrument instead — the older of the two
+routes, and a different function taking a different argument.
 
 ## From a niess instrument
 
