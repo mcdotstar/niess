@@ -173,7 +173,6 @@ def _ellipse_parameters_from_widths(params: dict[str, float]):
     pars = dict(xw='xwidth', xi='linxw', xo='loutxw', yw='yheight', yi='linyh', yo='loutyh', l='l')
     p = {k: params[v] for k, v in pars.items()}
 
-    print(params)
     dim_at = str(params['dimensionsAt'])
     major_x, minor_x, offset_x = parameters(dim_at, p['xw'], p['xi'], p['xo'], p['l'])
     major_y, minor_y, offset_y = parameters(dim_at, p['yw'], p['yi'], p['yo'], p['l'])
@@ -309,7 +308,6 @@ def build_radial_filter_collimator(_provenance, _instance, params: dict[str, flo
 @DEFAULT_BREP_REGISTRY.register(Component)
 def build_arm(_provenance, _instance, params: dict[str, float]):
     bd = _bd()
-    print(f'{_instance.name} arm')
     width, length = 0.02, 0.2
 
     ez = bd.extrude(bd.Circle(width / 2), length)
