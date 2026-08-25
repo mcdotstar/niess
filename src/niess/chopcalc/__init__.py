@@ -20,11 +20,12 @@ import logging
 import dataclasses
 import re
 
-from .discovery import ChopcalcError, build_train
 from .emit import (CHOPPER_LIB_REGISTRY, already_emitted, declare_text,
                    export_declare_text, finalize_text, include_present,
                    initialize_text)
 from .model import ChopperEntry, ChopperTrain, Exclusion, Export, SourceEntry
+from .paths import ChopcalcError
+from .train import train_from_instrument
 
 C_IDENTIFIER = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
@@ -38,6 +39,7 @@ __all__ = [
     'Export',
     'SourceEntry',
     'narrow_source_wavelengths',
+    'train_from_instrument',
 ]
 
 
@@ -117,9 +119,12 @@ def narrow_source_wavelengths(
     try:
         export = _export_names(instrument, export_choppers, export_chopper_count)
         if train is None:
-            # Everything below is emission, and emission does not care how the train
-            # was found: niess.chopcalc.tree builds the same thing by reading the discs
-            # rather than the components they were emitted as.
+            # Everything below is emission, and emission does not care how the train was
+            # found: `train_from_instrument` builds the same thing by reading the discs
+            # rather than the components they were emitted as. Imported here rather than
+            # at the top so that this module -- which is emission, and stays -- does not
+            # depend on the route that goes.
+            from .via_instr import build_train
             train = build_train(instrument, source=source, skip=skip,
                                 path_lengths=path_lengths,
                                 latest_emission=latest_emission, graph=graph)

@@ -7,7 +7,7 @@ def main(outdir: Path) -> None:
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
     from niess.chopcalc import narrow_source_wavelengths
-    from niess.chopcalc.tree import train_from_instrument
+    from niess.chopcalc import train_from_instrument
     from niess.instrument import Instrument, Mount
     from niess.mccode import to_mccode
     from niess.teaching import Primary

@@ -4,7 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..chopcalc.discovery import ChopcalcError, beam_path_length, find_source, positions
+from ..chopcalc.paths import ChopcalcError, beam_path_length
+from ..chopcalc.via_instr import find_source, positions
 from ..provenance import NiessProvenance
 from .mapping import ChopperSpec, spec_from_windows
 from .parameters import ParameterValues, Use
@@ -239,7 +240,7 @@ def to_tof_model(obj, *, source=None, values=None, neutrons: int = 1_000_000,
         declared in, BIFROST after the sample among them, has to be handed the real one.
         Built from the instrument when omitted.
     """
-    from ..chopcalc.discovery import build_train
+    from ..chopcalc.via_instr import build_train
 
     tof = _tof()
     import scipp as sc

@@ -1,14 +1,14 @@
 """The chopper train, read off the tree instead of off an emitted instrument.
 
-`niess.chopcalc.discovery` reads the components McStas was given, recovering which disc
+`niess.chopcalc.via_instr` reads the components McStas was given, recovering which disc
 is which, where a multi-opening one came apart, and which knob sets its speed. Reading
 the tree, a disc is a disc. These check the two agree, because the emitted C has to be
 the same either way -- `emit.py` is untouched and takes whichever train it is handed.
 """
 import pytest
 
-from niess.chopcalc.discovery import build_train
-from niess.chopcalc.tree import train_from_instrument
+from niess.chopcalc.via_instr import build_train
+from niess.chopcalc import train_from_instrument
 from niess.instrument import Instrument, Mount
 
 
@@ -137,8 +137,8 @@ def test_a_chopper_in_a_mounted_frame_is_refused(bifrost_primary):
     """
     from niess.bifrost import Tank
     from niess.bifrost.parameters import tank_parameters
-    from niess.chopcalc.discovery import ChopcalcError
-    from niess.chopcalc.tree import _global_position
+    from niess.chopcalc import ChopcalcError
+    from niess.chopcalc.paths import global_position
     from niess.walk import visits
 
     instrument = Instrument(name='bifrost', origin='sample_origin', parts=(
@@ -148,4 +148,4 @@ def test_a_chopper_in_a_mounted_frame_is_refused(bifrost_primary):
     ))
     inside = next(v for v in visits(instrument) if v.id == 'tank/monitor')
     with pytest.raises(ChopcalcError, match='measured in the instrument frame'):
-        _global_position(inside)
+        global_position(inside)

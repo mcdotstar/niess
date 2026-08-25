@@ -35,7 +35,7 @@ def chopper_specs(instrument, values: dict | None = None, origin: float = 0.0,
     0.05 m facility offset, while the niess moderator is at the instrument origin. Pass
     ``source.distance`` to have the two agree.
     """
-    from ..chopcalc.tree import train_from_instrument
+    from ..chopcalc.train import train_from_instrument
     from ..components.chopper import DiscChopper
     from ..walk import visits
 
@@ -255,8 +255,7 @@ def _as_tof_chopper(tof, spec):
 
 def _paths(instrument, skip=(), path_lengths=None) -> dict:
     """How far along the beam every placed thing is, from the source."""
-    from ..chopcalc.discovery import ChopcalcError, beam_path_length
-    from ..chopcalc.tree import _global_position
+    from ..chopcalc.paths import ChopcalcError, beam_path_length, global_position
     from ..components.source import Source
     from ..walk import visits
 
@@ -268,7 +267,7 @@ def _paths(instrument, skip=(), path_lengths=None) -> dict:
         if not hasattr(visit.obj, 'position'):
             continue
         try:
-            places[visit.id] = _global_position(visit)
+            places[visit.id] = global_position(visit)
         except ChopcalcError:
             continue
 

@@ -1,6 +1,6 @@
 """The chopper train, read off the tree.
 
-`niess.chopcalc.discovery` reads an emitted McStas instrument, and it does so
+`niess.chopcalc.via_instr` reads an emitted McStas instrument, and it does so
 deliberately: an instrument niess did not build works the same way. It is also four
 hundred lines of recovering what the tree already says -- which disc is which, where a
 multi-opening one came apart and how to put it back, and which knob sets its speed.
@@ -15,32 +15,10 @@ has to recompute when it changes.
 """
 from __future__ import annotations
 
-from .discovery import (ChopcalcError, DEFAULT_LATEST_EMISSION, ESS_SOURCE_DURATION,
-                        _c_double, beam_path_length)
+from .paths import (ChopcalcError, DEFAULT_LATEST_EMISSION, ESS_SOURCE_DURATION,
+                    _c_double, beam_path_length, global_position)
 from .model import ChopperEntry, ChopperTrain, SourceEntry
 
-
-def _global_position(visit):
-    """Where a node is, as three numbers, in the frame the calculation works in.
-
-    Only nodes placed absolutely have one. Everything the band depends on -- the source
-    and the discs before the sample -- is placed that way; a chopper mounted in a turned
-    frame would need the frames composing first, and this says so rather than quietly
-    measuring from the wrong origin.
-    """
-    if visit.frame is not None:
-        raise ChopcalcError(
-            f'{visit.name!r} is placed in the frame {visit.frame!r}, and the beam path '
-            f'is measured in the instrument frame. Composing frames is not implemented, '
-            f'because nothing before the sample needs it.'
-        )
-    # A disc chopper's `position` is its spindle; the beam crosses the disc somewhere
-    # else entirely, and `__mccode_offset__` is what converts between them. The path
-    # length wants the crossing, so the same correction the emission makes is made here.
-    obj = visit.obj
-    offset = getattr(obj, '__mccode_offset__', None)
-    place = obj.position if offset is None else obj.position + offset()
-    return tuple(float(v) for v in place.to(unit='m').value)
 
 
 def _source_entry(visit, latest_emission: float | None) -> SourceEntry:
@@ -116,7 +94,7 @@ def train_from_instrument(instrument, latest_emission: float | None = None,
     for visit in seen:
         if hasattr(visit.obj, 'position'):
             try:
-                places[visit.id] = _global_position(visit)
+                places[visit.id] = global_position(visit)
             except ChopcalcError:
                 continue
 
