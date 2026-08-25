@@ -6,8 +6,8 @@ lines and simulates neither absorption nor scattering — it will never replace 
 it answers "what does my chopper train let through?" in a second rather than a coffee
 break.
 
-`niess.tof` builds a ready-to-run `tof.Model` from an instrument you have already
-assembled, so the train does not have to be retyped.
+`niess.tof` builds a ready-to-run `tof.Model` from a niess instrument, so the train does
+not have to be retyped.
 
 ```sh
 pip install 'niess[tof]'
@@ -77,12 +77,16 @@ two runs differ by what was changed rather than by which neutrons were drawn. Om
 
 ## Where the numbers come from
 
-The same place `niess.chopcalc` gets them: the emitted instrument, read through niess
-provenance. chopcalc extracts a chopper train to narrow a source's wavelength band, and
-emits parameter *names* so the band recomputes at run time. `tof` configures one specific
-machine, so `niess.tof` reuses that extraction and evaluates it — which means the disc
-grouping, the beam-path walk and the opening-angle conventions are shared with chopcalc
-rather than written a second time.
+Off the discs themselves. A `DiscChopper` carries its speed, its delay and its window
+edges as scipp quantities, so there is nothing to recover: `niess.tof` reads them and
+converts. The beam-path walk it measures distances along is shared with `niess.chopcalc`
+— both use `niess.chopcalc.paths` — so a chopper's distance is the same number in the
+band calculation and in the diagram.
+
+An instrument niess did *not* build has none of that, only emitted components. Modelling
+one means `niess.tof.via_instr.to_tof_model`, which asks chopcalc for a train and parses
+the numbers back out of the C it emits. It takes an `Assembler` rather than an
+`Instrument`, and it is the older of the two routes.
 
 The one thing that is not shared is the conversion into `tof`'s own description, because
 the two disagree about how a chopper is specified:

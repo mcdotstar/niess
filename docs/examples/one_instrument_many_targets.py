@@ -41,7 +41,7 @@ def main(outdir: Path) -> None:
     assert len(groups) == 358
 
     # --8<-- [start:tof]
-    from niess.tof.tree import chopper_specs
+    from niess.tof import chopper_specs
 
     specs = chopper_specs(bifrost, origin=0.05)
     # --8<-- [end:tof]

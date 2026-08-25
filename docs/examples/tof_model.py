@@ -6,7 +6,7 @@ def main(outdir: Path) -> None:
     # --8<-- [start:build]
     from niess.instrument import Instrument, Mount
     from niess.teaching import Primary
-    from niess.tof.tree import to_tof_model
+    from niess.tof import to_tof_model
 
     teaching = Instrument(name='teaching', origin='sample_origin', parts=(
         Mount(name='primary', content=Primary.from_calibration()),

@@ -1,29 +1,43 @@
-"""Walk an emitted instrument and build the pieces of a ``tof.Model``."""
+"""A ``tof.Model`` from an *emitted* instrument, rather than from the tree.
+
+Asks `niess.chopcalc` for a chopper train -- which is C text, because chopcalc emits C so
+a band recomputes when a speed changes at run time -- and parses the numbers back out.
+`niess.tof.model` reads the same numbers off the discs, where they never stopped being
+numbers. Kept for an instrument niess did not build; goes when that is no longer a case
+worth serving.
+
+The builder registry lives here rather than in a module of its own: only this route
+resolves builders, and a registry separated from the decorators that fill it would be
+empty for anyone importing it after the flip.
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Callable
 
 from ..chopcalc.paths import ChopcalcError, beam_path_length
 from ..chopcalc.via_instr import find_source, positions
+from ..dispatch import NiessRegistry
 from ..provenance import NiessProvenance
 from .mapping import ChopperSpec, spec_from_windows
 from .parameters import ParameterValues, Use
-from .registry import DEFAULT_TOF_REGISTRY
+from .setup import TofSetup, _facility_for, _tof
+
+TofBuilder = Callable[[Any], Any | None]
+
+TofBuilder = Callable[[Any], Any | None]
 
 
-def _tof():
-    """The scipp ``tof`` package, imported when it is actually needed.
+class NiessTofRegistry(NiessRegistry[TofBuilder]):
+    """Three-tier builder lookup: niess source type, niess role, McCode type.
 
-    Absolute, so this reaches the real ``tof`` and not ``niess.tof``.
+    As everywhere else, ``resolve_builder`` returning ``None`` means *nothing is
+    registered*, while a builder returning ``None`` means it ran and declined -- which is
+    how an opening folded into its disc says so.
     """
-    try:
-        import tof
-    except ImportError as error:  # pragma: no cover - depends on the environment
-        raise ImportError(
-            "niess.tof needs the 'tof' package: pip install 'niess[tof]'"
-        ) from error
-    return tof
+
+
+DEFAULT_TOF_REGISTRY = NiessTofRegistry()
 
 
 @dataclass
@@ -43,9 +57,6 @@ class Conversion:
     def name(self) -> str:
         return self.instance.name
 
-
-# -- builders -----------------------------------------------------------------
-
 @DEFAULT_TOF_REGISTRY.register('niess.components.chopper.DiscChopper')
 @DEFAULT_TOF_REGISTRY.register_component_type('DiskChopper')
 def disc_chopper_builder(conversion: Conversion):
@@ -61,7 +72,6 @@ def disc_chopper_builder(conversion: Conversion):
         return None
     return conversion.spec.to_tof()
 
-
 @DEFAULT_TOF_REGISTRY.register_component_type(
     'Frame_monitor', 'TOF_monitor', 'PSD_monitor', 'L_monitor', 'Monitor_nD')
 def monitor_builder(conversion: Conversion):
@@ -75,84 +85,6 @@ def monitor_builder(conversion: Conversion):
 
     return tof.Detector(distance=sc.scalar(conversion.distance, unit='m'),
                         name=conversion.name)
-
-
-# -- the walk -----------------------------------------------------------------
-
-@dataclass(frozen=True)
-class TofSetup:
-    """A ready-to-run ``tof.Model``, and what went into it.
-
-    Displaying this in a notebook answers "what do I need to provide?" -- which, for an
-    instrument niess built, is usually nothing: every chopper knob is declared with the
-    calibration's own value as its default. The knobs are listed anyway, because knowing
-    which ones exist is the point of asking.
-    """
-
-    model: Any
-    source: Any
-    choppers: tuple[ChopperSpec, ...]
-    detectors: tuple[str, ...]
-    parameters: tuple[Use, ...]
-    excluded: tuple[Any, ...] = ()
-    notes: tuple[str, ...] = ()
-    _rebuild: Any = field(default=None, repr=False, compare=False)
-
-    def with_values(self, **overrides) -> 'TofSetup':
-        """The same instrument again, with these instrument parameters replaced."""
-        if self._rebuild is None:
-            raise RuntimeError('this setup was not built from an instrument')
-        return self._rebuild(overrides)
-
-    def __repr__(self) -> str:
-        lines = [f'TofSetup: {len(self.choppers)} chopper(s), '
-                 f'{len(self.detectors)} detector(s)']
-        for spec in self.choppers:
-            sense = 'anticlockwise' if spec.anticlockwise else 'clockwise'
-            lines.append(f'  chopper  {spec.name:28s} {spec.frequency:8.3f} Hz {sense:14s}'
-                         f' {len(spec.open)} opening(s) at {spec.distance:8.4f} m')
-        for name in self.detectors:
-            lines.append(f'  detector {name}')
-        if self.parameters:
-            lines.append('')
-            lines.append('  parameters used (override with with_values(...)):')
-            for use in self.parameters:
-                unit = f' {use.unit}' if use.unit else ''
-                where = 'given' if use.overridden else 'default'
-                lines.append(f'    {use.name:28s} = {use.value!r}{unit}  ({where})'
-                             f'  <- {", ".join(use.used_by)}')
-            if not any(use.overridden for use in self.parameters):
-                lines.append('  nothing has to be provided; every value came from the '
-                             'instrument itself.')
-        for exclusion in self.excluded:
-            lines.append(f'  left out: {exclusion.name} -- {exclusion.reason}')
-        for note in self.notes:
-            lines.append(f'  note: {note}')
-        return '\n'.join(lines)
-
-    def _repr_markdown_(self) -> str:
-        rows = ['| parameter | value | unit | from | read by |',
-                '| --- | --- | --- | --- | --- |']
-        for use in self.parameters:
-            rows.append(f'| `{use.name}` | {use.value!r} | {use.unit or ""} | '
-                        f'{"given" if use.overridden else "instrument default"} | '
-                        f'{", ".join(f"`{u}`" for u in use.used_by)} |')
-        head = (f'**{len(self.choppers)} chopper(s), {len(self.detectors)} detector(s)** '
-                f'— ready to `run()`.\n\n')
-        if not self.parameters:
-            return head + 'No instrument parameters were needed.'
-        tail = ('\n\nNothing has to be provided; every value came from the instrument '
-                'itself. Override any of them with `with_values(...)`.'
-                if not any(u.overridden for u in self.parameters) else '')
-        return head + '\n'.join(rows) + tail
-
-
-def _facility_for(instrument, tof) -> str:
-    """The pulse profile that matches this instrument, or the generic ESS one."""
-    candidate = f'ess-{instrument.name}'.lower()
-    library = getattr(tof.facilities, 'source_library', {})
-    return candidate if candidate in library else 'ess'
-
 
 def _build_source(instrument, source_instance, values, tof, *, neutrons, pulses, seed):
     import scipp as sc
@@ -170,7 +102,6 @@ def _build_source(instrument, source_instance, values, tof, *, neutrons, pulses,
     if seed is not None:
         kwargs['seed'] = int(seed)
     return tof.Source(facility=facility, neutrons=int(neutrons), **kwargs), facility
-
 
 def _furthest_measurable(graph, places, source_name, instrument, given: str | None):
     """Where to put the last detector: the end of the beam that can still be measured.
@@ -199,7 +130,6 @@ def _furthest_measurable(graph, places, source_name, instrument, given: str | No
         if best is None or path > best:
             furthest, best = instance.name, path
     return furthest
-
 
 def to_tof_model(obj, *, source=None, values=None, neutrons: int = 1_000_000,
                  pulses: int | None = None, seed: int | None = None,

@@ -152,7 +152,7 @@ def to_tof_model(instrument, *, values: dict | None = None, neutrons: int = 1_00
     from ..components.monitors import FrameMonitor
     from ..components.source import Source
     from ..walk import visits
-    from .components import _tof, _facility_for
+    from .setup import _tof, _facility_for
     from .parameters import Use
 
     tof = _tof()
@@ -226,7 +226,7 @@ def to_tof_model(instrument, *, values: dict | None = None, neutrons: int = 1_00
                             neutrons=neutrons, pulses=pulses, seed=seed, skip=skip,
                             path_lengths=path_lengths)
 
-    from .components import TofSetup
+    from .setup import TofSetup
     return TofSetup(model=tof.Model(source=source, components=components),
                     source=source, choppers=tuple(specs),
                     detectors=tuple(detectors), parameters=tuple(used),
