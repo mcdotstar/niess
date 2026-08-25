@@ -331,8 +331,8 @@ class DiscChopper(Chopper):
             'delay_parameter': self.delay_parameter(),
         }
         if several:
-            extra['nexus_group_id'] = self.name
-            extra['nexus_group_index'] = index
+            extra['disc_group_id'] = self.name
+            extra['disc_group_index'] = index
         return extra
 
     def to_mccode(
@@ -394,7 +394,7 @@ class DiscChopper(Chopper):
                 add_niess_metadata(
                     instance, self,
                     source_name=name,
-                    role=('nexus-group-primary' if index == 0 else 'nexus-group-member')
+                    role=('disc-opening-primary' if index == 0 else 'disc-opening-member')
                     if several else self.__mccode_role__(),
                     extra=self._opening_extra(index, opening, closing, several),
                 )

@@ -246,8 +246,8 @@ def test_every_instance_is_tagged_as_one_group(assembled):
     provenances = [NiessProvenance.from_instance(c) for c in instances(assembled)]
 
     assert all(p is not None for p in provenances)
-    assert {p.extra['nexus_group_id'] for p in provenances} == {'pack'}
-    assert [p.extra['nexus_group_index'] for p in provenances] == [0, 1, 2]
+    assert {p.extra['disc_group_id'] for p in provenances} == {'pack'}
+    assert [p.extra['disc_group_index'] for p in provenances] == [0, 1, 2]
     assert [p.extra['slit_edges'] for p in provenances] == [
         [10.0, 30.0], [100.0, 140.0], [350.0, 370.0],
     ]
@@ -257,8 +257,8 @@ def test_every_instance_is_tagged_as_one_group(assembled):
 
 def test_exactly_one_instance_is_the_primary(assembled):
     roles = [NiessProvenance.from_instance(c).role for c in instances(assembled)]
-    assert roles.count('nexus-group-primary') == 1
-    assert roles == ['nexus-group-primary'] + ['nexus-group-member'] * 2
+    assert roles.count('disc-opening-primary') == 1
+    assert roles == ['disc-opening-primary'] + ['disc-opening-member'] * 2
 
 
 def test_tagging_can_be_declined(assembled):

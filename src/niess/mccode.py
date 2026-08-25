@@ -11,7 +11,7 @@ from mccode_antlr.instr import Instance
 NIESS_PROVENANCE_METADATA_NAMESPACE = 'niess.provenance'
 NIESS_PROVENANCE_METADATA_NAME = 'niess_provenance'
 NIESS_PROVENANCE_METADATA_MIMETYPE = 'application/json'
-NIESS_PROVENANCE_METADATA_SCHEMA_VERSION = 1
+NIESS_PROVENANCE_METADATA_SCHEMA_VERSION = 2
 
 
 def ensure_user_var(a: Assembler, dtype: str, name: str, description: str):

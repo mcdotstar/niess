@@ -51,11 +51,11 @@ def main(outdir: Path) -> None:
 
     for instance in assembler.instrument.components:
         provenance = NiessProvenance.from_instance(instance)
-        if provenance is None or 'nexus_group_id' not in provenance.extra:
+        if provenance is None or 'disc_group_id' not in provenance.extra:
             continue
         print(f'{instance.name:14s} role={provenance.role:22s} '
-              f'group={provenance.extra["nexus_group_id"]} '
-              f'index={provenance.extra["nexus_group_index"]} '
+              f'group={provenance.extra["disc_group_id"]} '
+              f'index={provenance.extra["disc_group_index"]} '
               f'edges={provenance.extra["slit_edges"]}')
     # --8<-- [end:tags]
 
@@ -88,9 +88,9 @@ def main(outdir: Path) -> None:
 
     brep = NiessBRepRegistry()
 
-    @brep.register_role('nexus-group-primary')
+    @brep.register_role('disc-opening-primary')
     def whole_disc(provenance, instance, params):
-        return f'one solid disc for {provenance.extra["nexus_group_id"]}'
+        return f'one solid disc for {provenance.extra["disc_group_id"]}'
 
     primary = next(c for c in assembler.instrument.components
                    if c.name == 'pack_slit_0')

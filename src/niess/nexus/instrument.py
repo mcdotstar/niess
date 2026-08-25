@@ -183,18 +183,18 @@ class Translation:
         return expression.parameter_node(name, resolved, attrs=attrs)
 
     def siblings_in_group(self) -> list:
-        """Instances sharing this one's ``nexus_group_id`` provenance tag, in order."""
+        """Instances sharing this one's ``disc_group_id`` provenance tag, in order."""
         if self.provenance is None:
             return []
-        group_id = self.provenance.extra.get('nexus_group_id')
+        group_id = self.provenance.extra.get('disc_group_id')
         if group_id is None:
             return []
 
         found = []
         for instance in self.instr.components:
             other = NiessProvenance.from_instance(instance)
-            if other is not None and other.extra.get('nexus_group_id') == group_id:
-                found.append((other.extra.get('nexus_group_index', 0), instance))
+            if other is not None and other.extra.get('disc_group_id') == group_id:
+                found.append((other.extra.get('disc_group_index', 0), instance))
         return [instance for _, instance in sorted(found, key=lambda pair: pair[0])]
 
 

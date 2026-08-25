@@ -41,10 +41,10 @@ def instr():
             source_type='niess.components.chopper.MultiOpeningChopper',
             source_name=name,
             # Roles by explicit tag, never by position in instr.components
-            role='nexus-group-primary' if index == 0 else 'nexus-group-member',
+            role='disc-opening-primary' if index == 0 else 'disc-opening-member',
             extra={
-                'nexus_group_id': GROUP_ID,
-                'nexus_group_index': index,
+                'disc_group_id': GROUP_ID,
+                'disc_group_index': index,
             },
         )
     return parsed
@@ -59,11 +59,11 @@ def registry():
 
     reg = NiessNexusRegistry()
 
-    @reg.register_role('nexus-group-member')
+    @reg.register_role('disc-opening-member')
     def suppress(t):
         return None
 
-    @reg.register_role('nexus-group-primary')
+    @reg.register_role('disc-opening-primary')
     def multi_opening_chopper(t):
         # Reads every sibling's own parameters -- the whole instrument is reachable
         siblings = t.siblings_in_group()

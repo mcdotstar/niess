@@ -239,15 +239,15 @@ an adapter needs to reverse the split:
 ```
 
 ```
-pack_slit_0    role=nexus-group-primary    group=pack index=0 edges=[10.0, 30.0]
-pack_slit_1    role=nexus-group-member     group=pack index=1 edges=[100.0, 140.0]
-pack_slit_2    role=nexus-group-member     group=pack index=2 edges=[350.0, 370.0]
+pack_slit_0    role=disc-opening-primary    group=pack index=0 edges=[10.0, 30.0]
+pack_slit_1    role=disc-opening-member     group=pack index=1 edges=[100.0, 140.0]
+pack_slit_2    role=disc-opening-member     group=pack index=2 edges=[350.0, 370.0]
 ```
 
 | what | why |
 | --- | --- |
-| `nexus_group_id` | which instances belong to the same physical object |
-| `nexus_group_index` | their order within it |
+| `disc_group_id` | which instances belong to the same physical object |
+| `disc_group_index` | their order within it |
 | `slit_edges` | this instance's own contribution to the whole |
 | `role` | which instance stands for the group, and which are folded into it |
 
