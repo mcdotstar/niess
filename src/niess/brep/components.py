@@ -7,8 +7,7 @@ from niess.components.aperture import Jaw, Slit
 from niess.components.filter import Attenuator, NCrystalFilter, RadialFilterCollimator
 from niess.components.guide import EllipticGuide, StraightGuide, TaperedGuide
 from niess.components.source import ESSource
-from ..provenance import NiessProvenance
-from .registry import DEFAULT_BREP_REGISTRY
+from ..targets.brep import BREP_REGISTRY, Subject
 
 _APERTURE_THICKNESS = 1e-4
 
@@ -24,6 +23,30 @@ def _param(params: dict[str, float], name: str, default: float | None = None):
     if default is not None:
         return default
     raise KeyError(name)
+
+
+def _dimension(subject, name: str, default):
+    """A value the object carries, or one an emitted instance was tagged with.
+
+    Reading the object is the direct answer; the provenance tag is how an instrument
+    says the same thing about an instance it built by hand, which is a documented
+    extension point and stays supported.
+    """
+    value = getattr(subject.obj, name, None)
+    if value is not None:
+        return float(value.to(unit='m').value) if hasattr(value, 'to') else float(value)
+    if name in subject.extra:
+        return float(subject.extra[name])
+    return default
+
+
+#: Wall thickness of a guide, in metres, where the guide does not say.
+#: Read from provenance metadata before, which nothing ever wrote -- so this default
+#: always applied. A `substrate` attribute on the guide now takes precedence, for
+#: whenever one is worth carrying.
+SUBSTRATE = 0.01
+#: How finely an elliptic guide's curve is stepped, in metres, on the same footing.
+RESOLUTION = 0.5
 
 
 def _provenance_value(
@@ -116,10 +139,11 @@ def _rectangular_prism(w1: float, h1: float, w2: float, h2: float, length: float
     )
 
 
-@DEFAULT_BREP_REGISTRY.register(StraightGuide)
-def build_straight_guide(_provenance, _instance, params: dict[str, float]):
+@BREP_REGISTRY.register(StraightGuide)
+def build_straight_guide(subject):
+    params = subject.params
     bd = _bd()
-    substrate = _provenance.extra.get('substrate', 0.01)
+    substrate = _dimension(subject, 'substrate', SUBSTRATE)
     z = _param(params, 'l')
     w = _param(params, 'w1')/2
     h = _param(params, 'h1')/2
@@ -129,15 +153,16 @@ def build_straight_guide(_provenance, _instance, params: dict[str, float]):
     outer = _rectangular_prism(w, h, w, h, z)
 
     guide = outer - inner
-    guide.label = _instance.name
+    guide.label = subject.name
     guide.color = bd.Color(0.5, 0, 0, alpha=0.5)
     return guide
 
 
-@DEFAULT_BREP_REGISTRY.register(TaperedGuide)
-def build_tapered_guide(_provenance, _instance, params: dict[str, float]):
+@BREP_REGISTRY.register(TaperedGuide)
+def build_tapered_guide(subject):
+    params = subject.params
     bd = _bd()
-    substrate = _provenance.extra.get('substrate', 0.01)
+    substrate = _dimension(subject, 'substrate', SUBSTRATE)
     z = _param(params, 'l')
     w1 = _param(params, 'w1')/2
     h1 = _param(params, 'h1')/2
@@ -147,7 +172,7 @@ def build_tapered_guide(_provenance, _instance, params: dict[str, float]):
     outer = _rectangular_prism(w1 + substrate, h1 + substrate, w2 + substrate, h2 + substrate, z)
 
     guide = outer - inner
-    guide.label = _instance.name
+    guide.label = subject.name
     guide.color = bd.Color(0.75, 0, 0, alpha=0.5)
     return guide
 
@@ -205,16 +230,17 @@ def _elliptic_guide_ellipse_parameters(params: dict[str, float]):
     return pars
 
 
-@DEFAULT_BREP_REGISTRY.register(EllipticGuide)
-def build_elliptic_guide(_provenance, _instance, params: dict[str, float]):
+@BREP_REGISTRY.register(EllipticGuide)
+def build_elliptic_guide(subject):
+    params = subject.params
     from numpy import ceil, sqrt, arange
     bd = _bd()
-    resolution = _provenance.extra.get('resolution', 0.5)
-    substrate = _provenance.extra.get('substrate', 0.01)
+    resolution = _dimension(subject, 'resolution', RESOLUTION)
+    substrate = _dimension(subject, 'substrate', SUBSTRATE)
 
     p = _elliptic_guide_ellipse_parameters(params)
 
-    # print(f'Elliptic guide {_instance.name} parameters: {p}')
+    # print(f'Elliptic guide {subject.name} parameters: {p}')
 
     def width_at(minor, major, at):
         return 0 if abs(at) > major else float(minor * sqrt(1 - (at/major)**2))
@@ -244,16 +270,18 @@ def build_elliptic_guide(_provenance, _instance, params: dict[str, float]):
     inner = _solid_from_polygons(inner_vertices, faces)
 
     x = outer - inner
-    x.label = _instance.name
+    x.label = subject.name
     x.color = bd.Color('red', alpha=0.5)
     return x
 
 
-@DEFAULT_BREP_REGISTRY.register(Slit)
-@DEFAULT_BREP_REGISTRY.register(Jaw)
-def build_aperture(provenance: NiessProvenance | None, _instance, params: dict[str, float]):
-    width = provenance and provenance.extra.get('width')
-    height = provenance and provenance.extra.get('height')
+@BREP_REGISTRY.register(Slit)
+@BREP_REGISTRY.register(Jaw)
+def build_aperture(subject):
+    params = subject.params
+    # the aperture's own dimensions, rather than the four edges it emits them as
+    width = _dimension(subject, 'width', None)
+    height = _dimension(subject, 'height', None)
     if width is None:
         if 'xwidth' in params:
             width = params['xwidth']
@@ -267,22 +295,25 @@ def build_aperture(provenance: NiessProvenance | None, _instance, params: dict[s
     return _box(float(width), float(height), _APERTURE_THICKNESS)
 
 
-@DEFAULT_BREP_REGISTRY.register(NCrystalFilter)
-@DEFAULT_BREP_REGISTRY.register(Attenuator)
-def build_filter(_provenance, _instance, params: dict[str, float]):
+@BREP_REGISTRY.register(NCrystalFilter)
+@BREP_REGISTRY.register(Attenuator)
+def build_filter(subject):
+    params = subject.params
     return _box(_param(params, 'xwidth'), _param(params, 'yheight'), _param(params, 'zdepth'))
 
 
-@DEFAULT_BREP_REGISTRY.register(ESSource)
-def build_ess_source(_provenance, _instance, params: dict[str, float]):
+@BREP_REGISTRY.register(ESSource)
+def build_ess_source(subject):
+    params = subject.params
     height = _param(params, 'yheight')
     width = params.get('focus_xw', height)
     length = params.get('dist', height)
     return _box(float(width), float(height), float(length))
 
 
-@DEFAULT_BREP_REGISTRY.register(RadialFilterCollimator)
-def build_radial_filter_collimator(_provenance, _instance, params: dict[str, float]):
+@BREP_REGISTRY.register(RadialFilterCollimator)
+def build_radial_filter_collimator(subject):
+    params = subject.params
     bd = _bd()
     height = _param(params, 'yheight')
     angle = _param(params, 'angle_width')
@@ -305,27 +336,66 @@ def build_radial_filter_collimator(_provenance, _instance, params: dict[str, flo
         return None
     return bd.Compound(shapes)
 
-@DEFAULT_BREP_REGISTRY.register(Component)
-def build_arm(_provenance, _instance, params: dict[str, float]):
+@BREP_REGISTRY.register(Component)
+def build_arm(subject):
+    """Three short axes, for a named position with no shape of its own.
+
+    Only for a bare Component. Resolving against an object walks up to the nearest
+    registered base, so without this every window and every monitor -- none of which has
+    a builder of its own -- would be drawn as a set of axes, and a CAD export would
+    acquire thirty crosses nobody put there. Resolving against an emitted instance
+    matches the class exactly and never had the question.
+    """
+    from ..components.component import Component
+    if subject.obj is not None and type(subject.obj) is not Component:
+        return None
+    params = subject.params
     bd = _bd()
     width, length = 0.02, 0.2
 
     ez = bd.extrude(bd.Circle(width / 2), length)
     ex = bd.Plane(origin=(0,0,0), z_dir=(1,0,0)) * bd.extrude(bd.Circle(width / 2), length)
     ey = bd.Plane(origin=(0,0,0), z_dir=(0,1,0)) * bd.extrude(bd.Circle(width / 2), length)
-    return bd.Compound(children=[ez, ex, ey], label=_instance.name)
+    return bd.Compound(children=[ez, ex, ey], label=subject.name)
 
 
 def instrument_to_assembly(instr, params: dict[str, float] | None = None, registry=None):
+    """Build solid geometry from an *emitted* instrument.
+
+    Kept for an instrument niess did not build, and for reading one back. What niess
+    builds is better converted from the tree -- :func:`niess.targets.brep.to_assembly`
+    -- which knows where everything is without resolving expressions to find out, and
+    which is not subject to a released mccode-antlr silently exporting every solid at
+    the origin.
+
+    The shape builders are shared: they were always written against the McCode
+    parameters a component reports, so they take those from an emitted instance here
+    and from the object itself there.
+    """
     from mccode_antlr.display.instrument_display import InstrumentDisplay
     from mccode_antlr.display.render.brep import instrument_to_assembly as upstream
-    from .registry import NiessBRepRegistry
+    from ..dispatch import component_type_name, merged_params
+    from ..provenance import NiessProvenance
+    from ..targets.brep import Subject
 
     instr_display = instr if isinstance(instr, InstrumentDisplay) else _SafeInstrumentDisplay(instr)
-    active_registry = DEFAULT_BREP_REGISTRY if registry is None else registry
-    if isinstance(active_registry, NiessBRepRegistry):
-        active_registry = active_registry.to_brep_registry(instr_display._instr)
-    return upstream(instr_display, params=params, registry=active_registry)
+    resolver = BREP_REGISTRY if registry is None else registry
+
+    from mccode_antlr.display.render.brep import BRepRegistry
+    shim = BRepRegistry()
+    for comp_type in {component_type_name(i) for i in instr_display._instr.components}:
+        @shim.register(comp_type)
+        def wrapper(instance, component_params, _resolver=resolver):
+            builder = _resolver.resolve_builder(instance)
+            if builder is None:
+                return None
+            provenance = NiessProvenance.from_instance(instance)
+            return builder(Subject(
+                name=instance.name, obj=None,
+                params=merged_params(instance, component_params),
+                extra={} if provenance is None else provenance.extra))
+
+    return upstream(instr_display, params=params, registry=shim)
 
 
 def save_step(assembly_or_instr, path, params: dict[str, float] | None = None, registry=None):

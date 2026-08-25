@@ -5,11 +5,11 @@ That is not a net for moving the conversion onto the walk: it would keep passing
 every solid in the instrument moved, or while half of them stopped being emitted at all.
 
 These pin the whole assembly -- how many solids, how much material, and where it is --
-for the two instruments. Writing them turned up that the last of those is broken: every
-solid is exported at the origin, because mccode_antlr's renderer computes each placement
-inside a `try` whose `except Exception: pass` discards a TypeError raised for every
-component. Four builder tests could not see it; each builds one shape and checks its
-size. They are slow (about ten seconds for BIFROST's primary, which
+for the two instruments. Writing them turned up that the last of those was broken: every solid was
+exported at the origin, because mccode_antlr's renderer computed each placement inside a
+`try` whose `except Exception: pass` discarded a TypeError raised for every component.
+Four builder tests could not see it; each builds one shape and checks its size. Fixed
+upstream, and not needed at all by the tree-driven export. They are slow (about ten seconds for BIFROST's primary, which
 is real OpenCascade work) and they are worth it exactly once, at the point where the
 thing driving the conversion changes.
 
@@ -69,38 +69,57 @@ def test_the_bifrost_primary_exports_what_it_did(assembly):
     assert found['volume'] == pytest.approx(0.493135, rel=1e-4)
 
 
-@pytest.mark.xfail(reason='every solid is exported at the origin; see the module note',
-                   strict=True)
 def test_the_instrument_is_as_long_as_the_instrument(assembly):
-    """The beam runs 162 m from the moderator to the sample. The export spans 4.4 m.
+    """It was not, and this is what fixing the placement looks like.
 
-    Nothing is placed. mccode_antlr's renderer computes each component's global
-    placement inside a `try`, and `_eval_expr` raises `TypeError: float() argument must
-    be a string or a real number, not 'Expr'` for every component in both instruments --
-    which `except Exception: pass` then discards, leaving every shape at the origin.
-
-    Marked strict, so this starts failing the moment the export is fixed, which is what
-    should happen: driving the conversion from the tree gives it positions as scipp
-    Variables and never calls `_eval_expr` at all.
+    BIFROST's primary runs 162 m from the moderator to the sample and its export used to
+    span 4.4 m, because mccode_antlr computed each placement inside a try whose
+    `except Exception: pass` discarded a TypeError raised for every component. Fixed
+    upstream; and the tree-driven export never needed the expression evaluated at all.
     """
     from niess.bifrost import Primary
     from niess.bifrost.parameters import primary_parameters
 
     found = measure(assembly(Primary.from_calibration(primary_parameters()),
                              name='bifrost'))
-    assert found['max'][2] - found['min'][2] == pytest.approx(162.0, rel=1e-2)
+    assert found['max'][2] - found['min'][2] == pytest.approx(163.15, rel=1e-2)
 
 
-def test_nothing_is_placed_today(assembly):
-    """The bug above, stated as what currently happens rather than what should.
+def test_both_routes_place_things_in_the_same_places():
+    """The tree-driven export and the instrument-driven one agree on where and how big.
 
-    Recorded so that changing how the conversion is driven has something to change.
+    They do not agree on how *much*: an emitted instrument also gets mccode_antlr's
+    primitive fallback, which draws a McStas component's own geometry for anything niess
+    has no builder for -- 57 solids' worth of windows, monitors and choppers here. The
+    tree-driven route draws what niess knows about and nothing else. Closing that gap
+    means writing those builders, which is not this change.
     """
-    from niess.teaching import Primary
+    importorskip('build123d', reason='niess.brep needs the brep extra')
 
-    found = measure(assembly(Primary.from_calibration(), name='teaching'))
-    # the whole instrument is 10 m long; its export is 3 m, which is one guide
-    assert found['max'][2] - found['min'][2] < 4.0
+    from mccode_antlr import Flavor
+    from mccode_antlr.assembler import Assembler
+    from niess.bifrost import Primary
+    from niess.bifrost.parameters import primary_parameters
+    from niess.brep import instrument_to_assembly
+    from niess.instrument import Instrument, Mount
+    from niess.targets.brep import to_assembly
+
+    part = Primary.from_calibration(primary_parameters())
+    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
+    part.to_mccode(assembler)
+
+    from_instrument = measure(instrument_to_assembly(assembler.instrument))
+    from_tree = measure(to_assembly(Instrument(
+        name='bifrost', parts=(Mount(name='primary', content=part),))))
+
+    # along the beam, where placement shows: both now span the instrument's length
+    assert from_tree['min'][2] == pytest.approx(from_instrument['min'][2])
+    assert from_tree['max'][2] == pytest.approx(from_instrument['max'][2])
+
+    assert from_tree['solids'] == 131
+    assert from_instrument['solids'] == 188
+    # and what niess draws itself is the same material either way
+    assert from_tree['volume'] == pytest.approx(from_instrument['volume'], rel=1e-3)
 
 
 def test_every_registered_builder_is_reached(assembly):
@@ -114,6 +133,7 @@ def test_every_registered_builder_is_reached(assembly):
     from mccode_antlr.assembler import Assembler
     from niess.bifrost import Primary
     from niess.bifrost.parameters import primary_parameters
+    import niess.brep.components  # noqa: F401 -- registers the builders
     from niess.brep.registry import DEFAULT_BREP_REGISTRY
     from niess.provenance import NiessProvenance
 
@@ -137,3 +157,58 @@ def test_every_registered_builder_is_reached(assembly):
     # one added for the walk does walk the MRO, so moving the conversion would give
     # those 29 the generic marker glyph. Worth deciding deliberately, not discovering.
     assert sum(resolved.values()) == 129
+
+
+def test_the_tree_route_needs_no_expression_evaluated():
+    """Which is why it was never subject to the placement bug.
+
+    A component's position is a scipp Variable on the component. The other route reads
+    a placement out of a built instrument, where it is an expression that has to be
+    reduced -- and reducing it is what silently failed.
+    """
+    importorskip('build123d', reason='niess.brep needs the brep extra')
+
+    from niess.instrument import Instrument, Mount
+    from niess.targets.brep import BRepContext, _local_placement
+    from niess.teaching import Primary
+    from niess.walk import visits
+
+    instrument = Instrument(name='teaching', parts=(
+        Mount(name='primary', content=Primary.from_calibration()),))
+    context = BRepContext(instrument=instrument)
+
+    placed = {}
+    for visit in visits(instrument):
+        position, _ = context.place(visit, *_local_placement(visit))
+        placed[visit.id] = float(position.to(unit='m').value[2])
+
+    # straight off the objects, no evaluation anywhere
+    assert placed['primary/chopper'] == pytest.approx(6.76, abs=0.05)
+    assert placed['primary/sample_origin'] > placed['primary/chopper']
+
+
+def test_a_marker_is_only_for_a_marker():
+    """Resolving against an object walks up to the nearest registered base.
+
+    So without a guard, every window and monitor -- none with a builder of its own --
+    would resolve the bare-Component axes glyph and a CAD export would grow thirty
+    crosses nobody put there. Resolving against an emitted instance matches the class
+    exactly and never had the question.
+    """
+    importorskip('build123d', reason='niess.brep needs the brep extra')
+
+    import niess.brep.components  # noqa: F401 -- registers the builders
+    from niess.brep.components import build_arm
+    from niess.components.component import Component
+    from niess.components.filter import Filter
+    from niess.targets.brep import Subject
+
+    import scipp as sc
+    place = dict(position=sc.vector([0., 0., 0.], unit='m'),
+                 orientation=sc.spatial.rotation(value=[0., 0., 0., 1.]))
+    window = Filter(name='w', composition=None,
+                    temperature=sc.scalar(300.0, unit='K'), **place)
+    marker = Component(name='m', **place)
+
+    assert build_arm(Subject(name='w', params={}, obj=window)) is None
+    assert build_arm(Subject(name='m', params={}, obj=marker)) is not None
