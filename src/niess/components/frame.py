@@ -110,7 +110,7 @@ class Frame(Base):
         itself: a cassette Arm is a feature of the channel that declared it, and that is
         what an adapter reading the instrument back wants to know.
         """
-        from ..mccode import add_niess_metadata
+        from ..provenance import add_niess_metadata
         context = visit.context
         assembler = context.assembler
 

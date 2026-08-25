@@ -21,7 +21,7 @@ def main(outdir: Path) -> None:
     structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
     # --8<-- [end:quickstart]
 
-    from niess.targets.mccode import to_mccode
+    from niess.mccode import to_mccode
     assert len(to_mccode(bifrost).components) == 358
     instrument = structure['children'][0]['children'][0]
     assert len(instrument['children']) > 350

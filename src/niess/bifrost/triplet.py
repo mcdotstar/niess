@@ -211,7 +211,8 @@ class Triplet(Base):
     def to_mccode(self, assembler: Assembler, relative: str, distance: float, name: str,
                   when: str = None, extend: str = None, add_metadata: bool = False,
                   component: str = None, parameters: dict = None):
-        from niess.mccode import add_niess_metadata, ensure_registry
+        from niess.assembler import ensure_registry
+        from niess.provenance import add_niess_metadata
         if component is None:
             component = 'Detector_tubes'
         if component in ('Detector_tubes', 'Detector_time_tubes'):

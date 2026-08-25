@@ -9,7 +9,7 @@ def main(outdir: Path) -> None:
     from niess.chopcalc import narrow_source_wavelengths
     from niess.chopcalc.tree import train_from_instrument
     from niess.instrument import Instrument, Mount
-    from niess.targets.mccode import to_mccode
+    from niess.mccode import to_mccode
     from niess.teaching import Primary
 
     teaching = Instrument(name='teaching', origin='sample_origin', parts=(

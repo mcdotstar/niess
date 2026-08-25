@@ -74,7 +74,7 @@ class RadialSlitBank(Component):
         openings and has nothing to say about how a simulation records which one a
         neutron took.
         """
-        from ..mccode import ensure_registry, ensure_runtime_line, ensure_user_var
+        from ..assembler import ensure_registry, ensure_runtime_line, ensure_user_var
 
         ensure_registry(assembler, 'mcdotstar/mcstas-slit-radial@main')
         ensure_user_var(assembler, 'int', self.tag_name(),

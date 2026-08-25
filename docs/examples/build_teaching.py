@@ -8,7 +8,7 @@ from pathlib import Path
 def main(outdir: Path) -> None:
     # --8<-- [start:assemble]
     from niess.instrument import Instrument, Mount
-    from niess.targets.mccode import to_mccode
+    from niess.mccode import to_mccode
     from niess.teaching import Primary
 
     teaching = Instrument(name='teaching', origin='sample_origin', parts=(

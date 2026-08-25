@@ -11,7 +11,7 @@ from .baseline import (frozen_json, frozen_text, graph_path, instrument_graph,
 from .test_baseline import first_difference
 
 from niess.instrument import Instrument, Mount
-from niess.targets.mccode import to_mccode
+from niess.mccode import to_mccode
 
 
 @pytest.fixture(scope='module')
@@ -71,9 +71,9 @@ def test_a_flat_section_opens_no_scope(bifrost_primary):
 
 def test_every_scope_is_closed(teaching):
     """A translator that opened an %include and did not close it would be caught."""
-    from niess.targets.mccode import McCodeContext
+    from niess.mccode import McCodeContext
     from niess.walk import walk
-    from niess.targets.mccode import MCCODE_REGISTRY
+    from niess.mccode import MCCODE_REGISTRY
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
 
@@ -177,7 +177,7 @@ def test_a_class_describing_its_own_conversion_needs_no_registration():
     __mccode_enter__/__mccode_exit__ for what a composite needs around its contents.
     """
     from niess.dispatch import ClassHooks
-    from niess.targets.mccode import MCCODE_REGISTRY
+    from niess.mccode import MCCODE_REGISTRY
     from niess.bifrost.channel import Channel
     from niess.bifrost.tank import Tank
     from niess.components.section import Section
@@ -198,7 +198,7 @@ def test_a_registered_translator_wins_over_the_class(bifrost_primary):
     The same reason niess.nexus keeps BIFROST's translators off the shared registry:
     importing a module must not change another instrument's output.
     """
-    from niess.targets.mccode import MCCODE_REGISTRY, NiessMcCodeRegistry
+    from niess.mccode import MCCODE_REGISTRY, NiessMcCodeRegistry
     from niess.components.section import Section
 
     scoped = NiessMcCodeRegistry(parent=MCCODE_REGISTRY)
@@ -234,7 +234,7 @@ def test_the_target_module_names_no_component():
     read one class, not hunt through a translator module for the half that lives there.
     """
     from pathlib import Path
-    import niess.targets.mccode as module
+    import niess.mccode as module
 
     source = Path(module.__file__).read_text()
     for name in ('Tank', 'Channel', 'DiscChopper', 'Analyzer', 'Triplet',

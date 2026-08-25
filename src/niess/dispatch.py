@@ -18,8 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Generic, TypeVar
 
-from .mccode import niess_source_type
-from .provenance import NiessProvenance
+from .provenance import NiessProvenance, niess_source_type
 
 B = TypeVar('B', bound=Callable[..., Any])
 

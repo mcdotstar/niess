@@ -152,7 +152,8 @@ class Analyzer(Base):
 
     def to_mccode(self, assembler: Assembler, source: str, relative: str, sink: str, theta: float, name: str,
                   when: str = None, extend: str = None, origin: Variable = None):
-        from niess.mccode import add_niess_metadata, ensure_registry
+        from niess.assembler import ensure_registry
+        from niess.provenance import add_niess_metadata
         ensure_registry(assembler, "mcdotstar/mcstas-monochromator-rowland@main")
 
         mono = assembler.component(name, 'Monochromator_Rowland',

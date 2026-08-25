@@ -15,7 +15,7 @@ from mccode_antlr import Flavor
 from mccode_antlr.assembler import Assembler
 
 from niess.components.monitors import beam_monitor_topic
-from niess.mccode import instrument_name, root_assembler
+from niess.assembler import instrument_name, root_assembler
 
 
 def stream_topics(instr):

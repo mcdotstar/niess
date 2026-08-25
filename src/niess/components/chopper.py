@@ -351,7 +351,8 @@ class DiscChopper(Chopper):
         Returns the instance, or the list of them, to match.
         """
         from mccode_antlr.common.parameters import InstrumentParameter as InstPar
-        from ..mccode import add_niess_metadata, ensure_runtime_line, ensure_runtime_parameter
+        from ..assembler import ensure_runtime_line, ensure_runtime_parameter
+        from ..provenance import add_niess_metadata
         from ..spatial import mccode_ordered_angles
 
         ensure_runtime_line(

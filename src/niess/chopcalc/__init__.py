@@ -99,7 +99,7 @@ def narrow_source_wavelengths(
     -------
     The train that was used, or ``None`` when nothing could be narrowed.
     """
-    from ..mccode import ensure_registry
+    from ..assembler import ensure_registry
 
     if getattr(assembler, 'parent', None) is not None:
         raise ChopcalcError(

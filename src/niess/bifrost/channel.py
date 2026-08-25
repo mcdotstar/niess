@@ -233,7 +233,7 @@ class Channel(Base):
         return None
 
     def to_mccode(self, assembler: Assembler, relative: Instance, name: str, when: str = None, settings: dict = None, flat: bool=True, **kwargs):
-        from niess.mccode import add_niess_metadata
+        from niess.provenance import add_niess_metadata
         # For each channel we need to define the local coordinate system, relative to the provided sample
         ra0 = self.cassette_angle.value
         cassette = assembler.component(f"{name}_arm", "Arm", at=((0, 0, 0), relative), rotate=((0, ra0, 0), relative))

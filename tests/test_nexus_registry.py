@@ -108,7 +108,7 @@ def test_detector_tubes_translation_follows_the_registry(registry_name):
     """End to end: the same instrument converts differently per registry choice."""
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.mccode import ensure_registry
+    from niess.assembler import ensure_registry
     from niess.nexus import to_nexus_structure
     from niess.nexus.bifrost import BIFROST_REGISTRY
     from niess.nexus.nodes import find_child, get_attribute

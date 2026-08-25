@@ -31,7 +31,7 @@ END
 def instr():
     """A three-instance chopper pack, tagged as one NeXus group."""
     from mccode_antlr.loader import parse_mcstas_instr
-    from niess.mccode import add_niess_metadata
+    from niess.provenance import add_niess_metadata
 
     parsed = parse_mcstas_instr(INSTR)
     for index, name in enumerate(('pack_0', 'pack_1', 'pack_2')):

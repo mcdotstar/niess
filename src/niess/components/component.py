@@ -198,7 +198,8 @@ class Component(Base, kw_only=True):
     ):
         from mccode_antlr.common.parameters import InstrumentParameter as InstPar
         from ..spatial import mccode_ordered_angles
-        from ..mccode import add_niess_metadata, ensure_runtime_parameter
+        from ..assembler import ensure_runtime_parameter
+        from ..provenance import add_niess_metadata
 
         comp, pars = self.__mccode__()
 

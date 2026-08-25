@@ -229,7 +229,7 @@ class Arm(Base):
                   analyzer_when: str = None, analyzer_extend: str = None,
                   detector_when: str = None, detector_extend: str = None, **kwargs):
         from scipp import vector
-        from niess.mccode import add_niess_metadata
+        from niess.provenance import add_niess_metadata
         # For each channel we need to define the local coordinate system, relative to the provided sample
         origin = vector([0, 0, 0], unit='m')
 

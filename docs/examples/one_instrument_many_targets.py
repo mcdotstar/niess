@@ -25,7 +25,7 @@ def main(outdir: Path) -> None:
     # --8<-- [end:build]
 
     # --8<-- [start:mccode]
-    from niess.targets.mccode import to_mccode
+    from niess.mccode import to_mccode
 
     instrument = to_mccode(bifrost)          # an mccode_antlr Instr
     # --8<-- [end:mccode]

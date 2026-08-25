@@ -52,7 +52,7 @@ def main(outdir: Path) -> None:
     # --8<-- [end:build]
 
     # --8<-- [start:mccode]
-    from niess.targets.mccode import to_mccode
+    from niess.mccode import to_mccode
 
     instrument = to_mccode(chopped)
     emitted = [c.name for c in instrument.components]

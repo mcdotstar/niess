@@ -22,7 +22,7 @@ def test_to_mccode_adds_niess_metadata():
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
     from niess.components import StraightGuide
-    from niess.mccode import read_niess_metadata
+    from niess.provenance import read_niess_metadata
 
     guide = StraightGuide(
         name='g1',
@@ -54,7 +54,7 @@ def test_straight_guide_brep_override():
     from mccode_antlr.assembler import Assembler
     from niess.brep import instrument_to_assembly
     from niess.components import StraightGuide
-    from niess.mccode import add_niess_metadata
+    from niess.provenance import add_niess_metadata
 
     width, height, substrate = 0.1, 0.2, 0.02
 
