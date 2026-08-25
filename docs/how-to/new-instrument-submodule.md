@@ -228,11 +228,26 @@ pack_slit_0_delay = packdelay + (packspeed < 0 ? 290.0 : 70.0) / (360.0 * fabs(p
 An opening already at the beam skips the variable: it is there at `packdelay` whichever
 way the disc spins.
 
-### Making the group recoverable
+### One disc, three components, one group
 
-Splitting the disc is a McStas implementation detail. A NeXus file wants one
-`NXdisk_chopper` and a CAD model wants one solid, so each instance is tagged with what
-an adapter needs to reverse the split:
+Splitting the disc is a McStas implementation detail:
+
+```python
+--8<-- "group_composite.py:mccode"
+```
+
+Converting the tree, nothing has to reverse it, because nothing did it. A NeXus file
+gets one `NXdisk_chopper` with all three openings, straight off the disc:
+
+```python
+--8<-- "group_composite.py:nexus"
+```
+
+### ...and for whoever reads the emitted file
+
+The McStas instrument is still three components, and someone reading *it* -- an adapter
+working on an assembled instrument, or a file niess did not build -- has to put the disc
+back together. So each instance is tagged with what that takes:
 
 ```python
 --8<-- "group_composite.py:tags"
@@ -254,23 +269,15 @@ pack_slit_2    role=disc-opening-member     group=pack index=2 edges=[350.0, 370
 Tag by explicit role rather than by position: an adapter reads the instrument as a flat
 list, and nothing guarantees the primary comes first.
 
-`niess.nexus` ships the matching translator, registered against the component's *niess
-source type* — the first dispatch tier — so no configuration is needed. The primary
-instance rebuilds the disc from its siblings; the members return `None`, which means
-emit nothing. The rebuilt group takes the disc's own name, since `pack_slit_0` describes
-how the instrument was built rather than what it contains:
-
-```python
---8<-- "group_composite.py:result"
-```
+`niess.nexus` -- the instrument-reading converter -- ships the matching translator,
+registered against the component's *niess source type*. The primary instance rebuilds
+the disc from its siblings; the members return `None`, which means emit nothing. The
+rebuilt group takes the disc's own name, since `pack_slit_0` describes how the
+instrument was built rather than what it contains.
 
 Without that translator the same instrument still converts, as the three separate discs
-the McStas file literally describes. Grouping is an enrichment, not a prerequisite.
-
-`niess.brep` dispatches through the same three tiers, so one role builder there rebuilds
-the disc as a single solid for CAD from the same tags. The mechanism in full, including
-how to write these for your own composite, is in
-[Write NeXus translators](custom-nexus-registry.md#many-instances-one-nexus-group).
+the McStas file literally describes. Grouping is an enrichment there, and unnecessary
+when the disc is read from the tree.
 
 ### Writing your own
 

@@ -4,17 +4,17 @@ from pathlib import Path
 
 
 def main(outdir: Path) -> None:
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
+    from niess.instrument import Instrument, Mount
     from niess.teaching import Primary
 
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
+    teaching = Instrument(name='teaching', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration()),
+    ))
 
     # --8<-- [start:convert]
-    from niess.nexus import to_nexus_structure
+    from niess.targets.nexus import to_nexus_structure
 
-    structure = to_nexus_structure(assembler.instrument, origin='sample_origin')
+    structure = to_nexus_structure(teaching)
     # --8<-- [end:convert]
 
     # --8<-- [start:inspect]

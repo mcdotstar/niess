@@ -236,7 +236,7 @@ def _lazy(*dotted: str):
     return [_import(name) for name in dotted]
 
 
-def _da00_config(source: str, bins: int) -> dict:
+def _da00_config(topic: str, source: str, bins: int) -> dict:
     """The da00 configuration for a monitor's histogram.
 
     mccode_to_kafka stays the source of truth for the schema; this only says what this
@@ -252,9 +252,12 @@ def _da00_config(source: str, bins: int) -> dict:
     configs = {name: da00_variable_config(**spec, name=name, axes=['t'],
                                           data_type='float64')
                for name, spec in axes.items()}
-    return da00_dataarray_config(topic=None, source=source,
-                                 variables=[configs['signal'], configs['errors']],
-                                 constants=[configs['t']])
+    # da00_dataarray_config returns a whole {'module', 'config'} directive; what a
+    # stream selection wants is the config inside it.
+    directive = da00_dataarray_config(topic=topic, source=source,
+                                      variables=[configs['signal'], configs['errors']],
+                                      constants=[configs['t']])
+    return directive.get('config', directive)
 
 
 def register_defaults() -> None:
@@ -329,10 +332,9 @@ def register_defaults() -> None:
         children = [dataset('description', visit.name)]
         selection = obj.stream
         if selection is None:
-            selection = {'module': 'da00',
-                         'topic': f'{context.instrument.name.lower()}_beam_monitor',
-                         'source': visit.name,
-                         'config': _da00_config(visit.name, obj.time_bins())}
+            topic = f'{context.instrument.name.lower()}_beam_monitor'
+            selection = {'module': 'da00', 'topic': topic, 'source': visit.name,
+                         'config': _da00_config(topic, visit.name, obj.time_bins())}
         children.append(context.stream_group(selection))
         return component_body('NXmonitor', children)
 

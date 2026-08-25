@@ -8,9 +8,9 @@ from pathlib import Path
 
 
 def main(outdir: Path) -> None:
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
     from niess.components.chopper import disc_beam_offset
+    from niess.instrument import Instrument, Mount
+    from niess.targets.mccode import to_mccode
     from niess.teaching import Primary, teaching_parameters
 
     # --8<-- [start:direct]
@@ -36,16 +36,18 @@ def main(outdir: Path) -> None:
         calibration['guides'][name]['position'] = vector([0, 0, z], unit='m')
         calibration['guides'][name]['orientation'] = upright
 
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration(calibration).to_mccode(assembler)
+    surveyed = Instrument(name='teaching', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration(calibration)),
+    ))
+    instrument = to_mccode(surveyed)
     # --8<-- [end:direct]
 
     # ...and it is the same instrument the chained calibration produces
     def placements(params):
-        a = Assembler('teaching', flavor=Flavor.MCSTAS)
-        Primary.from_calibration(params).to_mccode(a)
+        built = to_mccode(Instrument(name='teaching', origin='sample_origin', parts=(
+            Mount(name='primary', content=Primary.from_calibration(params)),)))
         return {c.name: tuple(float(str(x)) for x in c.at_relative[0])
-                for c in a.instrument.components}
+                for c in built.components}
 
     chained, direct = placements(teaching_parameters()), placements(calibration)
     assert list(chained) == list(direct)

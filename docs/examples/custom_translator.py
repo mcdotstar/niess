@@ -1,50 +1,56 @@
-"""Write a translator for a component niess.nexus does not know, and register it.
+"""Write a NeXus translator for a component, and scope it to one conversion.
 
 The teaching instrument's jaw converts to a generic NXaperture. Suppose this
-instrument's jaw is really a beam-defining diaphragm that downstream tooling expects
-as an NXslit with its own opening datasets: that is a translator plus a registry.
+instrument's jaw is really a beam-defining diaphragm that downstream tooling expects as
+an NXslit with its own opening datasets: that is a translator plus a registry.
 """
 from pathlib import Path
 
 
 def main(outdir: Path) -> None:
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
+    from niess.instrument import Instrument, Mount
     from niess.teaching import Primary
 
     # --8<-- [start:registry]
-    from niess.nexus import (
-        DEFAULT_NEXUS_REGISTRY, NiessNexusRegistry, component_body, dataset,
+    from niess.components.aperture import Jaw
+    from niess.nexus.nodes import dataset
+    from niess.targets.nexus import (
+        NEXUS_REGISTRY, NiessNexusRegistry, component_body, emit,
     )
 
-    # Extend the default registry rather than modifying it, so these translators
-    # apply only to conversions that ask for this registry.
-    TEACHING_REGISTRY = NiessNexusRegistry(parent=DEFAULT_NEXUS_REGISTRY)
+    # Extend the default registry rather than modifying it, so these translators apply
+    # only to conversions that ask for this one.
+    TEACHING_REGISTRY = NiessNexusRegistry(parent=NEXUS_REGISTRY)
 
+    @TEACHING_REGISTRY.register(Jaw)
+    class DiaphragmTranslator:
+        """A Jaw as an NXslit carrying its run-time opening."""
 
-    @TEACHING_REGISTRY.register_component_type('Slit')
-    def diaphragm_translator(t):
-        """Translate a Slit into an NXslit carrying its run-time opening."""
-        return component_body('NXslit', [
-            dataset('description', f'beam-defining diaphragm {t.name}'),
-            # x_gap is driven at run time, so this emits a link, not a number
-            t.parameter_node('x_gap', source='xmax', attrs={'units': 'm'}),
-            t.parameter_node('y_gap', source='yheight', dtype=float, attrs={'units': 'm'}),
-        ])
+        @staticmethod
+        def leaf(visit):
+            jaw = visit.obj
+            edges = jaw.edge_parameters()
+            emit(visit, component_body('NXslit', [
+                dataset('description', f'beam-defining diaphragm {visit.name}'),
+                # the edges are knobs a run sets, so these are links to their NXlogs
+                visit.context.linked_log('x_gap', edges['right'], attrs={'units': 'm'}),
+                dataset('y_gap', float(jaw.height.to(unit='m').value),
+                        attrs={'units': 'm'}),
+            ]))
     # --8<-- [end:registry]
 
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
+    teaching = Instrument(name='teaching', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration()),
+    ))
 
     # --8<-- [start:use]
-    from niess.nexus import to_nexus_structure
+    from niess.targets.nexus import to_nexus_structure
 
-    structure = to_nexus_structure(
-        assembler.instrument, origin='sample_origin', registry=TEACHING_REGISTRY,
-    )
+    structure = to_nexus_structure(teaching, registry=TEACHING_REGISTRY)
     # --8<-- [end:use]
 
-    from niess.nexus import find_child, get_attribute
+    from niess.nexus.nodes import find_child, get_attribute
+
     instrument = structure['children'][0]['children'][0]
     jaw = find_child(instrument, 'jaw')
     assert get_attribute(jaw, 'NX_class') == 'NXslit'
@@ -53,7 +59,7 @@ def main(outdir: Path) -> None:
     assert get_attribute(find_child(jaw, 'x_gap'), 'NX_class') == 'NXlog'
 
     # The default registry is untouched: the same instrument still converts the old way
-    plain = to_nexus_structure(assembler.instrument, origin='sample_origin')
+    plain = to_nexus_structure(teaching)
     plain_jaw = find_child(plain['children'][0]['children'][0], 'jaw')
     assert get_attribute(plain_jaw, 'NX_class') == 'NXaperture'
 
