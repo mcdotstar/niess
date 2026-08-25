@@ -53,6 +53,7 @@ def narrow_source_wavelengths(
         export_chopper_count: str | None = None,
         registry: str = CHOPPER_LIB_REGISTRY,
         strict: bool = False,
+        train: ChopperTrain | None = None,
 ) -> ChopperTrain | None:
     """Restrict the source's wavelength band to what the chopper train passes.
 
@@ -115,9 +116,13 @@ def narrow_source_wavelengths(
 
     try:
         export = _export_names(instrument, export_choppers, export_chopper_count)
-        train = build_train(instrument, source=source, skip=skip,
-                            path_lengths=path_lengths, latest_emission=latest_emission,
-                            graph=graph)
+        if train is None:
+            # Everything below is emission, and emission does not care how the train
+            # was found: niess.chopcalc.tree builds the same thing by reading the discs
+            # rather than the components they were emitted as.
+            train = build_train(instrument, source=source, skip=skip,
+                                path_lengths=path_lengths,
+                                latest_emission=latest_emission, graph=graph)
     except ChopcalcError as error:
         return _refuse(str(error), strict)
     train = dataclasses.replace(train, export=export)
