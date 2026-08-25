@@ -21,7 +21,6 @@ from .instrument import (
     component_body,
     to_nexus_structure,
 )
-from .loader import load_instr
 # The node constructors a translator builds its output from, and the readers used to
 # inspect a finished structure. Re-exported so writing a translator needs one import.
 from .nodes import (
@@ -47,7 +46,6 @@ from . import translators as _translators  # noqa: F401
 __all__ = [
     # conversion
     'to_nexus_structure',
-    'load_instr',
     'NexusContext',
     'DEFAULT_NXLOG_ROOT',
     # writing translators

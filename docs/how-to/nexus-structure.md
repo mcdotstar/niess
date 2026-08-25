@@ -25,7 +25,7 @@ built; translating a `.instr` that niess did not build is not supported, and the
 not. It reads `.instr`, `.json` and `.msgpack`, and returns an `mccode_antlr` `Instr`:
 
 ```python
-from niess.nexus import load_instr
+from niess.io.mccode import load_instr
 
 original = load_instr('my_instrument.instr')
 for instance in original.components:

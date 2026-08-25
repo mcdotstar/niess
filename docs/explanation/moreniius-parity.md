@@ -34,7 +34,7 @@ separate, human step.
 | `writer.py::convert_types` | `nodes.py::convert_type` | Minus the `NXattr`/`NXfield` branches |
 | `writer.py::_to_absolute` | `nodes.py::to_absolute` + `absolutize_depends_on` | The recursive rewrite is now its own pass rather than part of serialization |
 | `nxoff.py` — `NXoff.from_wedge`, `sphere`, `to_nexus` | `off.py` | |
-| `nexus_structure.py` — `load_instr` | `loader.py` | Reading a file survives; see below for `convert` |
+| `nexus_structure.py` — `load_instr` | `io/mccode.py` | Reading a file survives; see below for `convert`. It is not a NeXus concern, so it lives with the other McCode readers rather than under `nexus/` |
 | `MorEniius.from_mccode` / `to_nexus_structure` | `to_nexus_structure(instr, ...)` | One function; there was never a reason for the two-stage object |
 
 ## Subsumed — the need disappeared with `nexusformat`
