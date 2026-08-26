@@ -143,15 +143,15 @@ def register_bifrost() -> None:
         ])
 
         # Event streaming is what these tubes do: without an NXevent_data group the
-        # filewriter has nothing to fill the detector with. The other route reaches for
-        # a METADATA block or a provenance entry before falling back to this; reading
-        # the tree the equivalent would be a field on the object, and Triplet has none,
-        # so this is the selection rather than a default under one.
-        stream = visit.context.stream_group({
-            'module': 'ev44',
-            'source': bifrost_detector_source(arc, triplet),
-            'topic': BIFROST_DETECTOR_TOPIC,
-        })
+        # filewriter has nothing to fill the detector with. Which topic and which source
+        # is the facility's business rather than the tubes', so the triplet may say;
+        # unset, these have always been BIFROST's own topic and an arc/triplet source.
+        selection = obj.stream
+        if selection is None:
+            selection = {'module': 'ev44',
+                         'source': bifrost_detector_source(arc, triplet),
+                         'topic': BIFROST_DETECTOR_TOPIC}
+        stream = visit.context.stream_group(selection)
 
         return component_body('NXdetector', [
             dataset('detector_number',

@@ -447,3 +447,106 @@ def test_both_routes_stream_the_same_detectors_from_the_same_sources(bifrost):
     # the two name their detectors differently -- the tree emits `triplet`, the emitted
     # instrument its component names -- so compare what is streamed, not where from
     assert sorted(filter(None, old.values())) == sorted(filter(None, new.values()))
+
+
+def _bifrost_with_stream(selection):
+    """A BIFROST whose triplets publish where the *calibration* says.
+
+    Through the real path a facility would use: a `stream` entry in the tank
+    calibration, which `Channel.from_calibration` forwards to each `Triplet`.
+    """
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+
+    params = tank_parameters()
+    # a bare dict in `channels` is read as variant-keyed, so say it per variant
+    params['channels']['stream'] = {v: selection for v in ('s', 'm', 'l')}
+    return Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
+        Mount(name='tank', content=Tank.from_calibration(params),
+              relative_to='sample_origin'),
+    ))
+
+
+def test_a_calibration_can_give_each_channel_its_own_stream():
+    """Per channel rather than per instrument, through `channel_params`.
+
+    One selection for the whole tank gives all 45 triplets one source, which is a way
+    of saying nothing -- two detectors fed the same events. `channel_params` is where a
+    calibration says something per detector.
+    """
+    from niess.bifrost import Tank
+    from niess.bifrost.parameters import tank_parameters
+    from niess.bifrost.triplet import Triplet
+    from niess.walk import visits
+
+    params = tank_parameters()
+    variants = [{'variant': v} for v in ('s', 'm', 'l')]
+    params['channels']['channel_params'] = {
+        i: dict(variants[i % 3],
+                stream={'module': 'ev44', 'topic': 'bifrost_detector',
+                        'source': f'channel-{i}'})
+        for i in range(9)
+    }
+    tank = Tank.from_calibration(params)
+    tree = Instrument(name='bifrost', parts=(Mount(name='tank', content=tank),))
+    streams = [v.obj.stream for v in visits(tree) if isinstance(v.obj, Triplet)]
+
+    assert len(streams) == 45
+    assert all(s is not None for s in streams)
+    assert len({s['source'] for s in streams}) == 9
+
+
+def test_a_triplet_may_say_where_its_events_are_published():
+    """The topic is the facility's, not the tubes'. A calibration can set it."""
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    selection = {'module': 'ev44', 'topic': 'elsewhere', 'source': 'detector-7'}
+    structure = to_nexus_structure(_bifrost_with_stream(selection),
+                                   registry=BIFROST_REGISTRY)
+    streams = detector_streams(structure)
+    assert streams
+    assert set(streams.values()) == {('ev44', 'detector-7', 'elsewhere')}
+
+
+def test_the_override_reaches_the_emitted_instrument_route_too():
+    """Both routes have to agree, so the choice is recorded where the other can read it.
+
+    The tree has the object; the emitted-instrument route has only components, so
+    `to_mccode` writes the selection into provenance for `resolve_stream` to find.
+    """
+    from mccode_antlr import Flavor
+    from mccode_antlr.assembler import Assembler
+    from niess.mccode import to_mccode
+    from niess.nexus.via_instr import to_nexus_structure as from_instrument
+    from niess.nexus.via_instr.bifrost import BIFROST_REGISTRY as INSTRUMENT_REGISTRY
+
+    selection = {'module': 'ev44', 'topic': 'elsewhere', 'source': 'detector-7'}
+    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
+    to_mccode(_bifrost_with_stream(selection), assembler=assembler)
+
+    streams = detector_streams(from_instrument(assembler.instrument,
+                                               origin='sample_origin',
+                                               registry=INSTRUMENT_REGISTRY))
+    assert streams
+    assert set(streams.values()) == {('ev44', 'detector-7', 'elsewhere')}
+
+
+def test_taking_the_default_emits_the_instrument_it_always_did():
+    """`stream` unset must add no METADATA, or the frozen .instr goldens would shift."""
+    from mccode_antlr import Flavor
+    from mccode_antlr.assembler import Assembler
+    from niess.bifrost import Tank
+    from niess.bifrost.parameters import tank_parameters
+    from niess.mccode import to_mccode
+
+    def emitted(tank):
+        assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
+        to_mccode(Instrument(name='bifrost', origin='sample_origin',
+                             parts=(Mount(name='tank', content=tank),)),
+                  assembler=assembler)
+        return str(assembler.instrument)
+
+    import msgspec
+    plain = Tank.from_calibration(tank_parameters())
+    assert emitted(plain) == emitted(msgspec.structs.replace(plain))
+    assert 'nexus_stream' not in emitted(plain)
