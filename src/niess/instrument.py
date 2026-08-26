@@ -31,6 +31,24 @@ def _walk(node):
     return walk(node)
 
 
+def _count_leaves(content) -> Optional[int]:
+    """How many things a part contributes, or ``None`` if it is not a tree node.
+
+    `walk` calls ``__niess_children__`` on everything it reaches, so anything that is
+    not a node -- an `IndirectSecondary`, say, which derives from `object` and predates
+    the tree protocol -- raises part-way through. That is the right answer for a target,
+    which cannot emit what it cannot walk, and the wrong one for a repr.
+    """
+    from .tree import is_node
+    if not is_node(content):
+        return None
+    try:
+        return sum(1 for _, node in _walk(content)
+                   if is_node(node) and not node.__niess_children__())
+    except Exception:  # a part that will not walk is a part with no count
+        return None
+
+
 def _angle_text(angle) -> str:
     """A mounting angle as it reads: a parameter by name, a number as a number."""
     name = getattr(angle, 'name', None)
@@ -155,20 +173,23 @@ class Instrument(Base):
                     found.append(parameter)
         return tuple(found)
 
-    def summary(self) -> tuple[tuple[str, str, int], ...]:
+    def summary(self) -> tuple[tuple[str, str, Optional[int]], ...]:
         """Each part as ``(label, class name, component count)``, in beam order.
 
         The count is leaves -- things that emit -- rather than nodes, because that is
         the number anyone asking "how big is this?" means. One walk, so displaying an
         instrument stays cheap enough to do by reflex.
+
+        ``None`` where the part cannot be walked at all, which means it is not a niess
+        tree node: it has no ``__niess_children__``, so no target can read it either and
+        this instrument will not emit. Reported rather than raised, because the first
+        thing anyone does with an object that is not working is look at it, and a repr
+        that raises takes that away.
         """
         found = []
         for mount in self.parts:
-            count = 0
-            for _, node in _walk(mount.content):
-                if not node.__niess_children__():
-                    count += 1
-            found.append((mount.name, type(mount.content).__name__, count))
+            found.append((mount.name, type(mount.content).__name__,
+                          _count_leaves(mount.content)))
         return tuple(found)
 
     def _mounting(self, mount: Mount) -> str:
@@ -196,7 +217,8 @@ class Instrument(Base):
         of and how big each piece is; the pieces are still there to look at.
         """
         parts = self.summary()
-        total = sum(count for _, _, count in parts)
+        known = [count for _, _, count in parts if count is not None]
+        total = f'{sum(known)}{"+" if len(known) < len(parts) else ""}'
         head = (f'{self.name}: {len(parts)} part(s), {total} component(s)'
                 f' [{self.flavor}]')
         if self.origin:
@@ -204,7 +226,9 @@ class Instrument(Base):
         lines = [head]
         width = max((len(label) for label, _, _ in parts), default=0)
         for (label, kind, count), mount in zip(parts, self.parts):
-            lines.append(f'  {label:{width}s}  {kind:16s} {count:5d} component(s)'
+            size = (f'{count:5d} component(s)' if count is not None
+                    else '    not a niess tree node')
+            lines.append(f'  {label:{width}s}  {kind:16s} {size}'
                          f'  {self._mounting(mount)}'.rstrip())
         knobs = self._knobs()
         if knobs:
@@ -214,13 +238,15 @@ class Instrument(Base):
     def _repr_markdown_(self) -> str:
         """The same thing as a table, for a notebook."""
         parts = self.summary()
-        total = sum(count for _, _, count in parts)
+        known = [count for _, _, count in parts if count is not None]
+        total = f'{sum(known)}{"+" if len(known) < len(parts) else ""}'
         origin = f", measured about `{self.origin}`" if self.origin else ''
         head = (f'**{self.name}** \u2014 {len(parts)} part(s), {total} component(s), '
                 f'{self.flavor}{origin}.\n\n')
         rows = ['| part | is a | components | mounted |', '| --- | --- | --: | --- |']
         for (label, kind, count), mount in zip(parts, self.parts):
-            rows.append(f'| `{label}` | `{kind}` | {count} | '
+            size = count if count is not None else '**not a niess tree node**'
+            rows.append(f'| `{label}` | `{kind}` | {size} | '
                         f'{self._mounting(mount) or "globally"} |')
         knobs = self._knobs()
         tail = (f'\n\nRun-time parameters: {", ".join(f"`{k}`" for k in knobs)}.'

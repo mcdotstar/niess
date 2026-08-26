@@ -89,3 +89,44 @@ def test_displaying_an_instrument_does_not_walk_it_twice(bifrost):
     start = time.perf_counter()
     repr(bifrost)
     assert time.perf_counter() - start < 2.0
+
+
+# -- a part that is not a tree node ------------------------------------------------
+
+@pytest.fixture(scope='module')
+def unwalkable():
+    """`IndirectSecondary` derives from `object`: no `__niess_children__`, so no walk.
+
+    `niess.bifrost.BIFROST` holds one, which is how this turns up in practice.
+    """
+    from niess.bifrost import BIFROST
+    from niess.bifrost.parameters import tank_parameters
+    return BIFROST.from_calibration(**tank_parameters()).secondary
+
+
+def test_a_part_that_cannot_be_walked_is_reported_not_raised(unwalkable):
+    """A repr that raises takes away the first thing anyone does with a broken object."""
+    instrument = Instrument(name='partial',
+                            parts=(Mount(name='secondary', content=unwalkable),))
+    text = repr(instrument)
+    assert 'not a niess tree node' in text
+    assert 'IndirectSecondary' in text
+    assert instrument.summary() == (('secondary', 'IndirectSecondary', None),)
+
+
+def test_the_total_says_it_is_incomplete(unwalkable):
+    """`158+` rather than `158`: one part was not counted, and the count should say so."""
+    from niess.bifrost import Primary
+    from niess.bifrost.parameters import primary_parameters
+    instrument = Instrument(name='partial', parts=(
+        Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
+        Mount(name='secondary', content=unwalkable),
+    ))
+    assert '+ component(s)' in repr(instrument)
+    assert '+ component(s)' in instrument._repr_markdown_()
+
+
+def test_a_notebook_gets_the_same_answer(unwalkable):
+    instrument = Instrument(name='partial',
+                            parts=(Mount(name='secondary', content=unwalkable),))
+    assert '**not a niess tree node**' in instrument._repr_markdown_()
