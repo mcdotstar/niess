@@ -121,8 +121,17 @@ def to_mccode(instrument, registry=None, assembler=None):
     """
     from mccode_antlr.assembler import Assembler
 
+    from .assembler import ensure_runtime_parameter
+
     if assembler is None:
         assembler = Assembler(instrument.name, flavor=instrument.flavor)
+    # What the instrument declares of its own accord, before anything it contains gets
+    # to declare its own. `Instrument.parameters` exists so a knob can be stated up
+    # front rather than created as a side effect by whichever component happens to want
+    # one, and an instrument that states one and does not emit it has not declared
+    # anything at all.
+    for parameter in instrument.parameters:
+        ensure_runtime_parameter(assembler, parameter)
     context = McCodeContext(instrument=instrument, assembler=assembler)
     walk(instrument, MCCODE_REGISTRY if registry is None else registry, context=context)
     if context.scopes:

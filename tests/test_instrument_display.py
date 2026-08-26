@@ -109,11 +109,15 @@ def test_displaying_an_instrument_does_not_walk_it_twice(bifrost):
 def unwalkable():
     """`IndirectSecondary` derives from `object`: no `__niess_children__`, so no walk.
 
-    `niess.bifrost.BIFROST` holds one, which is how this turns up in practice.
+    A real niess object rather than a stub, because the point is that this happens: a
+    tank converted for event processing is not a tree, and neither is `None`, and
+    neither is a stray dict from a mis-decorated factory.
     """
-    from niess.bifrost import BIFROST
+    import scipp as sc
+    from niess.bifrost import Tank
     from niess.bifrost.parameters import tank_parameters
-    return BIFROST.from_calibration(**tank_parameters()).secondary
+    tank = Tank.from_calibration(tank_parameters())
+    return tank.to_secondary(sample=sc.vector([0, 0, 0.], unit='m'))
 
 
 def test_a_part_that_cannot_be_walked_is_reported_not_raised(unwalkable):

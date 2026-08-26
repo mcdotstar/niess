@@ -240,3 +240,41 @@ def test_the_target_module_names_no_component():
     for name in ('Tank', 'Channel', 'DiscChopper', 'Analyzer', 'Triplet',
                  'Slit_radial_multi', 'secondary_cassette'):
         assert name not in source, f'{name} leaked into the target module'
+
+
+# -- what the instrument itself declares -------------------------------------------
+
+def test_an_instrument_emits_the_parameters_it_declares():
+    """`Instrument.parameters` is knobs stated up front, so they have to reach DEFINE.
+
+    Otherwise the field says nothing: every other parameter in an emitted instrument got
+    there as a side effect of whichever component wanted one.
+    """
+    from mccode_antlr.common import InstrumentParameter
+    from niess.instrument import Instrument, Mount
+    from niess.mccode import to_mccode
+    from niess.teaching import Primary
+
+    a3 = InstrumentParameter.parse('a3/"deg" = 0')
+    a4 = InstrumentParameter.parse('a4/"deg" = 0')
+    instrument = Instrument(
+        name='t', origin='sample_origin', parameters=(a3, a4),
+        parts=(Mount(name='primary', content=Primary.from_calibration()),))
+
+    emitted = to_mccode(instrument)
+    names = [p.name for p in emitted.parameters]
+    assert 'a3' in names and 'a4' in names
+    # up front: declared before anything a component asked for on its own account
+    assert names[:2] == ['a3', 'a4']
+    assert 'a3/"deg"=0' in str(emitted)
+
+
+def test_declaring_nothing_emits_nothing_extra():
+    """The default is an empty tuple, and an instrument that says nothing is unchanged."""
+    from niess.instrument import Instrument, Mount
+    from niess.mccode import to_mccode
+    from niess.teaching import Primary
+
+    plain = Instrument(name='t', origin='sample_origin',
+                       parts=(Mount(name='primary', content=Primary.from_calibration()),))
+    assert [p.name for p in to_mccode(plain).parameters][0] == 'source_lambda_min'
