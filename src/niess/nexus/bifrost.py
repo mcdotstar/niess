@@ -22,6 +22,16 @@ from .structure import component_body, emit
 
 BIFROST_REGISTRY = NiessNexusRegistry(parent=NEXUS_REGISTRY)
 
+#: Where BIFROST's detector events are published. The filewriter needs this and the
+#: source below to place an NXevent_data group and know what fills it, so a detector
+#: written without them is geometry describing data that never arrives.
+BIFROST_DETECTOR_TOPIC = 'bifrost_detector'
+
+
+def bifrost_detector_source(arc, triplet) -> str:
+    """Which triplet an ev44 message came from, as the source string ICD 01 uses."""
+    return f'arc={arc};triplet={triplet}'
+
 def icd_pixel(resolution, arc, triplet, tube, position):
     """Pixel id per ICD 01 v6; ``position`` runs from 0 to ``resolution - 1``."""
     return 27 * resolution * arc + 9 * resolution * tube + resolution * triplet + position + 1
@@ -132,9 +142,23 @@ def register_bifrost() -> None:
             dataset('cylinders', [[0, 1, 2]]),
         ])
 
+        # Event streaming is what these tubes do: without an NXevent_data group the
+        # filewriter has nothing to fill the detector with. The other route reaches for
+        # a METADATA block or a provenance entry before falling back to this; reading
+        # the tree the equivalent would be a field on the object, and Triplet has none,
+        # so this is the selection rather than a default under one.
+        stream = visit.context.stream_group({
+            'module': 'ev44',
+            'source': bifrost_detector_source(arc, triplet),
+            'topic': BIFROST_DETECTOR_TOPIC,
+        })
+
         return component_body('NXdetector', [
             dataset('detector_number',
                     np.array(numbers).astype('int32').tolist(), dtype='int32'),
+            # straight after detector_number, which is where the other route and
+            # moreniius before it put it
+            stream,
             dataset('x_pixel_offset', grid_i.tolist(), dtype='double',
                     attrs={'units': 'm'}),
             dataset('y_pixel_offset', grid_j.tolist(), dtype='double',

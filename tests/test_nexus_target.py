@@ -13,7 +13,6 @@ from niess.nexus.nodes import find_child, get_attribute, node_name
 from niess.nexus import to_nexus_structure
 
 
-
 def test_the_two_routes_are_two_functions():
     """The guard on every comparison here: they must not have become the same one.
 
@@ -24,6 +23,7 @@ def test_the_two_routes_are_two_functions():
     from niess.nexus import to_nexus_structure as from_tree
     from niess.nexus.via_instr import to_nexus_structure as from_instrument
     assert from_tree is not from_instrument
+
 
 def instrument_group(structure):
     return structure['children'][0]['children'][0]
@@ -376,3 +376,74 @@ def test_a_linked_log_can_carry_transformation_attributes(teaching):
     assert get_attribute(node, 'transformation_type') == 'rotation'
     assert get_attribute(node, 'vector') == [0.0, 1.0, 0.0]
     assert {c['module'] for c in node['children']} == {'link'}
+
+
+# -- the detectors have to say where their events come from -----------------------
+
+def _descend(node):
+    from niess.nexus.nodes import children_of
+    for child in children_of(node):
+        yield child
+        yield from _descend(child)
+
+
+def detector_streams(structure) -> dict:
+    """Every NXdetector's stream directive, by detector name.
+
+    ``None`` where a detector has no ``data`` group at all -- which is the failure worth
+    catching: geometry describing data that never arrives.
+    """
+    from niess.nexus.nodes import children_of, find_child
+    found = {}
+    for node in _descend(structure):
+        if not any(a.get('values') == 'NXdetector' for a in node.get('attributes', [])):
+            continue
+        data = find_child(node, 'data')
+        if data is None:
+            found[node_name(node)] = None
+            continue
+        assert get_attribute(data, 'NX_class') == 'NXevent_data'
+        directive = children_of(data)[0]
+        found[node_name(node)] = (directive['module'], directive['config']['source'],
+                                  directive['config']['topic'])
+    return found
+
+
+def test_every_detector_carries_an_ev44_stream(bifrost):
+    """Without it the filewriter has no NXevent_data to fill, so the detector is inert.
+
+    The pixel geometry is only half of an NXdetector; the other half is the directive
+    saying which Kafka topic and source fill it. A structure that describes 45 detectors
+    and streams none of them is not a smaller answer, it is a wrong one.
+    """
+    from niess.nexus.bifrost import BIFROST_DETECTOR_TOPIC, BIFROST_REGISTRY
+    streams = detector_streams(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
+
+    assert len(streams) == 45
+    assert not [name for name, s in streams.items() if s is None]
+    assert {s[0] for s in streams.values()} == {'ev44'}
+    assert {s[2] for s in streams.values()} == {BIFROST_DETECTOR_TOPIC}
+    # one source per triplet, or two detectors would be fed the same events
+    assert len({s[1] for s in streams.values()}) == 45
+
+
+def test_both_routes_stream_the_same_detectors_from_the_same_sources(bifrost):
+    """The routes disagreed here once: the tree emitted geometry and no stream at all."""
+    from mccode_antlr import Flavor
+    from mccode_antlr.assembler import Assembler
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    from niess.nexus.via_instr import to_nexus_structure as from_instrument
+    from niess.nexus.via_instr.bifrost import BIFROST_REGISTRY as INSTRUMENT_REGISTRY
+
+    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
+    Primary.from_calibration(primary_parameters()).to_mccode(assembler)
+    Tank.from_calibration(tank_parameters()).to_mccode(assembler, 'sample_origin')
+
+    old = detector_streams(from_instrument(assembler.instrument, origin='sample_origin',
+                                           registry=INSTRUMENT_REGISTRY))
+    new = detector_streams(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
+    # the two name their detectors differently -- the tree emits `triplet`, the emitted
+    # instrument its component names -- so compare what is streamed, not where from
+    assert sorted(filter(None, old.values())) == sorted(filter(None, new.values()))
