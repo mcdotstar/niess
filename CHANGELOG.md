@@ -14,6 +14,14 @@ tree. The route that reads an assembled McStas instrument instead is kept, one
 `via_instr` per package, and is what goes when converting a foreign `.instr` stops being
 served. `niess.targets` is gone.
 
+### Added
+
+- **`Instrument` and `Mount` display themselves.** msgspec generates a repr from the
+  fields, and an instrument's fields are the whole tree — BIFROST came out at nearly
+  300 000 characters, so typing its name flooded the terminal. Both now say what they
+  are, what they are made of and how big each piece is; `Instrument._repr_markdown_`
+  renders the same as a table in a notebook.
+
 ### Changed — import paths
 
 | was | is |

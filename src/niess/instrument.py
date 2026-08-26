@@ -25,6 +25,20 @@ from mccode_antlr.common import InstrumentParameter
 from .components.component import Base
 
 
+def _walk(node):
+    """Deferred so importing this module does not pull the tree machinery in."""
+    from .tree import walk
+    return walk(node)
+
+
+def _angle_text(angle) -> str:
+    """A mounting angle as it reads: a parameter by name, a number as a number."""
+    name = getattr(angle, 'name', None)
+    if name is not None:
+        return str(name)
+    return f'{angle:g}' if isinstance(angle, (int, float)) else str(angle)
+
+
 class Mount(msgspec.Struct):
     """A top-level piece of an instrument, and the frame it hangs from.
 
@@ -61,6 +75,18 @@ class Mount(msgspec.Struct):
             not isinstance(angle, (int, float)) or angle != 0
             for angle in self.rotation
         )
+
+    def __repr__(self) -> str:
+        """What is mounted and where, not the whole of it.
+
+        Same reason as `Instrument.__repr__`: the generated one prints `content` in
+        full, so reaching for `instrument.parts` floods the terminal.
+        """
+        text = f'Mount {self.name}: {type(self.content).__name__}'
+        where = f' \u2190 {self.relative_to}' if self.relative_to else ''
+        if self.is_turned():
+            where += f' turned ({", ".join(_angle_text(a) for a in self.rotation)})'
+        return text + where
 
     def parameters(self):
         """The run-time parameters this mounting depends on, if any."""
@@ -128,6 +154,78 @@ class Instrument(Base):
                 if parameter not in found:
                     found.append(parameter)
         return tuple(found)
+
+    def summary(self) -> tuple[tuple[str, str, int], ...]:
+        """Each part as ``(label, class name, component count)``, in beam order.
+
+        The count is leaves -- things that emit -- rather than nodes, because that is
+        the number anyone asking "how big is this?" means. One walk, so displaying an
+        instrument stays cheap enough to do by reflex.
+        """
+        found = []
+        for mount in self.parts:
+            count = 0
+            for _, node in _walk(mount.content):
+                if not node.__niess_children__():
+                    count += 1
+            found.append((mount.name, type(mount.content).__name__, count))
+        return tuple(found)
+
+    def _mounting(self, mount: Mount) -> str:
+        """Where a part hangs and how it is turned, as one phrase."""
+        where = f'\u2190 {mount.relative_to}' if mount.relative_to else ''
+        if not mount.is_turned():
+            return where
+        angles = ', '.join(_angle_text(a) for a in mount.rotation)
+        return f'{where} turned ({angles})'.strip()
+
+    def _knobs(self) -> tuple[str, ...]:
+        """Every run-time parameter this instrument names, declared or mounted."""
+        names = [p.name for p in self.parameters]
+        for parameter in self.mount_parameters():
+            if parameter.name not in names:
+                names.append(parameter.name)
+        return tuple(names)
+
+    def __repr__(self) -> str:
+        """One screen, not the whole tree.
+
+        msgspec generates a repr from the fields, which for BIFROST is 300 000
+        characters of nested scipp variables -- displaying an instrument by accident
+        floods the terminal and tells you nothing. This says what it is, what it is made
+        of and how big each piece is; the pieces are still there to look at.
+        """
+        parts = self.summary()
+        total = sum(count for _, _, count in parts)
+        head = (f'{self.name}: {len(parts)} part(s), {total} component(s)'
+                f' [{self.flavor}]')
+        if self.origin:
+            head += f', origin {self.origin!r}'
+        lines = [head]
+        width = max((len(label) for label, _, _ in parts), default=0)
+        for (label, kind, count), mount in zip(parts, self.parts):
+            lines.append(f'  {label:{width}s}  {kind:16s} {count:5d} component(s)'
+                         f'  {self._mounting(mount)}'.rstrip())
+        knobs = self._knobs()
+        if knobs:
+            lines.append(f'  run-time parameters: {", ".join(knobs)}')
+        return '\n'.join(lines)
+
+    def _repr_markdown_(self) -> str:
+        """The same thing as a table, for a notebook."""
+        parts = self.summary()
+        total = sum(count for _, _, count in parts)
+        origin = f", measured about `{self.origin}`" if self.origin else ''
+        head = (f'**{self.name}** \u2014 {len(parts)} part(s), {total} component(s), '
+                f'{self.flavor}{origin}.\n\n')
+        rows = ['| part | is a | components | mounted |', '| --- | --- | --: | --- |']
+        for (label, kind, count), mount in zip(parts, self.parts):
+            rows.append(f'| `{label}` | `{kind}` | {count} | '
+                        f'{self._mounting(mount) or "globally"} |')
+        knobs = self._knobs()
+        tail = (f'\n\nRun-time parameters: {", ".join(f"`{k}`" for k in knobs)}.'
+                if knobs else '')
+        return head + '\n'.join(rows) + tail
 
     def mount_of(self, label: str) -> Mount:
         """The Mount a top-level piece arrived in."""
