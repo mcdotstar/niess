@@ -68,12 +68,22 @@ def test_a_part_that_hangs_from_nothing_says_nothing(teaching):
     assert 'turned' not in repr(teaching)
 
 
-def test_a_notebook_gets_a_table(bifrost):
-    markdown = bifrost._repr_markdown_()
-    assert markdown.startswith('**bifrost**')
-    assert '| part | is a | components | mounted |' in markdown
-    assert '| `tank` | `Tank` |' in markdown
-    assert '`a4`' in markdown
+def test_a_notebook_gets_a_collapsed_tree(bifrost):
+    """`<details>` is the one disclosure widget needing no javascript."""
+    html = bifrost._repr_html_()
+    assert html.startswith('<details open><summary>')
+    # exactly one thing is open: the root, so the header is readable and nothing else
+    assert html.count('<details open>') == 1
+    assert html.count('<details>') > 100
+    assert 'Tank' in html and 'a4' in html
+
+
+def test_the_notebook_tree_goes_all_the_way_down(bifrost):
+    """The point of collapsing is that everything is there to open."""
+    html = bifrost._repr_html_()
+    # a blade is four levels below the tank: channels -> pairs -> analyzer -> blades
+    assert 'blades[0]' in html
+    assert 'He3Tube' in html
 
 
 def test_a_mount_does_not_print_what_it_holds(bifrost):
@@ -123,10 +133,82 @@ def test_the_total_says_it_is_incomplete(unwalkable):
         Mount(name='secondary', content=unwalkable),
     ))
     assert '+ component(s)' in repr(instrument)
-    assert '+ component(s)' in instrument._repr_markdown_()
+    assert '+ component(s)' in instrument._repr_html_()
 
 
 def test_a_notebook_gets_the_same_answer(unwalkable):
     instrument = Instrument(name='partial',
                             parts=(Mount(name='secondary', content=unwalkable),))
-    assert '**not a niess tree node**' in instrument._repr_markdown_()
+    assert 'not a niess tree node' in instrument._repr_html_()
+
+
+# -- the same for the pieces, not just the whole ------------------------------------
+
+def test_a_composite_says_what_it_holds():
+    """`Tank` is a Base; the generated repr is a quarter of a million characters."""
+    from niess.bifrost import Tank
+    from niess.bifrost.parameters import tank_parameters
+    tank = Tank.from_calibration(tank_parameters())
+    text = repr(tank)
+    assert text.startswith('Tank: 614 component(s)')
+    assert 'channels[0]  Channel  68 component(s)' in text
+    assert len(text) < 1000
+
+
+def test_a_section_gets_the_same_treatment():
+    """`Primary` is a Section, which is not a Base -- a user holding one cannot tell."""
+    from niess.components.section import Section
+    from niess.teaching import Primary
+    primary = Primary.from_calibration()
+    assert isinstance(primary, Section)
+    text = repr(primary)
+    assert text.startswith('Primary: 7 component(s)')
+    assert 'chopper' in text and 'DiscChopper' in text
+
+
+def test_a_leaf_says_what_it_is_and_stops():
+    """Nothing below it, so nothing to count or to open."""
+    from niess.teaching import Primary
+    chopper = dict(Primary.from_calibration().__niess_children__())['chopper']
+    text = repr(chopper)
+    assert text == "DiscChopper 'chopper'"
+    assert chopper._repr_html_().count('<details>') == 0
+
+
+def test_a_long_list_of_children_is_cut_short():
+    """Nine channels shows the shape; a hundred would be a scroll, not an answer."""
+    from niess.display import TEXT_CHILDREN, text_tree
+
+    class Fake:
+        def __init__(self, kids=()):
+            self._kids = kids
+
+        def __niess_children__(self):
+            return tuple((f'part[{i}]', k) for i, k in enumerate(self._kids))
+
+    wide = Fake([Fake() for _ in range(TEXT_CHILDREN + 5)])
+    text = text_tree(wide, header='Fake')
+    assert '... 5 more' in text
+    assert text.count('part[') == TEXT_CHILDREN
+
+
+def test_counting_a_subtree_once_is_enough():
+    """Rendering asks every node its size; without a cache each subtree is re-counted."""
+    from niess.display import leaf_count
+
+    seen = []
+
+    class Counted:
+        def __init__(self, kids=()):
+            self._kids = kids
+
+        def __niess_children__(self):
+            seen.append(self)
+            return tuple((f'k[{i}]', k) for i, k in enumerate(self._kids))
+
+    shared = Counted([Counted(), Counted()])
+    root = Counted([shared, shared, shared])
+    cache = {}
+    assert leaf_count(root, cache) == 6
+    # the shared subtree is walked once, not once per parent
+    assert seen.count(shared) == 1

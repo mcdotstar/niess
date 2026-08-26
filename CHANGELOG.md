@@ -16,11 +16,12 @@ served. `niess.targets` is gone.
 
 ### Added
 
-- **`Instrument` and `Mount` display themselves.** msgspec generates a repr from the
-  fields, and an instrument's fields are the whole tree — BIFROST came out at nearly
-  300 000 characters, so typing its name flooded the terminal. Both now say what they
-  are, what they are made of and how big each piece is; `Instrument._repr_markdown_`
-  renders the same as a table in a notebook.
+- **niess objects display themselves.** msgspec generates a repr from the fields, and a
+  composite's fields are its whole subtree — a BIFROST `Instrument` came out at nearly
+  300 000 characters, so typing its name flooded the terminal. `Instrument`, `Mount`,
+  and every `Base` and `Section` now say what they are, what they contain and how big
+  that is. In a notebook `_repr_html_` renders the same tree as nested `<details>`,
+  collapsed below the top level, so a thousand-node instrument opens where you want it.
 
 ### Changed — import paths
 

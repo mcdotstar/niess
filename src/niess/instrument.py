@@ -177,8 +177,7 @@ class Instrument(Base):
         """Each part as ``(label, class name, component count)``, in beam order.
 
         The count is leaves -- things that emit -- rather than nodes, because that is
-        the number anyone asking "how big is this?" means. One walk, so displaying an
-        instrument stays cheap enough to do by reflex.
+        the number anyone asking "how big is this?" means.
 
         ``None`` where the part cannot be walked at all, which means it is not a niess
         tree node: it has no ``__niess_children__``, so no target can read it either and
@@ -186,11 +185,9 @@ class Instrument(Base):
         thing anyone does with an object that is not working is look at it, and a repr
         that raises takes that away.
         """
-        found = []
-        for mount in self.parts:
-            found.append((mount.name, type(mount.content).__name__,
-                          _count_leaves(mount.content)))
-        return tuple(found)
+        from .display import leaf_count
+        return tuple((mount.name, type(mount.content).__name__,
+                      leaf_count(mount.content)) for mount in self.parts)
 
     def _mounting(self, mount: Mount) -> str:
         """Where a part hangs and how it is turned, as one phrase."""
@@ -200,6 +197,13 @@ class Instrument(Base):
         angles = ', '.join(_angle_text(a) for a in mount.rotation)
         return f'{where} turned ({angles})'.strip()
 
+    def _annotate(self, label: str, _child) -> str:
+        """A top-level part's line says where it hangs; nothing deeper does."""
+        try:
+            return self._mounting(self.mount_of(label))
+        except KeyError:
+            return ''
+
     def _knobs(self) -> tuple[str, ...]:
         """Every run-time parameter this instrument names, declared or mounted."""
         names = [p.name for p in self.parameters]
@@ -208,14 +212,8 @@ class Instrument(Base):
                 names.append(parameter.name)
         return tuple(names)
 
-    def __repr__(self) -> str:
-        """One screen, not the whole tree.
-
-        msgspec generates a repr from the fields, which for BIFROST is 300 000
-        characters of nested scipp variables -- displaying an instrument by accident
-        floods the terminal and tells you nothing. This says what it is, what it is made
-        of and how big each piece is; the pieces are still there to look at.
-        """
+    def _header(self) -> str:
+        """What this instrument is, before anything it contains."""
         parts = self.summary()
         known = [count for _, _, count in parts if count is not None]
         total = f'{sum(known)}{"+" if len(known) < len(parts) else ""}'
@@ -223,35 +221,32 @@ class Instrument(Base):
                 f' [{self.flavor}]')
         if self.origin:
             head += f', origin {self.origin!r}'
-        lines = [head]
-        width = max((len(label) for label, _, _ in parts), default=0)
-        for (label, kind, count), mount in zip(parts, self.parts):
-            size = (f'{count:5d} component(s)' if count is not None
-                    else '    not a niess tree node')
-            lines.append(f'  {label:{width}s}  {kind:16s} {size}'
-                         f'  {self._mounting(mount)}'.rstrip())
+        return head
+
+    def __repr__(self) -> str:
+        """One screen, not the whole tree.
+
+        msgspec generates a repr from the fields, which for BIFROST is 300 000
+        characters of nested scipp variables -- displaying an instrument by accident
+        floods the terminal and tells you nothing. This says what it is, what it is made
+        of and how big each piece is; :mod:`niess.display` does the same for the pieces.
+        """
+        from .display import text_tree
+        text = text_tree(self, header=self._header(), annotate=self._annotate)
+        knobs = self._knobs()
+        return text + (f'\n  run-time parameters: {", ".join(knobs)}' if knobs else '')
+
+    def _repr_html_(self) -> str:
+        """The whole instrument as a collapsed tree, for a notebook."""
+        from html import escape
+        from .display import html_tree
+        html = html_tree(self, header=f'<b>{escape(self._header())}</b>',
+                         annotate=self._annotate)
         knobs = self._knobs()
         if knobs:
-            lines.append(f'  run-time parameters: {", ".join(knobs)}')
-        return '\n'.join(lines)
-
-    def _repr_markdown_(self) -> str:
-        """The same thing as a table, for a notebook."""
-        parts = self.summary()
-        known = [count for _, _, count in parts if count is not None]
-        total = f'{sum(known)}{"+" if len(known) < len(parts) else ""}'
-        origin = f", measured about `{self.origin}`" if self.origin else ''
-        head = (f'**{self.name}** \u2014 {len(parts)} part(s), {total} component(s), '
-                f'{self.flavor}{origin}.\n\n')
-        rows = ['| part | is a | components | mounted |', '| --- | --- | --: | --- |']
-        for (label, kind, count), mount in zip(parts, self.parts):
-            size = count if count is not None else '**not a niess tree node**'
-            rows.append(f'| `{label}` | `{kind}` | {size} | '
-                        f'{self._mounting(mount) or "globally"} |')
-        knobs = self._knobs()
-        tail = (f'\n\nRun-time parameters: {", ".join(f"`{k}`" for k in knobs)}.'
-                if knobs else '')
-        return head + '\n'.join(rows) + tail
+            named = ', '.join(f'<code>{escape(k)}</code>' for k in knobs)
+            html += f'<div>run-time parameters: {named}</div>'
+        return html
 
     def mount_of(self, label: str) -> Mount:
         """The Mount a top-level piece arrived in."""
