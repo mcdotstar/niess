@@ -52,7 +52,10 @@ def test_it_counts_the_components_of_each_part(bifrost):
     assert set(counts) == {'primary', 'tank'}
     for mount in bifrost.parts:
         assert counts[mount.name] == len(leaves(mount.content))
-    assert sum(counts.values()) == len(leaves(bifrost))
+    # a turned mounting contributes a frame of its own, which belongs to the instrument
+    # rather than to either part
+    turned = sum(1 for mount in bifrost.parts if mount.is_turned())
+    assert sum(counts.values()) + turned == len(leaves(bifrost))
 
 
 def test_it_says_where_a_part_hangs_and_how_it_turns(bifrost):

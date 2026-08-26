@@ -49,6 +49,30 @@ def _count_leaves(content) -> Optional[int]:
         return None
 
 
+def _is_at_origin(content) -> bool:
+    """Whether a thing sits at the origin of the frame it hangs from."""
+    position = getattr(content, 'position', None)
+    if position is None:
+        return True
+    try:
+        return not any(abs(float(v)) > 0 for v in position.to(unit='m').value)
+    except Exception:
+        return False
+
+
+def _is_unturned(content) -> bool:
+    """Whether a thing is not turned within the frame it hangs from."""
+    orientation = getattr(content, 'orientation', None)
+    if orientation is None:
+        return True
+    try:
+        from .spatial import mccode_ordered_angles
+        turn = orientation() if callable(orientation) else orientation
+        return not any(abs(a) > 0 for a in mccode_ordered_angles(turn))
+    except Exception:
+        return False
+
+
 def _angle_text(angle) -> str:
     """A mounting angle as it reads: a parameter by name, a number as a number."""
     name = getattr(angle, 'name', None)
@@ -106,6 +130,46 @@ class Mount(msgspec.Struct):
             where += f' turned ({", ".join(_angle_text(a) for a in self.rotation)})'
         return text + where
 
+    def frame(self):
+        """The coordinate frame this mounting implies, or ``None`` if it implies none.
+
+        A mounting that only says *where* needs no frame -- ``relative_to`` is already a
+        frame, and McStas, NeXus and CAD each hang the part off it directly. A mounting
+        that says *how it is turned* needs one, because the turn is a statement about
+        where to measure the contents from, and that is what a `Frame` is.
+
+        Described once here rather than three times in the targets, which is the whole
+        reason `Frame` exists: McStas renders it as an `Arm`, NeXus as a link in a
+        ``depends_on`` chain, CAD as a node in the assembly.
+        """
+        if not self.is_turned():
+            return None
+        from .components.frame import Frame
+        return Frame(name=f'{self.name}_mounting', rotation=tuple(self.rotation),
+                     extra={'frame': 'mounting'}, owner_key=None)
+
+    def collapses(self) -> bool:
+        """Whether the turn can be written onto the contents instead of an Arm of its own.
+
+        The frame is real either way -- it is in the tree, and NeXus and CAD render it.
+        This is about McStas text: an Arm whose only dependent sits at its origin
+        unturned says nothing the dependent cannot say itself.
+
+        Only when the contents are one thing that sits *at* the frame's origin and is
+        not turned itself. An ``AT`` offset rotates with the frame it is measured in --
+        ``AT (0,0,1) RELATIVE`` an arm turned 90 degrees about y resolves to (1,0,0),
+        not (0,0,1) -- so pushing a turn onto anything with an offset silently moves it.
+        And a composite is not one thing: its contents each hang off the frame, so the
+        frame has to exist for them to hang off.
+        """
+        content = self.content
+        if self.frame() is None:
+            return False
+        children = getattr(content, '__niess_children__', None)
+        if children is None or children():
+            return False
+        return _is_at_origin(content) and _is_unturned(content)
+
     def parameters(self):
         """The run-time parameters this mounting depends on, if any."""
         from mccode_antlr.common import InstrumentParameter
@@ -153,12 +217,56 @@ class Instrument(Base):
         return cls(name=name, parts=mounted)
 
     def __niess_children__(self):
-        """The pieces, under their own labels -- the Mount itself is not a node."""
-        return tuple((mount.name, mount.content) for mount in self.parts)
+        """The pieces, under their own labels -- the Mount itself is not a node.
+
+        A turned mounting contributes the frame it implies, immediately before what
+        hangs off it, unless the turn collapses onto the contents outright.
+        """
+        found = []
+        for mount in self.parts:
+            frame = mount.frame()
+            if frame is not None:
+                found.append((frame.name, frame))
+            found.append((mount.name, mount.content))
+        return tuple(found)
 
     def __niess_child_frame__(self, visit, label: str, default):
-        """Each piece hangs where its Mount says, not where the one before it did."""
-        return self.mount_of(label).relative_to or default
+        """Each piece hangs where its Mount says, not where the one before it did.
+
+        A turned mounting puts its frame in between: the frame hangs where the mounting
+        says, and the contents hang off the frame.
+        """
+        mount = self._mount_for(label)
+        if mount is None:
+            return default
+        if label != mount.name:                       # this is the mounting's own frame
+            return mount.relative_to or default
+        frame = mount.frame()
+        if frame is None:
+            return mount.relative_to or default
+        return f'{visit.id}/{frame.name}' if visit.id else frame.name
+
+    def __mccode_collapsed__(self, frame_name: str):
+        """The turn and reference a collapsed mounting hands to its contents.
+
+        ``None`` when the mounting's frame has to be emitted in its own right, which is
+        whenever the contents are more than one thing, or sit anywhere but its origin.
+        """
+        for mount in self.parts:
+            frame = mount.frame()
+            if frame is not None and frame.name == frame_name and mount.collapses():
+                return frame.mccode_angles(), mount.relative_to
+        return None
+
+    def _mount_for(self, label: str):
+        """The Mount a child label belongs to -- the part itself, or its frame."""
+        for mount in self.parts:
+            if label == mount.name:
+                return mount
+            frame = mount.frame()
+            if frame is not None and label == frame.name:
+                return mount
+        return None
 
     def mount_parameters(self):
         """Every run-time parameter the mountings depend on, in part order.

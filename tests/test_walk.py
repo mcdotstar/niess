@@ -354,4 +354,20 @@ def test_a_turned_mount_still_walks_and_names_the_same(parts):
     names = {v.id: v.name for v in visits(turned)}
     assert names['tank/channels[2]/radial_filter_collimator'] == \
         'channel_3_radial_filter_collimator'
-    assert {v.id: v.frame for v in visits(turned)}['tank/monitor'] == 'sample_origin'
+    # the turn is a frame the contents hang off, so that the turn reaches them; what
+    # they are called is untouched, which is what "not a change of what is in it" means
+    frames = {v.id: v.frame for v in visits(turned)}
+    assert frames['tank/monitor'] == 'tank_mounting'
+    assert 'tank_mounting' in {v.name for v in visits(turned)}
+
+
+def test_an_unturned_mount_hangs_straight_off_what_it_names(parts):
+    """No turn, no frame: `relative_to` is already one, and an Arm saying nothing is
+    an Arm nobody asked for."""
+    primary, tank = parts
+    plain = Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=primary),
+        Mount(name='tank', content=tank, relative_to='sample_origin'),
+    ))
+    assert {v.id: v.frame for v in visits(plain)}['tank/monitor'] == 'sample_origin'
+    assert not [v for v in visits(plain) if v.name.endswith('_mounting')]

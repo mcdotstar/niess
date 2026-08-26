@@ -90,3 +90,101 @@ def test_several_axes_compose_in_mccode_order(a4):
     from niess.spatial import mccode_ordered_angles
     frame = Frame(name='f', rotation=(30.0, 40.0, 0.0))
     assert mccode_ordered_angles(frame.orientation()) == pytest.approx((30.0, 40.0, 0.0))
+
+
+# -- a turned mounting, and what it collapses to ------------------------------------
+
+def _identity():
+    from scipp.spatial import rotations_from_rotvecs
+    return rotations_from_rotvecs(sc.vector([0, 0, 0.], unit='deg'))
+
+
+def _at(z):
+    from niess.components.component import Component
+    return Component(name='thing', position=sc.vector([0, 0, z], unit='m'),
+                     orientation=_identity())
+
+
+def _emit(*mounts, a3):
+    from niess.mccode import to_mccode
+    from niess.teaching import Primary
+    instrument = Instrument(
+        name='t', origin='sample_origin', parameters=(a3,),
+        parts=(Mount(name='primary', content=Primary.from_calibration()), *mounts))
+    return str(to_mccode(instrument))
+
+
+def test_a_turn_with_nothing_to_hold_it_up_is_written_on_the_thing_itself():
+    """The whole point: no intervening Arm when it would say nothing."""
+    a3 = InstrumentParameter.parse('a3/"deg" = 0')
+    text = _emit(Mount(name='sample', content=_at(0.0), relative_to='sample_origin',
+                       rotation=(0, a3, 0)), a3=a3)
+    assert 'ROTATED (0, a3, 0) RELATIVE sample_origin' in text
+    assert 'sample_mounting' not in text
+
+
+def test_an_offset_keeps_its_arm_because_the_offset_turns_with_it():
+    """`AT (0,0,1) RELATIVE` an arm turned 90 about y resolves to (1,0,0), not (0,0,1).
+
+    So a turn cannot be written onto anything that sits away from the frame's origin --
+    doing so would silently move it.
+    """
+    a3 = InstrumentParameter.parse('a3/"deg" = 0')
+    text = _emit(Mount(name='table', content=_at(1.0), relative_to='sample_origin',
+                       rotation=(0, a3, 0)), a3=a3)
+    assert 'COMPONENT table_mounting = Arm()' in text
+    assert 'ROTATED (0, a3, 0) RELATIVE sample_origin' in text
+    assert 'RELATIVE table_mounting' in text
+
+
+def test_a_composite_keeps_its_arm_because_it_is_not_one_thing():
+    """Its contents each hang off the frame, so the frame has to exist."""
+    from niess.bifrost import Tank
+    from niess.bifrost.parameters import tank_parameters
+    a4 = InstrumentParameter.parse('a4/"deg" = 0')
+    text = _emit(Mount(name='tank', content=Tank.from_calibration(tank_parameters()),
+                       relative_to='sample_origin', rotation=(0, a4, 0)), a3=a4)
+    assert 'COMPONENT tank_mounting = Arm()' in text
+
+
+def test_the_collapsed_form_resolves_to_the_same_placement():
+    """The proof, rather than the argument: McCode resolves both to one matrix."""
+    from mccode_antlr import Flavor
+    from mccode_antlr.assembler import Assembler
+
+    def resolved(build):
+        a = Assembler('t', flavor=Flavor.MCSTAS)
+        a.parameter('a3/"deg" = 30')
+        a.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
+        build(a)
+        placed = a.instrument.resolve_orientations()['sample']
+        return str(placed.position()), str(placed.rotation())
+
+    def with_arm(a):
+        a.component('mounting', 'Arm', at=((0, 0, 0), 'origin'),
+                    rotate=((0, 'a3', 0), 'origin'))
+        a.component('sample', 'Arm', at=((0, 0, 0), 'mounting'),
+                    rotate=((0, 0, 0), 'mounting'))
+
+    def collapsed(a):
+        a.component('sample', 'Arm', at=((0, 0, 0), 'origin'),
+                    rotate=((0, 'a3', 0), 'origin'))
+
+    assert resolved(with_arm) == resolved(collapsed)
+
+
+def test_an_unturned_mounting_contributes_no_frame_at_all():
+    a3 = InstrumentParameter.parse('a3/"deg" = 0')
+    text = _emit(Mount(name='sample', content=_at(0.0), relative_to='sample_origin'),
+                 a3=a3)
+    assert '_mounting' not in text
+
+
+def test_the_frame_is_in_the_tree_whether_or_not_mcstas_emits_it():
+    """Collapse is about McStas text. NeXus and CAD still get the frame described."""
+    from niess.walk import visits
+    a3 = InstrumentParameter.parse('a3/"deg" = 0')
+    instrument = Instrument(name='t', origin='sample_origin', parameters=(a3,), parts=(
+        Mount(name='sample', content=_at(0.0), relative_to='sample_origin',
+              rotation=(0, a3, 0)),))
+    assert 'sample_mounting' in {v.name for v in visits(instrument)}

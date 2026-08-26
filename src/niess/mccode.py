@@ -43,6 +43,10 @@ class McCodeContext(Context):
     #: component is placed relative to. Names rather than instances because that is what
     #: a placement refers to, and what an Assembler resolves.
     emitted: dict = field(default_factory=dict)
+    #: Turns handed on by a frame that declined to emit an Arm, by frame id. An Arm
+    #: whose only dependent sits at its origin unturned says nothing the dependent
+    #: cannot say itself, so the dependent says it.
+    turns: dict = field(default_factory=dict)
 
     def push(self, opened) -> Any:
         """Open a nested `%include` and emit into it until it is closed."""
@@ -100,7 +104,11 @@ class ComponentTranslator:
         if visit.name != obj.name:
             obj = replace(obj, name=visit.name)
         frame = context.reference(visit.frame)
-        instance = obj.to_mccode(context.assembler, at=frame, rotate=frame)
+        # a mounting whose Arm was collapsed hands its turn here, to be written onto
+        # this component rather than onto an Arm of its own
+        collapsed = context.turns.get(visit.frame)
+        rotate = frame if collapsed is None else collapsed
+        instance = obj.to_mccode(context.assembler, at=frame, rotate=rotate)
         # a component may emit more than one: a disc chopper whose openings are neither
         # identical nor evenly spaced becomes one grouped component per opening
         emitted = instance if isinstance(instance, (list, tuple)) else [instance]

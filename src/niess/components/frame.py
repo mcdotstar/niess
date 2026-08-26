@@ -195,6 +195,20 @@ class Frame(Base):
         if self.relative_to is not None:
             reference = context.reference(f'{visit.parent.id}/{self.relative_to}')
 
+        # An Arm whose only dependent sits at its origin unturned says nothing the
+        # dependent cannot say itself. Whoever declared this frame knows whether that
+        # is true; the frame does not, and nor does McStas.
+        owner = visit.parent.obj if visit.parent is not None else None
+        collapse = getattr(owner, '__mccode_collapsed__', None)
+        handed = None if collapse is None else collapse(self.name)
+        if handed is not None:
+            angles, relative = handed
+            context.turns[visit.id] = (angles, context.reference(relative)
+                                       if relative else 'ABSOLUTE')
+            # anything measuring from this frame measures from what it hung off
+            context.emitted[visit.id] = reference
+            return None
+
         instance = assembler.component(
             visit.name, 'Arm',
             at=(self.position.to(unit='m').value, reference),
