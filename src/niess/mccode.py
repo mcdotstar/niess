@@ -43,6 +43,10 @@ class McCodeContext(Context):
     #: component is placed relative to. Names rather than instances because that is what
     #: a placement refers to, and what an Assembler resolves.
     emitted: dict = field(default_factory=dict)
+    #: Whether emitted instances carry their niess provenance METADATA. Off emits a
+    #: plain McStas instrument -- which is what someone who wants the file and not the
+    #: bookkeeping asked for -- at the cost of every target that reads it back.
+    provenance: bool = True
     #: Turns handed on by a frame that declined to emit an Arm, by frame id. An Arm
     #: whose only dependent sits at its origin unturned says nothing the dependent
     #: cannot say itself, so the dependent says it.
@@ -108,7 +112,8 @@ class ComponentTranslator:
         # this component rather than onto an Arm of its own
         collapsed = context.turns.get(visit.frame)
         rotate = frame if collapsed is None else collapsed
-        instance = obj.to_mccode(context.assembler, at=frame, rotate=rotate)
+        instance = obj.to_mccode(context.assembler, at=frame, rotate=rotate,
+                                 insert_provenance_metadata=context.provenance)
         # a component may emit more than one: a disc chopper whose openings are neither
         # identical nor evenly spaced becomes one grouped component per opening
         emitted = instance if isinstance(instance, (list, tuple)) else [instance]
@@ -121,11 +126,18 @@ class ComponentTranslator:
         return instance
 
 
-def to_mccode(instrument, registry=None, assembler=None):
+def to_mccode(instrument, registry=None, assembler=None,
+              insert_provenance_metadata: bool = True):
     """Emit ``instrument`` as a McStas instrument.
 
     Pass an ``assembler`` to build into an existing one; otherwise one is made from the
     instrument's own name and flavour.
+
+    ``insert_provenance_metadata=False`` emits a plain McStas instrument, with none of
+    the ``niess_provenance`` METADATA blocks that say which niess object each component
+    came from. They are what lets something reading the emitted file back know what it
+    is looking at -- `niess.nexus.via_instr` dispatches on them -- so turning them off
+    is for producing a file to hand to McStas and nothing else.
     """
     from mccode_antlr.assembler import Assembler
 
@@ -140,7 +152,8 @@ def to_mccode(instrument, registry=None, assembler=None):
     # anything at all.
     for parameter in instrument.parameters:
         ensure_runtime_parameter(assembler, parameter)
-    context = McCodeContext(instrument=instrument, assembler=assembler)
+    context = McCodeContext(instrument=instrument, assembler=assembler,
+                            provenance=insert_provenance_metadata)
     walk(instrument, MCCODE_REGISTRY if registry is None else registry, context=context)
     if context.scopes:
         raise RuntimeError(

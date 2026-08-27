@@ -239,12 +239,15 @@ class Channel(Base):
         context.whens[f'{visit.id}/radial_filter_collimator'] = when
         return None
 
-    def to_mccode(self, assembler: Assembler, relative: Instance, name: str, when: str = None, settings: dict = None, flat: bool=True, **kwargs):
+    def to_mccode(self, assembler: Assembler, relative: Instance, name: str,
+                  when: str = None, settings: dict = None, flat: bool = True,
+                  insert_provenance_metadata: bool = True, **kwargs):
         from niess.provenance import add_niess_metadata
         # For each channel we need to define the local coordinate system, relative to the provided sample
         ra0 = self.cassette_angle.value
         cassette = assembler.component(f"{name}_arm", "Arm", at=((0, 0, 0), relative), rotate=((0, ra0, 0), relative))
-        add_niess_metadata(cassette, self, source_name=f'{name}_arm', role='reference-frame',
+        if insert_provenance_metadata:
+            add_niess_metadata(cassette, self, source_name=f'{name}_arm', role='reference-frame',
                            extra={'frame': 'cassette', 'channel': name})
         cassette.WHEN(when)
 

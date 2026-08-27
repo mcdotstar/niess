@@ -151,3 +151,16 @@ def read_niess_metadata(instance: Instance):
             continue
         return payload
     return None
+
+
+def add_visit_metadata(visit, instance, source=None, **kwargs):
+    """Write provenance for one emitted instance, unless this emission opted out.
+
+    Every McStas emitter on the walk goes through here rather than calling
+    `add_niess_metadata` directly, so that "emit without the niess METADATA blocks" is
+    one decision made once at `to_mccode` rather than a flag each of seven call sites
+    has to remember to honour -- and so that a translator added later cannot forget it.
+    """
+    if not getattr(visit.context, 'provenance', True):
+        return instance
+    return add_niess_metadata(instance, source, **kwargs)

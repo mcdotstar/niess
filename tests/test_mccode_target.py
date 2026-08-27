@@ -278,3 +278,26 @@ def test_declaring_nothing_emits_nothing_extra():
     plain = Instrument(name='t', origin='sample_origin',
                        parts=(Mount(name='primary', content=Primary.from_calibration()),))
     assert [p.name for p in to_mccode(plain).parameters][0] == 'source_lambda_min'
+
+
+def test_provenance_can_be_left_out():
+    """A file to hand to McStas and nothing else, without the niess bookkeeping."""
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+    from niess.instrument import Instrument, Mount
+    from niess.mccode import to_mccode
+
+    bifrost = Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
+        Mount(name='tank', content=Tank.from_calibration(tank_parameters()),
+              relative_to='sample_origin')))
+
+    with_it = str(to_mccode(bifrost))
+    without = str(to_mccode(bifrost, insert_provenance_metadata=False))
+
+    assert 'niess_provenance' in with_it
+    assert 'niess_provenance' not in without
+    # every emitter honours it, not only the generic one: the frames an Arm and a
+    # Channel declare, and the analyzer and triplet they emit, carry it too
+    assert 'reference-frame' not in without
+    assert without.count('COMPONENT ') == with_it.count('COMPONENT ')

@@ -183,7 +183,7 @@ class Frame(Base):
         what an adapter reading the instrument back wants to know.
         """
         from ..assembler import ensure_runtime_parameter
-        from ..provenance import add_niess_metadata
+        from ..provenance import add_visit_metadata
         context = visit.context
         assembler = context.assembler
 
@@ -218,7 +218,7 @@ class Frame(Base):
         if self.owner_key is not None and owner is not None:
             # which channel, which arm: the frame belongs to the thing that declared it
             extra[self.owner_key] = owner.name
-        add_niess_metadata(instance, owner.obj if owner is not None else self,
+        add_visit_metadata(visit, instance, owner.obj if owner is not None else self,
                            source_name=visit.name, role='reference-frame', extra=extra)
         when = context.whens.get(visit.id)
         if when is not None:

@@ -180,3 +180,43 @@ def test_a_wavelength_bound_is_converted_to_what_its_own_parameter_declares():
     assert used['source_lambda_min'].unit == 'angstrom'
     assert used['source_lambda_min'].overridden
     assert not used['source_lambda_max'].overridden
+
+
+def test_a_source_may_be_supplied_so_the_model_can_be_built_offline():
+    """Building one fetches the facility's pulse profile; this is how to not."""
+    import numpy as np
+    tof = pytest.importorskip('tof')
+    from niess.tof import to_tof_model
+
+    given = tof.Source.from_neutrons(
+        birth_times=sc.array(dims=['event'], values=np.linspace(0, 2.86e-3, 50), unit='s'),
+        wavelengths=sc.array(dims=['event'], values=np.linspace(0.5, 10.0, 50),
+                             unit='angstrom'),
+        distance=sc.scalar(0.0, unit='m'))
+    setup = to_tof_model(teaching_tree(), source=given)
+    assert setup.source is given
+    # a source handed over already carries its own band, so none was read off the
+    # instrument and none is reported as used
+    assert not [use for use in setup.parameters if 'lambda' in use.name]
+
+
+def test_the_supplied_source_survives_with_values():
+    """Rebuilding for a different chopper speed must not go and fetch a profile."""
+    import numpy as np
+    tof = pytest.importorskip('tof')
+    from niess.tof import to_tof_model
+
+    given = tof.Source.from_neutrons(
+        birth_times=sc.array(dims=['event'], values=np.linspace(0, 2.86e-3, 50), unit='s'),
+        wavelengths=sc.array(dims=['event'], values=np.linspace(0.5, 10.0, 50),
+                             unit='angstrom'),
+        distance=sc.scalar(0.0, unit='m'))
+    setup = to_tof_model(teaching_tree(), source=given)
+    assert setup.with_values(chopperspeed=70.0).source is given
+
+
+def test_the_last_detector_can_be_named():
+    tof = pytest.importorskip('tof')
+    from niess.tof import to_tof_model
+    setup = to_tof_model(teaching_tree(), neutrons=1000, sample='monitor')
+    assert 'monitor' in setup.detectors
