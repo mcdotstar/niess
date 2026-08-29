@@ -113,7 +113,7 @@ def test_the_generated_c_is_the_same_either_way(bifrost_primary):
 
     def narrowed(train):
         assembler = assembled(bifrost_primary())
-        narrow_source_wavelengths(assembler, train=train)
+        narrow_source_wavelengths(assembler, chopper_train=train)
         text = str(assembler.instrument)
         return text[text.index('DEFINE INSTRUMENT'):]
 

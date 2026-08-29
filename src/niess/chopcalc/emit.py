@@ -197,3 +197,23 @@ def already_emitted(instrument) -> bool:
 
 def include_present(instrument) -> bool:
     return any(INCLUDE_MARKER in str(block) for block in instrument.declare)
+
+
+def _block(text):
+    from mccode_antlr.common import RawC
+    return RawC('niess/chopcalc/emit.py', 0, text)
+
+
+def declare_block():
+    return _block(declare_text())
+
+def export_declare_block(export: Export):
+    return _block(export_declare_text(export))
+
+
+def initialize_block(train: ChopperTrain):
+    return _block(initialize_text(train))
+
+
+def finalize_block(export: Export):
+    return _block(finalize_text(export))

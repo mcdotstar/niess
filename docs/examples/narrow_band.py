@@ -22,7 +22,7 @@ def main(outdir: Path) -> None:
     assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
     to_mccode(teaching, assembler=assembler)
     train = narrow_source_wavelengths(
-        assembler, train=train_from_instrument(teaching))
+        assembler, chopper_train=train_from_instrument(teaching))
 
     print(f'narrowing {train.source.lambda_min}/{train.source.lambda_max} '
           f'of {train.source.name!r}')

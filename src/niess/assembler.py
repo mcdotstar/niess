@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from mccode_antlr.assembler import Assembler
 from mccode_antlr.common import InstrumentParameter
+from mccode_antlr.instr import Instr
 
 
 def ensure_user_var(a: Assembler, dtype: str, name: str, description: str):
@@ -88,12 +89,12 @@ def instrument_name(a: Assembler) -> str:
     return root_assembler(a).name
 
 
-def ensure_registry(a: Assembler, specification: str):
+def ensure_registry(a: Assembler | Instr, specification: str):
     """Ensure that a register-defined parameter is declared in the instrument
 
     Parameters
     ----------
-    a : Assembler
+    a : Assembler or Instr
     specification : str
         Any of the mccode_antlr.reader.registry supported formats,
         1. ``{resolvable folder path}``
@@ -110,5 +111,7 @@ def ensure_registry(a: Assembler, specification: str):
         if not 'http' in specification and '/' in specification and not '@' in specification:
             msg += " missing @{tag|branch|commit} in GitHub Actions style specification"
         raise RuntimeError(msg)
-    if not reg in a.instrument.registries:
-        a.instrument.registries += (reg,)
+    if isinstance(a, Assembler):
+        a = a.instrument
+    if not reg in a.registries:
+        a.registries += (reg,)
