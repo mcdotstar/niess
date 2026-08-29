@@ -278,12 +278,28 @@ class Tank(Base):
         The elastic monitor has an opening of its own, added last, so the tag it waits
         for is the count of them.
         """
+        # TODO after mccode-antlr is fully demoted, insert the tank in its own .instr
+        # assembler = visit.context.assembler
+        # visit.context.whens[f'{visit.id}/monitor'] = \
+        #     f'secondary_cassette == {len(self.slit_angles)}'
+        # return visit.context.push(assembler.included(f'{assembler.name}_tank'))
         visit.context.whens[f'{visit.id}/monitor'] = \
             f'secondary_cassette == {len(self.slit_angles)}'
         return None
 
+    # TODO matching context-escape needed for eventual tank-section output
+    # def __mccode_exit__(self, visit, entered):
+    #     if entered is not None:
+    #         visit.context.pop()
 
-    def to_mccode(
+    def to_mccode(self, assembler: Assembler, sample: Instance, settings: dict | None = None, flat: bool = True, **kwargs):
+        if flat:
+            self.to_mccode_flat(assembler, sample, settings=settings, flat=flat, **kwargs)
+        else:
+            with assembler.included(f"{assembler.name}_tank") as section:
+                self.to_mccode_flat(section, sample, settings=settings, flat=flat, **kwargs)
+
+    def to_mccode_flat(
             self,
             assembler: Assembler,
             sample: Instance,
