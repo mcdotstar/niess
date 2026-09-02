@@ -42,6 +42,41 @@ def linked_nxlog(name: str, source: str, attrs: dict | None = None) -> dict:
     return group(name, 'NXlog', children=nxlog_data_links(source), attrs=attrs)
 
 
+def motor_group(name: str, source: str, topic: str, attrs: dict | None = None) -> dict:
+    """A NXlog group constructed to hold a NXpositioner value or NXtransformations entry
+
+    The group has a list of attributes including the NX_class, depends_on,
+    transformation_type, and vector,
+    while its children consists only of the stream definition module, which specifies
+    the units of the logged value in two ways
+
+    {'name':..., 'type':'group', 'attributes':[
+            {'name':'NX_class', 'values':'NXlog', 'dtype':'string'},
+            {'name':'depends_on', 'values':..., 'dtype':'string'},
+            {'name':'transformation_type', 'values':..., 'dtype':'string'},
+            {'name':'vector', 'values':[...], 'dtype':'float'}
+        ],
+        'children':[{
+            'module':'f144',
+            'config':{'dtype':..., 'source':..., 'topic':..., 'value_units'=...},
+            'attributes':{'name':'units', 'values:..., 'dtype':'string'}
+        }]
+    }
+    """
+    dtype = (attrs or {}).pop('dtype', None)
+    units = (attrs or {}).pop('units', None)
+    return group(
+        name,
+        nx_class='NXlog',
+        children=[stream(
+            'f144',
+            {'source': source, 'topic': topic, 'unit': units, 'dtype': dtype},
+            {'units': units}
+        )],
+        attrs=attrs,
+    )
+
+
 def ev44_event_data_group(name: str, source: str, topic: str, attrs: dict | None = None) -> dict:
     """An NXevent_data group fed by an ev44 event stream."""
     return group(

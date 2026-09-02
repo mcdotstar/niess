@@ -28,6 +28,8 @@ INSTRUMENT_PATH = '/entry/instrument'
 
 DEFAULT_NXLOG_ROOT = '/entry/parameters'
 
+DEFAULT_STREAM_TOPIC = 'motors'
+
 @dataclass
 class NexusContext(Context):
     """The instrument group being filled, and where things have been put in it."""
@@ -42,6 +44,8 @@ class NexusContext(Context):
     pending: list = field(default_factory=list)
     #: Emitted name by tree path, so the flow graph's nodes can be named in the file.
     emitted_names: dict = field(default_factory=dict)
+
+    streams: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.instrument_group is None:
@@ -78,6 +82,13 @@ class NexusContext(Context):
         """
         from ..nexus.streams import linked_nxlog
         return linked_nxlog(name, f'{self.nxlog_root}/{parameter}', attrs=attrs)
+
+    def motor_log(self, name: str, parameter: str, attrs: dict | None = None) -> dict:
+        from ..nexus.streams import motor_group
+        if parameter not in self.streams:
+            self.streams[parameter] = (parameter, DEFAULT_STREAM_TOPIC)
+        source, topic = self.streams[parameter]
+        return motor_group(name=name, source=source, topic=topic, attrs=attrs)
 
     def flow(self):
         """The particle flow through the instrument, built once and kept.
@@ -120,7 +131,8 @@ class NexusContext(Context):
             return '.'
         return self.paths.get(frame, '.')
 
-def _transformations(visit: Visit, position, rotation_deg) -> list:
+
+def _transformations(visit: Visit, position, rotation_deg) -> tuple[list, str]:
     """A component's placement, as an NXtransformations group and a depends_on.
 
     Emitted relative to whatever the thing hangs from, which is what the tree already
@@ -128,6 +140,8 @@ def _transformations(visit: Visit, position, rotation_deg) -> list:
     back out, because an emitted instrument gives it no frames to hang from.
     """
     from scipp import norm
+    from mccode_antlr.common import InstrumentParameter
+    from ..components.motor import Motor
 
     context = visit.context
     parent = context.depends_on(visit.frame)
@@ -143,31 +157,32 @@ def _transformations(visit: Visit, position, rotation_deg) -> list:
                    'vector': direction, 'depends_on': previous}))
         previous = f'{INSTRUMENT_PATH}/{visit.name}/transformations/translation'
 
-    from mccode_antlr.common import InstrumentParameter
-
     for axis, angle in zip(('x', 'y', 'z'), rotation_deg):
-        knob = angle if isinstance(angle, InstrumentParameter) else None
-        if knob is None and not angle:
+        is_knob = isinstance(angle, (Motor, InstrumentParameter))
+        if not is_knob and not angle:
             continue
         vector = [1.0 if axis == a else 0.0 for a in ('x', 'y', 'z')]
         attrs = {'units': 'degrees', 'transformation_type': 'rotation',
                  'vector': vector, 'depends_on': previous}
-        if knob is None:
-            children.append(dataset(f'rotation_{axis}', float(angle),
-                                    dtype='double', attrs=attrs))
+
+        if isinstance(angle, Motor):
+            from .streams import motor_group
+            children.append(motor_group(
+                name=f'rotation_{axis}', source=angle.source, topic=angle.topic, attrs=attrs
+            ))
+        elif isinstance(angle, InstrumentParameter):
+            from ..nexus.streams import linked_nxlog
+            root = getattr(visit.context, 'nxlog_root', '')
+            children.append(linked_nxlog(f'rotation_{axis}', f'{root}/{angle.name}', attrs=attrs))
         else:
-            # a turn a run sets is not a number the file can state; it is a link to
-            # where that run's value is published. `linked_log` carries the
-            # transformation attributes the original NXlog has no reason to have.
-            children.append(visit.context.linked_log(f'rotation_{axis}', knob.name,
-                                                     attrs=attrs))
-        previous = (f'{INSTRUMENT_PATH}/{visit.name}/transformations/'
-                    f'rotation_{axis}')
+            children.append(dataset(f'rotation_{axis}', float(angle), dtype='double', attrs=attrs))
+
+        previous = f'{INSTRUMENT_PATH}/{visit.name}/transformations/rotation_{axis}'
 
     if not children:
         return [], parent
-    return [group('transformations', nx_class='NXtransformations',
-                  children=children)], previous
+    return [group('transformations', nx_class='NXtransformations', children=children)], previous
+
 
 def component_body(nx_class: str, children=None, attrs=None, name=None,
                    position=None, rotation=None) -> dict:
@@ -181,6 +196,7 @@ def component_body(nx_class: str, children=None, attrs=None, name=None,
     return {'nx_class': nx_class, 'children': list(children or []),
             'attrs': dict(attrs or {}), 'name': name,
             'position': position, 'rotation': rotation}
+
 
 def _placed(visit: Visit, body: dict) -> dict:
     """One component's group, with its placement attached."""
@@ -214,6 +230,7 @@ def _placed(visit: Visit, body: dict) -> dict:
     visit.context.paths[visit.id] = depends
     return node
 
+
 def emit(visit: Visit, body: dict) -> None:
     """Put one component's group into the instrument."""
     context = visit.context
@@ -221,6 +238,7 @@ def emit(visit: Visit, body: dict) -> None:
     context.emitted_names[visit.id] = node_name(node)
     context.pending.append((visit, node))
     add_child(context.instrument_group, node)
+
 
 def to_nexus_structure(instrument, registry=None, nxlog_root: str | None = None) -> dict:
     """Convert ``instrument`` to ESS NeXus Structure JSON."""
@@ -240,6 +258,7 @@ def to_nexus_structure(instrument, registry=None, nxlog_root: str | None = None)
                   children=[context.instrument_group])
     return {'children': [entry]}
 
+
 def translator(*classes):
     """Register a function returning a component body for one or more niess classes."""
     def decorate(func):
@@ -256,6 +275,7 @@ def translator(*classes):
         return func
 
     return decorate
+
 
 def _slit_angle(disc) -> list:
     """The opening width, when there is one width to state.
@@ -344,14 +364,15 @@ def register_defaults() -> None:
     def aperture(visit):
         """An opening. Where its edges are driven at run time, they are links."""
         obj, context = visit.obj, visit.context
-        children = [
-            dataset('x_gap', float(obj.width.to(unit='m').value), attrs={'units': 'm'}),
-            dataset('y_gap', float(obj.height.to(unit='m').value), attrs={'units': 'm'}),
-        ]
-        edges = getattr(obj, 'edge_parameters', None)
-        if edges is not None:
-            children.extend(context.linked_log(edge, parameter, attrs={'units': 'm'})
-                            for edge, parameter in edges().items())
+        edges = getattr(obj, 'edge_parameters', lambda: {})()
+        children = []
+        if not any('x' in edge for edge in edges):
+            children.append(dataset('x_gap', float(obj.width.to(unit='m').value), attrs={'units': 'm'}))
+        if not any('y' in edge for edge in edges):
+            children.append(dataset('y_gap', float(obj.height.to(unit='m').value), attrs={'units': 'm'}))
+
+        children.extend(context.motor_log(edge, parameter, attrs={'units': 'm'})
+                        for edge, parameter in edges.items())
         return component_body('NXaperture', children)
 
     @translator(FrameMonitor)
@@ -388,15 +409,15 @@ def register_defaults() -> None:
         return component_body('NXdisk_chopper', [
             dataset('slits', len(obj.slits())),
             # what a run sets, so the file says where to read it rather than guessing
-            context.linked_log('rotation_speed', obj.speed_parameter(),
+            context.motor_log('rotation_speed', obj.speed_parameter(),
                          attrs={'units': 'Hz'}),
-            context.linked_log('delay', obj.delay_parameter(), attrs={'units': 's'}),
+            context.motor_log('delay', obj.delay_parameter(), attrs={'units': 's'}),
             # the standard's convention, not niess' looser one: positive,
             # increasing, opening edge first, only the last edge past 360
             dataset('slit_edges', obj.nexus_slit_edges(), dtype='double',
                     attrs={'units': 'degrees'}),
             *_slit_angle(obj),
-            dataset('top_dead_center',
+            dataset('zero_position',
                     float(obj.zero_angle.to(unit='deg').value),
                     attrs={'units': 'degrees'}),
             dataset('beam_position',

@@ -99,9 +99,12 @@ class RadialSlitBank(Component):
         return 'secondary_cassette'
 
     def __nexus_leaf__(self, visit):
-        """A ring of openings, as an NXslit."""
+        """A ring of openings, as multiple NXslit."""
         from ..nexus.structure import component_body, emit
         from ..nexus.nodes import dataset
+
+        # TODO change this to emit a set of slits, one per opening
+        #      anything depending on this will need to be reformulated a bit
 
         emit(visit, component_body('NXslit', [
             dataset('description', f'{self.count()} radial slits'),

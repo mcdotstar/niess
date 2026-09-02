@@ -16,13 +16,14 @@ flow graph, and the pieces keep their own identities inside it.
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 
 import msgspec
 from mccode_antlr import Flavor
 from mccode_antlr.common import InstrumentParameter
 
 from .components.component import Base
+from .components.motor import Motor
 
 
 def _walk(node):
@@ -145,8 +146,11 @@ class Mount(msgspec.Struct):
         if not self.is_turned():
             return None
         from .components.frame import Frame
-        return Frame(name=f'{self.name}_mounting', rotation=tuple(self.rotation),
-                     extra={'frame': 'mounting'}, owner_key=None)
+        return Frame(name=f'{self.name}_mounting',
+                     rotation=None if self.rotation is None else tuple(self.rotation),
+                     extra={'frame': 'mounting'},
+                     owner_key=None
+                     )
 
     def collapses(self) -> bool:
         """Whether the turn can be written onto the contents instead of an Arm of its own.
@@ -175,12 +179,11 @@ class Mount(msgspec.Struct):
         from mccode_antlr.common import InstrumentParameter
         if self.rotation is None:
             return ()
-        return tuple(angle for angle in self.rotation
-                     if isinstance(angle, InstrumentParameter))
+        return tuple(a.parameter() for a in self.rotation if isinstance(a, Motor))
     name: str
     content: Any
     relative_to: Optional[str] = None
-    rotation: Optional[tuple[Any, Any, Any]] = None
+    rotation: Optional[tuple[float|int|Motor, float|int|Motor, float|int|Motor]] = None
 
 
 class Instrument(Base):
@@ -200,6 +203,7 @@ class Instrument(Base):
     parts: tuple[Mount, ...]
     flavor: Flavor = Flavor.MCSTAS
     origin: Optional[str] = None
+    motors: tuple[Motor, ...] = ()
     parameters: tuple[InstrumentParameter, ...] = ()
 
     @classmethod

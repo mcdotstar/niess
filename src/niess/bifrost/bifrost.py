@@ -1,5 +1,5 @@
 
-from ..instrument import Instrument, Mount, InstrumentParameter
+from ..instrument import Instrument, Mount, Motor, InstrumentParameter
 from .primary import Primary
 from .tank import Tank
 from ..utilities import calibration
@@ -10,11 +10,16 @@ from scipp.spatial import rotations_from_rotvecs
 @calibration
 def instrument(params: dict):
     sample = params.pop('sample', None)
+    a3_source = params.pop('a3_source', 'a3')
+    a4_source = params.pop('a4_source', 'a4')
+    origin = params.pop('origin', 'sample_origin')
+    motor_topic = params.get('motor_topic', 'bifrost_motors')
+
     primary = Primary.from_calibration(**params)
     tank = Tank.from_calibration(**params)
-    origin='sample_origin'
-    a3 = InstrumentParameter.parse('a3/"deg" = 0')
-    a4 = InstrumentParameter.parse('a4/"deg" = 0')
+
+    a3 = Motor(name='a3', unit='degree', source=a3_source, topic=motor_topic, default=0.0)
+    a4 = Motor(name='a4', unit='degree', source=a4_source, topic=motor_topic, default=0.0)
 
     if sample is None:
         sample = Component(
@@ -28,7 +33,7 @@ def instrument(params: dict):
             Mount(name='primary', content=primary),
             Mount(name='sample', rotation=(0, a3, 0), relative_to=origin, content=sample),
             Mount(name='tank', rotation=(0, a4, 0), relative_to=origin, content=tank),
-        ), parameters=(a3, a4))
+        ), motors=(a3, a4), parameters=())
 
 
 BIFROST = instrument()
