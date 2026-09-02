@@ -99,7 +99,7 @@ def test_a_multi_opening_disc_is_one_disc(multi_opening):
     assert get_attribute(disc, 'NX_class') == 'NXdisk_chopper'
     assert value(disc, 'slits') == 3
     assert value(disc, 'slit_edges') == [10., 30., 100., 140., 350., 370.]
-    assert value(disc, 'top_dead_center') == 15.0
+    assert value(disc, 'zero_position') == 15.0
     assert value(disc, 'beam_position') == 90.0
 
 
@@ -255,6 +255,43 @@ def test_every_declared_migration_is_still_doing_something(bifrost):
         assert before != frozen, f'migration does nothing: {description}'
 
 
+def test_every_log_says_where_its_values_come_from(bifrost):
+    """An NXlog with no source is a promise the file cannot keep.
+
+    Either it carries a stream that fills it -- `f144` for a value a run drives -- or it
+    links to datasets in a log something else fills. A group with neither is an empty
+    log that reads as though data were coming.
+    """
+    from .baseline import _walk_nodes, nexus_structures
+
+    for name, structure in nexus_structures().items():
+        for node in _walk_nodes(structure):
+            classes = [a for a in (node.get('attributes') or [])
+                       if a.get('name') == 'NX_class' and a.get('values') == 'NXlog']
+            if not classes:
+                continue
+            modules = {c.get('module') for c in (node.get('children') or [])}
+            assert modules, f'{name}: {node.get("name")} is an NXlog with no children'
+            assert modules <= {'f144', 'link'}, \
+                f'{name}: {node.get("name")} fills itself with {modules}'
+
+
+def test_a_disc_writes_the_field_name_the_format_asks_for(bifrost):
+    """`zero_position`, not `top_dead_center`.
+
+    A calibration may still be *given* `top_dead_center` -- that is an input alias for
+    `zero_angle` and `test_the_nexus_names_are_accepted` covers it. This is the written
+    field, and the two are deliberately allowed to differ.
+    """
+    from .baseline import _walk_nodes, nexus_structures
+
+    for name, structure in nexus_structures().items():
+        for node in _walk_nodes(structure):
+            config = node.get('config') or {}
+            assert config.get('name') != 'top_dead_center', \
+                f'{name}: a disc still writes top_dead_center'
+
+
 def test_no_dataset_still_carries_the_deprecated_key(bifrost):
     """The rule itself, asserted on the output rather than on the diff.
 
@@ -326,31 +363,29 @@ def test_the_instrument_chooses_the_protocol():
     assert data['children'][0]['config']['topic'] == 'teaching_events'
 
 
-def test_a_linked_log_deep_links_rather_than_linking_the_group(teaching):
-    """Why it is a group of links and not one link to a group.
+def test_a_run_time_value_is_a_log_the_file_fills_itself(teaching):
+    """The group stays ours, and it now says where its values come from.
 
-    A `link` module pointing at the NXlog itself would give the file the value, but
-    nothing could be added to it. Mirroring each dataset instead leaves the group ours,
-    so it can carry attributes the original has no reason to have -- which it must when
-    it is part of an NXtransformations chain and needs a transformation_type and a
-    vector alongside the value.
+    It used to be an NXlog whose datasets were `link` modules mirroring an NXlog
+    published elsewhere in the file -- which only worked if something else had put one
+    there. A `Motor` knows its Kafka source and topic, so the log carries an `f144`
+    stream and is filled from the same place the run fills it.
+
+    What has not changed is why it is a group of ours rather than a link to someone
+    else's: it has to carry a `transformation_type` and a `vector` alongside the value
+    when it is part of an NXtransformations chain, and a link cannot.
     """
     structure = to_nexus_structure(teaching)
     speed = find_child(find_child(instrument_group(structure), 'chopper'),
                        'rotation_speed')
 
     assert get_attribute(speed, 'NX_class') == 'NXlog'
-    assert speed['type'] == 'group', 'a group of links, not a link to a group'
+    assert speed['type'] == 'group', 'a group of ours, not a link to one'
 
-    modules = {c['module'] for c in speed['children']}
-    assert modules == {'link'}
-    sources = {c['config']['source'] for c in speed['children']}
-    assert '/entry/parameters/chopperspeed/value' in sources
-    assert '/entry/parameters/chopperspeed/time' in sources
-
-    # and the group takes attributes of its own
-    assert get_attribute(speed, 'units') == 'Hz'
-
+    assert {c['module'] for c in speed['children']} == {'f144'}
+    config = speed['children'][0]['config']
+    assert config['source'] == 'chopperspeed'
+    assert config['topic']
 
 def test_a_linked_log_can_carry_transformation_attributes(teaching):
     """The case the deep links exist for.

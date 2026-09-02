@@ -288,8 +288,12 @@ def _rename_config_key(old: str, new: str):
 
 
 NEXUS_MIGRATIONS = [
-    ("the file-writer wants 'dtype' on a dataset module, not 'type'",
-     _rename_config_key('type', 'dtype')),
+    # Empty is the resting state. A rule goes here when a deliberate change can be
+    # stated as one -- a key rename across every node, say -- and the frozen file is
+    # then left alone until the campaign settles. A change that rearranges the shape of
+    # a node is not worth expressing this way: the rule ends up as complicated as the
+    # code that made the change, so a bug in one would hide a bug in the other. Re-mint
+    # for those, and check the diff by name rather than accepting it.
 ]
 
 

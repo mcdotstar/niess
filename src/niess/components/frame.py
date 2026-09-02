@@ -40,9 +40,19 @@ def _default_angle(angle: int|float|Motor) -> float:
     """A declared angle as a number: a knob contributes the value it is declared with."""
     if isinstance(angle, Motor):
         return float(angle.default)
-    if not isinstance(angle, (int, float)):
-        raise ValueError(f'{angle=} ({type(angle)=} not supported')
-    return float(angle)
+    # `angles` and `mccode_angles` both take a bare InstrumentParameter as well as a
+    # Motor, so this has to: refusing it here made a frame that McStas and NeXus emit
+    # happily raise when CAD asked where to draw it.
+    value = getattr(angle, 'value', angle)
+    if not isinstance(value, (int, float)):
+        from ..dispatch import expr_float
+        try:
+            return float(expr_float(value))
+        except Exception:
+            raise ValueError(
+                f'{angle!r} is not an angle, a Motor or a parameter with a value'
+            ) from None
+    return float(value)
 
 
 class Frame(Base):

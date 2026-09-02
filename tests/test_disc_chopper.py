@@ -157,7 +157,7 @@ def test_a_disc_writes_its_openings_to_nexus_in_the_mark_frame():
     found = {(ch.get('config') or {}).get('name'): (ch.get('config') or {}).get('values')
              for ch in body['children']}
     assert found['slit_edges'] == [95.0, 265.0]
-    assert found['top_dead_center'] == 0.0
+    assert found['zero_position'] == 0.0
     assert found['beam_position'] == 180.0
     assert found['slit_angle'] == 170.0
 
@@ -325,7 +325,7 @@ def test_nexus_records_the_discs_own_orientation():
     assert nexus_rotations(body) == []
     found = {(ch.get('config') or {}).get('name'): (ch.get('config') or {}).get('values')
              for ch in body['children']}
-    assert found['top_dead_center'] == 30.0
+    assert found['zero_position'] == 30.0
     assert found['beam_position'] == 75.0
     assert found['slit_edges'] == [65.0, 85.0]
 
@@ -373,7 +373,11 @@ def test_the_derived_offset_follows_an_edited_radius():
 # -- the names the calibration may use ----------------------------------------
 
 def test_the_nexus_names_are_accepted():
-    """`top_dead_center` and `beam_position` are what NXdisk_chopper calls these."""
+    """A calibration may name these as NXdisk_chopper does.
+
+    About the input, not the output: the written field is `zero_position` now. If those
+    two are meant to agree, this is one of the places that says so.
+    """
     disc = DiscChopper.from_calibration(calibration(
         top_dead_center=scalar(30.0, unit='deg'),
         beam_position=scalar(75.0, unit='deg')))

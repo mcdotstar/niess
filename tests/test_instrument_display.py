@@ -23,7 +23,8 @@ def teaching():
 def bifrost():
     from niess.bifrost import Primary, Tank
     from niess.bifrost.parameters import primary_parameters, tank_parameters
-    a4 = InstrumentParameter.parse('a4/"degree" = 0')
+    from niess.components.motor import Motor
+    a4 = Motor(name='a4', unit='degree', source='a4', topic='motion', default=0.0)
     return Instrument(name='bifrost', origin='sample_origin', parts=(
         Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
         Mount(name='tank', content=Tank.from_calibration(tank_parameters()),

@@ -298,9 +298,15 @@ def test_nothing_registered_is_not_the_same_as_declining(parts):
 
 # -- mounting a piece at an angle ---------------------------------------------
 
-def a_parameter(text):
-    from mccode_antlr.common import InstrumentParameter
-    return InstrumentParameter.parse(text)
+def a_motor(name, default=0.0, unit='degree'):
+    """A run-time axis, as a mounting now holds one.
+
+    A `Motor` rather than a bare `InstrumentParameter`: a mounting's turn is something a
+    run *drives*, so it carries where its value is published as well as what it is
+    called. `Mount.parameters()` hands back the McCode parameter it implies.
+    """
+    from niess.components.motor import Motor
+    return Motor(name=name, unit=unit, source=name, topic='motion', default=default)
 
 
 def test_a_mount_can_be_turned_by_a_run_time_parameter(parts):
@@ -310,11 +316,11 @@ def test_a_mount_can_be_turned_by_a_run_time_parameter(parts):
     parameter itself rather than an angle.
     """
     _, tank = parts
-    a4 = a_parameter('a4/"degree" = 0.0')
+    a4 = a_motor('a4')
     mount = Mount(name='tank', content=tank, relative_to='sample_origin',
                   rotation=(0, a4, 0))
     assert mount.is_turned()
-    assert mount.parameters() == (a4,)
+    assert [p.name for p in mount.parameters()] == ['a4']
 
 
 def test_an_unturned_mount_says_so(parts):
@@ -332,20 +338,19 @@ def test_a_fixed_rotation_needs_no_parameters(parts):
 
 def test_an_instrument_collects_what_its_mountings_need(parts):
     primary, tank = parts
-    a3, a4 = a_parameter('a3/"degree" = 0.0'), a_parameter('a4/"degree" = 0.0')
     instrument = Instrument(name='bifrost', origin='sample_origin', parts=(
         Mount(name='primary', content=primary),
         Mount(name='tank', content=tank, relative_to='sample_origin',
-              rotation=(0, a4, 0)),
+              rotation=(0, a_motor('a4'), 0)),
     ))
-    assert instrument.mount_parameters() == (a4,)
-    assert a3 not in instrument.mount_parameters()
+    # what the mountings need, and nothing a mounting does not turn by
+    assert [p.name for p in instrument.mount_parameters()] == ['a4']
 
 
 def test_a_turned_mount_still_walks_and_names_the_same(parts):
     """Turning a piece is a placement, not a change of what is in it."""
     primary, tank = parts
-    a4 = a_parameter('a4/"degree" = 0.0')
+    a4 = a_motor('a4')
     turned = Instrument(name='bifrost', origin='sample_origin', parts=(
         Mount(name='primary', content=primary),
         Mount(name='tank', content=tank, relative_to='sample_origin',

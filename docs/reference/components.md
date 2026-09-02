@@ -86,7 +86,7 @@ centred on a beam at `beam_angle = 0` straddles the mark, and `[-85, 85]` says s
 plainly than `[275, 445]`. `NXdisk_chopper` is stricter — positive, increasing, opening
 edge first, and only the *final* edge past 360, which happens exactly when the last slit
 crosses the mark — so the NeXus writer puts them in that order, and writes
-`top_dead_center` and `beam_position` alongside them so the frame is recorded.
+`zero_position` and `beam_position` alongside them so the frame is recorded.
 
 That reordering rotates which slit comes first rather than shifting the list: the wrap
 belongs to one slit, so adding 360 to every edge would carry the others out past it.
