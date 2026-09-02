@@ -9,6 +9,42 @@ patch; everything removed is listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+### Removed — the instrument-reading routes
+
+Every target read the niess object tree *and* had a second implementation that read an
+assembled `mccode_antlr` instrument, recovering what the tree states. The second one is
+gone, in `niess.chopcalc`, `niess.tof`, `niess.brep` and `niess.nexus` alike — some 4000
+lines. **Converting an instrument niess did not build is no longer supported.**
+
+Reading a `.instr` still is: `niess.io.mccode.load_instr` parses one so its placements can
+be inspected, which is what checking a niess submodule against the hand-written file it
+replaces needs.
+
+What this changes for a caller:
+
+- `narrow_source_wavelengths` no longer finds its own chopper train. `chopper_train` is a
+  required argument from `train_from_instrument`, and `source`, `skip`, `path_lengths`,
+  `latest_emission` and `graph` moved with the searching.
+- `niess.brep.via_instr.instrument_to_assembly`, `niess.tof.via_instr.to_tof_model`,
+  `niess.nexus.via_instr.to_nexus_structure` and the `niess.nexus.via_instr` subpackage no
+  longer exist.
+- `Subject.extra` is gone: a guide states its `substrate` and `resolution` as fields, so
+  a builder no longer reads them off a provenance tag.
+
+### Fixed — two things only the removed route was doing
+
+Both were bugs the parallel implementations had been hiding, and both are in the tree
+route now:
+
+- **`@inputs` / `@outputs`** were not written at all. McCode cannot say that a beam
+  branches, so the removed route had to be handed the real flow as `graph=`; a niess
+  instrument states it, and BIFROST's radial slits now record all ten paths leaving them.
+- **`slit_edges`** were written as niess holds them, which is deliberately looser than
+  `NXdisk_chopper` allows — `[-85, 85]` rather than `[275, 445]`. The conversion to the
+  standard's order lived in the removed route. It is `DiscChopper.nexus_slit_edges` now,
+  and `slit_angle` is written again alongside it.
+
+
 Every conversion target now lives under its own subject name and reads the niess object
 tree. The route that reads an assembled McStas instrument instead is kept, one
 `via_instr` per package, and is what goes when converting a foreign `.instr` stops being

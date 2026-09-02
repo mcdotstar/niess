@@ -5,9 +5,8 @@ ESS NeXus Structure JSON, read off the niess object tree. See
 guide and [Write NeXus translators](../../how-to/custom-nexus-registry.md) for extending
 it.
 
-Converting an instrument niess did not build reads the emitted McStas instead, which is
-`niess.nexus.via_instr` — the older of the two routes, deliberately undocumented here
-because it is what goes when reading a foreign `.instr` stops being served.
+Converting an instrument niess did not build is not supported: every target reads the
+tree, and a `.instr` file has none.
 
 ::: niess.nexus
 

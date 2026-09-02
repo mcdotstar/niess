@@ -5,9 +5,8 @@
 the tree: a component's position and orientation are on the component, and a declared
 `Frame` is what a `depends_on` chain points at.
 
-A `.instr` file has no tree. Converting one means `niess.nexus.via_instr`, which recovers
-what it can from the assembled `mccode_antlr` instrument instead — the older of the two
-routes, and a different function taking a different argument.
+A `.instr` file has no tree, and converting one is not supported — see
+[Converting an instrument niess did not build](convert-an-instrument.md#converting-an-instrument-niess-did-not-build).
 
 ## From a niess instrument
 
