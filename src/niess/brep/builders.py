@@ -3,9 +3,9 @@
 One builder per component class, registered on `BREP_REGISTRY`, each taking a `Subject`
 -- a name, the object if there is one, and the McCode parameters it reports. How that
 subject was arrived at is not a builder's business: `niess.brep.assembly` walks the tree
-for it, `niess.brep.via_instr` reads it off an emitted instrument, and the drawing is the
-same either way. That is why these were always written against `__mccode__` parameters
-rather than against niess fields.
+for it. They are written against `__mccode__` parameters rather than against niess
+fields because that is the description a component already publishes -- the fields it
+does not publish, like `substrate`, are read off the object.
 """
 from __future__ import annotations
 
@@ -33,18 +33,16 @@ def _param(params: dict[str, float], name: str, default: float | None = None):
     raise KeyError(name)
 
 def _dimension(subject, name: str, default):
-    """A value the object carries, or one an emitted instance was tagged with.
+    """A value the object states, or the default when it states none.
 
-    Reading the object is the direct answer; the provenance tag is how an instrument
-    says the same thing about an instance it built by hand, which is a documented
-    extension point and stays supported.
+    These are the things a McCode component does not publish -- how thick a guide's
+    substrate is, how finely to approximate an ellipse -- so they are read off the niess
+    object, which is the only thing that knows.
     """
     value = getattr(subject.obj, name, None)
-    if value is not None:
-        return float(value.to(unit='m').value) if hasattr(value, 'to') else float(value)
-    if name in subject.extra:
-        return float(subject.extra[name])
-    return default
+    if value is None:
+        return default
+    return float(value.to(unit='m').value) if hasattr(value, 'to') else float(value)
 
 SUBSTRATE = 0.01
 
