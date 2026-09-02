@@ -69,8 +69,8 @@ def narrow_source_wavelengths(
     chopper_train:
         The train to narrow to, from `train_from_instrument`. Required: this function is
         emission, and finding a train is not something it can do from an assembled
-        instrument any more -- reading one back was what `via_instr` did, and that is
-        what the demotion removed. Anything that shaped the search -- which source, which
+        instrument any more: reading one back was a second route, and the demotion
+        removed it. Anything that shaped the search -- which source, which
         choppers to skip, what flight paths, how late the source still emits -- is an
         argument to `train_from_instrument` now, where the searching happens.
     export_choppers:

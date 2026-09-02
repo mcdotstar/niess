@@ -1,10 +1,9 @@
-"""NeXus built from the tree instead of from an emitted McStas instrument.
+"""NeXus, built from the tree.
 
-`niess.nexus.via_instr` converts an assembled instrument and recovers everything it needs
-from it:
-placement from resolve_orientations, run-time values by folding DECLARE blocks, a
-detector's arc and triplet by matching a regex against a generated WHEN clause. This
-reads the tree, where all of that is simply present.
+There used to be a second route that converted an assembled McStas instrument, recovering
+everything it needed from it: placement from resolve_orientations, run-time values by
+folding DECLARE blocks, a detector's arc and triplet by matching a regex against a
+generated WHEN clause. It is gone. This reads the tree, where all of that is present.
 """
 import pytest
 
@@ -13,16 +12,6 @@ from niess.nexus.nodes import find_child, get_attribute, node_name
 from niess.nexus import to_nexus_structure
 
 
-def test_the_two_routes_are_two_functions():
-    """The guard on every comparison here: they must not have become the same one.
-
-    `niess.nexus.to_nexus_structure` reads the tree and `niess.nexus.via_instr`'s reads an
-    emitted instrument. Comparing a route against itself would pass while asserting
-    nothing, and the two have lived under the same name before.
-    """
-    from niess.nexus import to_nexus_structure as from_tree
-    from niess.nexus.via_instr import to_nexus_structure as from_instrument
-    assert from_tree is not from_instrument
 
 
 def instrument_group(structure):
@@ -73,22 +62,23 @@ def multi_opening():
 
 # -- the same instrument, classified the same way -----------------------------
 
-def test_the_same_components_get_the_same_nexus_classes(teaching):
-    """Against the instrument-reading path, for the instrument both can do."""
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
-    from niess.nexus.via_instr import to_nexus_structure as from_instrument
-    from niess.teaching import Primary
+def test_each_component_gets_the_class_it_should(teaching):
+    """What the two routes were compared on, for the instrument both could do.
 
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
-    old = from_instrument(assembler.instrument, origin='sample_origin')
-    new = to_nexus_structure(teaching)
-
-    assert groups(new) == groups(old)
-    for name in groups(new):
-        assert get_attribute(find_child(instrument_group(new), name), 'NX_class') == \
-               get_attribute(find_child(instrument_group(old), name), 'NX_class'), name
+    Written down rather than compared, now that there is one route: these are the
+    classes that comparison agreed on, in the order the beam runs.
+    """
+    assert [(name, get_attribute(find_child(instrument_group(
+        to_nexus_structure(teaching)), name), 'NX_class'))
+        for name in groups(to_nexus_structure(teaching))] == [
+        ('source', 'NXmoderator'),
+        ('unit_1', 'NXguide'),
+        ('unit_2', 'NXguide'),
+        ('chopper', 'NXdisk_chopper'),
+        ('jaw', 'NXaperture'),
+        ('monitor', 'NXmonitor'),
+        ('sample_origin', 'NXcoordinate_system'),
+    ]
 
 
 # -- the case the refactor exists for -----------------------------------------
@@ -113,29 +103,6 @@ def test_a_multi_opening_disc_is_one_disc(multi_opening):
     assert value(disc, 'beam_position') == 90.0
 
 
-def test_it_agrees_with_what_the_reassembly_produces(multi_opening):
-    """The values are the same; only the work needed to get them differs."""
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
-    from niess.nexus.via_instr import to_nexus_structure as from_instrument
-
-    assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
-    multi_opening.to_mccode(assembler)
-    old = find_child(instrument_group(
-        from_instrument(assembler.instrument, origin='pack_slit_0')), 'pack')
-    new = find_child(instrument_group(to_nexus_structure(
-        Instrument(name='chopped',
-                   parts=(Mount(name='s', content=multi_opening),)))), 'pack')
-
-    for field in ('slits', 'slit_edges', 'top_dead_center', 'beam_position'):
-        assert value(new, field) == value(old, field), field
-
-    # what it took the other way: three components, each carrying a tag saying which
-    # disc it is part of and in what order
-    assert len(assembler.instrument.components) == 3
-    tagged = [m for c in assembler.instrument.components for m in c.metadata
-              if m.name == 'niess_provenance']
-    assert len(tagged) == 3
 
 
 # -- placement ----------------------------------------------------------------
@@ -211,36 +178,20 @@ def test_bifrost_converts(bifrost):
     assert sum(counted.values()) == 358    # one group per emitted component
 
 
-def test_reading_the_tree_classifies_more_than_reading_the_instrument(bifrost):
-    """The windows and collimators are recognisable here and were not before.
+def test_the_tree_classifies_what_an_emitted_instrument_could_not(bifrost):
+    """A Filter with nothing to say emits as a McStas Arm.
 
-    A Filter with nothing to say emits as a McStas Arm, so an instrument-reading
-    converter sees an Arm and files it under NXcoordinate_system. The tree says Filter.
+    The route this replaced saw an Arm and filed it under NXcoordinate_system; the tree
+    says Filter. These 31 are what it had as unclassified, and the count is written down
+    here because there is no longer a second route to measure it against.
     """
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
-    from niess.nexus.via_instr import to_nexus_structure as from_instrument
-    from niess.nexus.via_instr.bifrost import BIFROST_REGISTRY as INSTRUMENT_REGISTRY
     from niess.nexus.bifrost import BIFROST_REGISTRY
-    from niess.bifrost import Primary, Tank
-    from niess.bifrost.parameters import primary_parameters, tank_parameters
 
-    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
-    Primary.from_calibration(primary_parameters()).to_mccode(assembler)
-    Tank.from_calibration(tank_parameters()).to_mccode(assembler, 'sample_origin')
-    old = classes(from_instrument(assembler.instrument, origin='sample_origin',
-                                  registry=INSTRUMENT_REGISTRY))
-    new = classes(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
-
-    # what both agree on
-    for shared in ('NXcrystal', 'NXdetector', 'NXguide', 'NXdisk_chopper',
-                   'NXmonitor', 'NXaperture', 'NXmoderator'):
-        assert old[shared] == new[shared], shared
-
-    assert old['NXfilter'] == 0 and new['NXfilter'] == 22
-    assert old['NXcollimator'] == 0 and new['NXcollimator'] == 9
-    # and the 31 that gains, plus the radial slit bank, are what it had as unclassified
-    assert old['NXcoordinate_system'] - new['NXcoordinate_system'] == 32
+    counted = classes(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
+    assert counted['NXfilter'] == 22
+    assert counted['NXcollimator'] == 9
+    assert counted['NXaperture'] >= 1          # the radial slit bank
+    assert counted['NXdetector'] == 45
 
 
 def test_arc_and_triplet_come_from_the_tree(bifrost):
@@ -427,26 +378,6 @@ def test_every_detector_carries_an_ev44_stream(bifrost):
     assert len({s[1] for s in streams.values()}) == 45
 
 
-def test_both_routes_stream_the_same_detectors_from_the_same_sources(bifrost):
-    """The routes disagreed here once: the tree emitted geometry and no stream at all."""
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
-    from niess.bifrost import Primary, Tank
-    from niess.bifrost.parameters import primary_parameters, tank_parameters
-    from niess.nexus.bifrost import BIFROST_REGISTRY
-    from niess.nexus.via_instr import to_nexus_structure as from_instrument
-    from niess.nexus.via_instr.bifrost import BIFROST_REGISTRY as INSTRUMENT_REGISTRY
-
-    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
-    Primary.from_calibration(primary_parameters()).to_mccode(assembler)
-    Tank.from_calibration(tank_parameters()).to_mccode(assembler, 'sample_origin')
-
-    old = detector_streams(from_instrument(assembler.instrument, origin='sample_origin',
-                                           registry=INSTRUMENT_REGISTRY))
-    new = detector_streams(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
-    # the two name their detectors differently -- the tree emits `triplet`, the emitted
-    # instrument its component names -- so compare what is streamed, not where from
-    assert sorted(filter(None, old.values())) == sorted(filter(None, new.values()))
 
 
 def _bifrost_with_stream(selection):
@@ -508,27 +439,6 @@ def test_a_triplet_may_say_where_its_events_are_published():
     assert set(streams.values()) == {('ev44', 'detector-7', 'elsewhere')}
 
 
-def test_the_override_reaches_the_emitted_instrument_route_too():
-    """Both routes have to agree, so the choice is recorded where the other can read it.
-
-    The tree has the object; the emitted-instrument route has only components, so
-    `to_mccode` writes the selection into provenance for `resolve_stream` to find.
-    """
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
-    from niess.mccode import to_mccode
-    from niess.nexus.via_instr import to_nexus_structure as from_instrument
-    from niess.nexus.via_instr.bifrost import BIFROST_REGISTRY as INSTRUMENT_REGISTRY
-
-    selection = {'module': 'ev44', 'topic': 'elsewhere', 'source': 'detector-7'}
-    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
-    to_mccode(_bifrost_with_stream(selection), assembler=assembler)
-
-    streams = detector_streams(from_instrument(assembler.instrument,
-                                               origin='sample_origin',
-                                               registry=INSTRUMENT_REGISTRY))
-    assert streams
-    assert set(streams.values()) == {('ev44', 'detector-7', 'elsewhere')}
 
 
 def test_taking_the_default_emits_the_instrument_it_always_did():

@@ -2,57 +2,67 @@
 
 McCode has no way to say that a beam branches. Its instruments are a list, so the flow
 through them is taken to be that list in order -- which is right until something splits
-the beam. BIFROST does: after the sample one beam becomes many, and every component past
-that point ends up recorded as fed by whichever happened to be declared before it.
+the beam. BIFROST does: after the sample one beam becomes many, and an instrument-reading
+converter recorded every component past that point as fed by whichever happened to be
+declared before it. That route had to be *handed* the real flow, as `graph=`.
 
-`to_nexus_structure(..., graph=...)` takes the real flow instead. The `@inputs` and
-`@outputs` attributes are the visible consequence.
+A niess instrument states it. `__niess_flow__` is part of the tree, so the `@inputs` and
+`@outputs` attributes follow from the instrument rather than from an argument.
 """
 import pytest
-from mccode_antlr import Flavor
-from mccode_antlr.assembler import Assembler
-from networkx import DiGraph
 
-from niess.nexus.via_instr import to_nexus_structure
-
-
-def branching():
-    """A beam that splits at the sample, feeding two detectors placed either side."""
-    assembler = Assembler('branch', flavor=Flavor.MCSTAS)
-    assembler.component('source', 'ESS_butterfly', at=((0, 0, 0), 'ABSOLUTE'),
-                        parameters={'Lmin': 0.75, 'Lmax': 10.0})
-    assembler.component('sample', 'Arm', at=((0, 0, 10.0), 'source'))
-    assembler.component('east', 'TOF_monitor', at=((3.0, 0, 0), 'sample'))
-    assembler.component('west', 'TOF_monitor', at=((-3.0, 0, 0), 'sample'))
-    flow = DiGraph()
-    flow.add_edges_from([('source', 'sample'), ('sample', 'east'), ('sample', 'west')])
-    return assembler, flow
+from niess.instrument import Instrument, Mount
+from niess.nexus import to_nexus_structure
+from niess.nexus.nodes import children_of, get_attribute
 
 
-def attributes_of(structure, name):
-    children = structure['children'][0]['children'][0]['children']
-    component = next(c for c in children if c.get('name') == name)
-    return {a['name']: a['values'] for a in (component.get('attributes') or [])}
+@pytest.fixture(scope='module')
+def instrument_group():
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+
+    bifrost = Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
+        Mount(name='tank', content=Tank.from_calibration(tank_parameters()),
+              relative_to='sample_origin'),
+    ))
+    structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
+    entry = structure['children'][0]
+    return {node.get('name'): node for node in children_of(entry['children'][0])}
 
 
-def test_without_a_graph_the_beam_is_taken_to_run_in_declaration_order():
-    """Which is what McCode says, and is wrong the moment a beam branches."""
-    assembler, _ = branching()
-    structure = to_nexus_structure(assembler.instrument, origin='sample')
-    assert attributes_of(structure, 'west')['inputs'] == 'east'
+def test_a_component_records_what_feeds_it(instrument_group):
+    sample = instrument_group['sample_origin']
+    assert get_attribute(sample, 'inputs') == 'slit'
+    assert get_attribute(sample, 'outputs') == 'slits'
 
 
-def test_a_given_graph_says_what_actually_feeds_what():
-    assembler, flow = branching()
-    structure = to_nexus_structure(assembler.instrument, origin='sample', graph=flow)
-    assert attributes_of(structure, 'west')['inputs'] == 'sample'
-    assert attributes_of(structure, 'east')['inputs'] == 'sample'
+def test_a_component_feeding_several_records_all_of_them(instrument_group):
+    """The branch the declaration order cannot express: ten paths leave the slits."""
+    outputs = get_attribute(instrument_group['slits'], 'outputs')
+    assert isinstance(outputs, list)
+    assert len(outputs) == 10
+    assert 'elastic_monitor' in outputs
+    assert sum(1 for name in outputs if 'radial_filter_collimator' in name) == 9
 
 
-def test_a_component_feeding_several_records_all_of_them():
-    """One name is written as a string, several as a list -- the standard's shape."""
-    assembler, flow = branching()
-    structure = to_nexus_structure(assembler.instrument, origin='sample', graph=flow)
-    outputs = attributes_of(structure, 'sample')['outputs']
-    assert sorted(outputs) == ['east', 'west']
-    assert attributes_of(structure, 'source')['outputs'] == 'sample'
+def test_one_name_is_written_as_a_name_not_a_list_of_one(instrument_group):
+    """What the standard, and every reader of these files, expects."""
+    assert isinstance(get_attribute(instrument_group['slits'], 'inputs'), str)
+
+
+def test_a_composite_contributes_no_dangling_reference(instrument_group):
+    """The graph is keyed on tree paths; the file is written in emitted names.
+
+    A node that emits nothing -- a channel, an arm -- is in the graph and not in the
+    file, so it must not appear in anything's inputs or outputs.
+    """
+    emitted = set(instrument_group)
+    for node in instrument_group.values():
+        for direction in ('inputs', 'outputs'):
+            names = get_attribute(node, direction)
+            if names is None:
+                continue
+            for name in ([names] if isinstance(names, str) else names):
+                assert name in emitted, f'{name} is referenced but never written'

@@ -1,9 +1,14 @@
-"""A disc with unevenly spaced openings, emitted as several components and rebuilt.
+"""A disc with unevenly spaced openings, emitted as several components.
 
 McStas' ``DiskChopper`` describes ``nslit`` identical, evenly spaced openings, so a disc
 with neither has to be emitted as one ``DiskChopper`` per opening -- which is what
-``DiscChopper.__mccode__`` refuses to do and points at instead. ``DiscChopper``
-does it, and tags the instances so an adapter can put the disc back together.
+``DiscChopper.__mccode__`` refuses to do and points at instead. ``DiscChopper`` does it,
+and tags the instances so anything reading the emitted file can tell they are one disc.
+
+Putting them back together was a thing the instrument-reading NeXus route had to do.
+Nothing in niess does it now: the tree never split the disc, so `niess.nexus` writes one
+`NXdisk_chopper` from the one `DiscChopper` that was always there. What is left here is
+the McStas half -- that the emission is right -- which is as load-bearing as it ever was.
 """
 import pytest
 from mccode_antlr import Flavor
@@ -12,8 +17,6 @@ from scipp import array, scalar, vector
 from scipp.spatial import rotations_from_rotvecs
 
 from niess.components import DiscChopper
-from niess.nexus import find_child, get_attribute
-from niess.nexus.via_instr import to_nexus_structure
 from niess.provenance import NiessProvenance
 
 # Angles from the top-dead-centre mark, positive counter-clockwise facing +z, as
@@ -274,102 +277,13 @@ def test_tagging_can_be_declined(assembled):
 
 # -- what it converts to -----------------------------------------------------
 
-def instrument_group(structure):
-    return structure['children'][0]['children'][0]
 
 
-def test_the_openings_are_rebuilt_as_one_nexus_group(assembled):
-    instrument = instrument_group(to_nexus_structure(assembled, origin='sample'))
-
-    # named for the disc, not for the instance that happened to carry it: "_slit_0"
-    # is an artefact of the McStas split and means nothing to a reader of the file
-    disc = find_child(instrument, 'pack')
-    assert find_child(instrument, 'pack_slit_0') is None
-    assert get_attribute(disc, 'NX_class') == 'NXdisk_chopper'
-    assert find_child(disc, 'slits')['config']['values'] == 3
-    # the edges reach NeXus exactly as calibrated, straddling edge and all
-    assert find_child(disc, 'slit_edges')['config']['values'] == EDGES
-    assert find_child(disc, 'top_dead_center')['config']['values'] == 15.0
-    assert find_child(disc, 'beam_position')['config']['values'] == BEAM_POSITION
-    # the speed is a run-time parameter, so it links rather than holding a number
-    assert get_attribute(find_child(disc, 'rotation_speed'), 'NX_class') == 'NXlog'
-
-    for name in ('pack_slit_0', 'pack_slit_1', 'pack_slit_2'):
-        assert find_child(instrument, name) is None
 
 
-def test_the_rebuilt_disc_carries_the_discs_own_delay(assembled):
-    """The disc has one delay; where each opening sits is already in ``slit_edges``.
-
-    So the NeXus group links the shared ``packdelay`` NXlog, rather than the primary
-    instance's own parameter -- that one is an expression carrying slit 0's offset,
-    which would describe the disc by one arbitrary opening.
-    """
-    disc = find_child(instrument_group(to_nexus_structure(assembled, origin='sample')),
-                      'pack')
-    delay = find_child(disc, 'delay')
-
-    assert get_attribute(delay, 'NX_class') == 'NXlog'
-    assert get_attribute(delay, 'units') == 's'
-    assert find_child(delay, 'value')['config']['source'] == \
-        '/entry/parameters/packdelay/value'
 
 
-def test_rebuilding_follows_the_tags_not_the_instance_order(assembled):
-    """The primary need not come first; siblings order by their recorded index."""
-    components = list(assembled.components)
-    reordered = [components[0], components[3], components[2], components[1],
-                 components[4]]
-    assembled.components = tuple(reordered)
-    assert [c.name for c in assembled.components][1] == 'pack_slit_2'
-
-    instrument = instrument_group(to_nexus_structure(assembled, origin='sample'))
-    disc = find_child(instrument, 'pack')
-    assert find_child(disc, 'slit_edges')['config']['values'] == EDGES
 
 
-def test_without_the_translator_the_mccode_view_survives(assembled):
-    """A registry that does not know DiscChopper still converts the instrument.
-
-    It sees what the McStas file literally describes: three separate discs. Grouping is
-    an enrichment, not a prerequisite.
-    """
-    from niess.nexus.via_instr import NiessNexusRegistry
-    from niess.nexus.via_instr.translators import diskchopper_translator
-
-    plain = NiessNexusRegistry()
-    plain.register_component_type('DiskChopper')(diskchopper_translator)
-
-    instrument = instrument_group(
-        to_nexus_structure(assembled, origin='sample', registry=plain))
-
-    for name in ('pack_slit_0', 'pack_slit_1', 'pack_slit_2'):
-        node = find_child(instrument, name)
-        assert get_attribute(node, 'NX_class') == 'NXdisk_chopper'
-        assert find_child(node, 'slits')['config']['values'] == 1
 
 
-def test_a_renamed_group_is_still_a_valid_placement_target():
-    """Renaming must not dangle the references of whatever is placed against it.
-
-    A component placed relative to `pack_slit_0` has to end up depending on a path that
-    exists -- which is inside the group as written, `pack`, not the instance name.
-    """
-    assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
-    assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
-    DiscChopper.from_calibration(calibration()).to_mccode(
-        assembler, at='origin', rotate='origin')
-    assembler.component('sample', 'Arm', at=((0, 0, 3), 'pack_slit_0'))
-
-    instrument = instrument_group(
-        to_nexus_structure(assembler.instrument, origin='sample'))
-
-    transformations = find_child(find_child(instrument, 'sample'), 'transformations')
-    target = get_attribute(transformations['children'][0], 'depends_on')
-    assert target.startswith('/entry/instrument/pack/')
-
-    # ...and the thing it points at is really there
-    group, _, name = target.rpartition('/')
-    assert group == '/entry/instrument/pack/transformations'
-    assert find_child(find_child(find_child(instrument, 'pack'), 'transformations'),
-                      name) is not None

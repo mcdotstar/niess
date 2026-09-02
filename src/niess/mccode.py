@@ -135,9 +135,9 @@ def to_mccode(instrument, registry=None, assembler=None,
 
     ``insert_provenance_metadata=False`` emits a plain McStas instrument, with none of
     the ``niess_provenance`` METADATA blocks that say which niess object each component
-    came from. They are what lets something reading the emitted file back know what it
-    is looking at -- `niess.nexus.via_instr` dispatches on them -- so turning them off
-    is for producing a file to hand to McStas and nothing else.
+    came from. Nothing in niess reads them any more -- every target reads the tree -- but
+    they are what lets anything *outside* niess know what it is looking at, so turning
+    them off is for producing a file to hand to McStas and nothing else.
     """
     from mccode_antlr.assembler import Assembler
 

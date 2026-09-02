@@ -2,8 +2,8 @@
 
 A component's position and orientation are on the component; a frame is a declared node,
 so a `depends_on` chain is the chain of frames a thing hangs from; and a detector's arc
-and triplet are `visit.ancestor(...).index`. The route that recovers all of that from an
-emitted instrument instead is `niess.nexus.via_instr`, and it is a thousand lines longer.
+and triplet are `visit.ancestor(...).index`. There used to be a route that recovered all
+of that from an emitted instrument, in a thousand more lines. It is gone.
 
 Translators are registered per niess class, or written on the class as ``__nexus_leaf__``
 and friends -- both work, and which reads better depends on the target. NeXus is mostly a
@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from ..walk import SKIP, Context, Visit, walk
-from .nodes import add_child, attribute, dataset, group
+from .nodes import add_attribute, add_child, attribute, dataset, group, node_name
 from .registry import NEXUS_REGISTRY, NiessNexusRegistry
 
 
@@ -35,6 +35,13 @@ class NexusContext(Context):
     instrument_group: dict = None
     #: NeXus path emitted at each visit, so a depends_on can name it.
     paths: dict = field(default_factory=dict)
+
+    _flow: Any = None
+    #: Emitted nodes awaiting their flow attributes, which cannot be written until
+    #: every name is known -- a component's successors are emitted after it.
+    pending: list = field(default_factory=list)
+    #: Emitted name by tree path, so the flow graph's nodes can be named in the file.
+    emitted_names: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.instrument_group is None:
@@ -71,6 +78,32 @@ class NexusContext(Context):
         """
         from ..nexus.streams import linked_nxlog
         return linked_nxlog(name, f'{self.nxlog_root}/{parameter}', attrs=attrs)
+
+    def flow(self):
+        """The particle flow through the instrument, built once and kept.
+
+        McCode has no way to say a beam branches, which is why the route this replaced
+        had to be *handed* the real flow. A niess instrument states it -- BIFROST's tank
+        declares ten paths leaving the sample -- so it is read off the tree here.
+        """
+        if self._flow is None:
+            self._flow = self.instrument.to_graph()
+        return self._flow
+
+    def neighbours(self, visit) -> tuple[list, list]:
+        """What feeds this node and what it feeds, under their emitted names.
+
+        The graph is keyed on tree paths and the file is written in emitted names, so
+        anything not emitted -- a composite that only contains things -- contributes
+        nothing rather than a dangling reference.
+        """
+        graph = self.flow()
+        if visit.id not in graph:
+            return [], []
+        named = self.emitted_names
+        before = [named[n] for n in graph.predecessors(visit.id) if n in named]
+        after = [named[n] for n in graph.successors(visit.id) if n in named]
+        return before, after
 
     def stream_group(self, selection: dict, name: str = 'data') -> dict:
         """One monitor's or detector's data stream, as the instrument chose it."""
@@ -184,7 +217,10 @@ def _placed(visit: Visit, body: dict) -> dict:
 def emit(visit: Visit, body: dict) -> None:
     """Put one component's group into the instrument."""
     context = visit.context
-    add_child(context.instrument_group, _placed(visit, body))
+    node = _placed(visit, body)
+    context.emitted_names[visit.id] = node_name(node)
+    context.pending.append((visit, node))
+    add_child(context.instrument_group, node)
 
 def to_nexus_structure(instrument, registry=None, nxlog_root: str | None = None) -> dict:
     """Convert ``instrument`` to ESS NeXus Structure JSON."""
@@ -192,6 +228,14 @@ def to_nexus_structure(instrument, registry=None, nxlog_root: str | None = None)
         instrument=instrument,
         nxlog_root=DEFAULT_NXLOG_ROOT if nxlog_root is None else nxlog_root)
     walk(instrument, NEXUS_REGISTRY if registry is None else registry, context=context)
+    # once, at the end: what feeds what is not known until everything has a name
+    for visit, node in context.pending:
+        for direction, names in zip(('inputs', 'outputs'), context.neighbours(visit)):
+            if names:
+                # one name is written as a string rather than a list of one, which is
+                # what the standard and every reader of these files expect
+                add_attribute(node, direction,
+                              names[0] if len(names) == 1 else names)
     entry = group('entry', nx_class='NXentry',
                   children=[context.instrument_group])
     return {'children': [entry]}
@@ -212,6 +256,20 @@ def translator(*classes):
         return func
 
     return decorate
+
+def _slit_angle(disc) -> list:
+    """The opening width, when there is one width to state.
+
+    `NXdisk_chopper` has a single `slit_angle`, so a disc whose openings differ has
+    nothing to put in it -- the widths are in `slit_edges`, where they belong. Written
+    only when every opening agrees, rather than picking one and calling it the answer.
+    """
+    widths = {round(closing - opening, 9) for opening, closing in disc.slits()}
+    if len(widths) != 1:
+        return []
+    return [dataset('slit_angle', widths.pop(), dtype='double',
+                    attrs={'units': 'degrees'})]
+
 
 def _da00_config(topic: str, source: str, bins: int) -> dict:
     """The da00 configuration for a monitor's histogram.
@@ -327,14 +385,17 @@ def register_defaults() -> None:
         """
         obj = visit.obj
         context = visit.context
-        edges = [angle for opening in obj.slits() for angle in opening]
         return component_body('NXdisk_chopper', [
             dataset('slits', len(obj.slits())),
             # what a run sets, so the file says where to read it rather than guessing
             context.linked_log('rotation_speed', obj.speed_parameter(),
                          attrs={'units': 'Hz'}),
             context.linked_log('delay', obj.delay_parameter(), attrs={'units': 's'}),
-            dataset('slit_edges', edges, dtype='double', attrs={'units': 'degrees'}),
+            # the standard's convention, not niess' looser one: positive,
+            # increasing, opening edge first, only the last edge past 360
+            dataset('slit_edges', obj.nexus_slit_edges(), dtype='double',
+                    attrs={'units': 'degrees'}),
+            *_slit_angle(obj),
             dataset('top_dead_center',
                     float(obj.zero_angle.to(unit='deg').value),
                     attrs={'units': 'degrees'}),
