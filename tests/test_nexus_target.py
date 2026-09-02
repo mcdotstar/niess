@@ -87,7 +87,7 @@ def test_a_multi_opening_disc_is_one_disc(multi_opening):
     """It never came apart, so nothing has to put it back together.
 
     McStas cannot describe a disc whose openings are neither identical nor evenly
-    spaced, so it becomes one component per opening. `niess.nexus.via_instr` reassembles it from
+    spaced, so it becomes one component per opening. The route this replaced reassembled it from
     group tags written into METADATA on each of those components -- tags invented for
     this, and since read by three targets. Reading the tree, the disc is a disc.
     """
@@ -234,7 +234,7 @@ def test_the_frozen_structure_is_unchanged(bifrost):
 def test_a_knob_is_a_link_not_a_number(teaching):
     """A chopper's speed is not something the instrument has; it is something a run sets.
 
-    So the file says where to read it. `niess.nexus.via_instr` decides this by folding a McCode
+    So the file says where to read it. The route this replaced decided by folding a McCode
     expression and seeing whether an instrument parameter survives; here the chopper
     names the knob it declared.
     """
