@@ -48,7 +48,7 @@ def group(
 def dataset(name: str, values, dtype: str | None = None, attrs: dict[str, Any] | None = None) -> dict:
     if dtype is None:
         dtype, values = convert_type(values)
-    node = {'module': 'dataset', 'config': {'name': name, 'values': values, 'type': dtype}}
+    node = {'module': 'dataset', 'config': {'name': name, 'values': values, 'dtype': dtype}}
     attributes = _attributes(None, attrs)
     if attributes:
         node['attributes'] = attributes
