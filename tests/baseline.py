@@ -262,6 +262,58 @@ NIESS_OBJECTS = DATA / 'niess_objects.json.gz'
 NEXUS_STRUCTURES = DATA / 'nexus.json.gz'
 
 
+# -- declared changes to the NeXus format --------------------------------------
+#
+# A frozen structure catches the change nobody meant to make. During a run of changes
+# somebody *does* mean -- bringing the output into line with a static format checker --
+# re-minting on every commit turns it into a rubber stamp: every diff says "the golden
+# moved", which is what it says when something breaks too. That is how the missing ev44
+# stream came to be frozen into this file rather than caught by it.
+#
+# So a deliberate change is declared here instead. The frozen structure is migrated
+# forward before it is compared, and the test then proves something much stronger than a
+# re-mint: that the *only* differences are the ones written down. Each rule is checked
+# for being load-bearing, so the list cannot quietly accumulate.
+#
+# When the campaign settles: re-mint once, empty the list. What is left behind is a
+# record of what the format campaign actually did.
+
+def _rename_config_key(old: str, new: str):
+    """Every dataset module's config carries `new` where it carried `old`."""
+    def migrate(node):
+        config = node.get('config')
+        if isinstance(config, dict) and old in config and new not in config:
+            config[new] = config.pop(old)
+    return migrate
+
+
+NEXUS_MIGRATIONS = [
+    ("the file-writer wants 'dtype' on a dataset module, not 'type'",
+     _rename_config_key('type', 'dtype')),
+]
+
+
+def _walk_nodes(node):
+    if isinstance(node, dict):
+        yield node
+        for child in (node.get('children') or []):
+            yield from _walk_nodes(child)
+    elif isinstance(node, list):
+        for child in node:
+            yield from _walk_nodes(child)
+
+
+def migrated(structures: dict) -> dict:
+    """The frozen structures, brought forward by every declared change."""
+    from copy import deepcopy
+    brought = deepcopy(structures)
+    for _, migrate in NEXUS_MIGRATIONS:
+        for name in brought:
+            for node in _walk_nodes(brought[name]):
+                migrate(node)
+    return brought
+
+
 def frozen_text(name: str) -> str:
     return _read(text_path(name))
 

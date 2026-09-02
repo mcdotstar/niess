@@ -4,7 +4,7 @@ Every node this package builds is a plain JSON-compatible ``dict`` in the schema
 the ESS kafka-to-nexus filewriter consumes:
 
 * group   -- ``{'name':.., 'type':'group', 'attributes':[..], 'children':[..]}``
-* dataset -- ``{'module':'dataset', 'config':{'name':.., 'values':.., 'type':..}}``
+* dataset -- ``{'module':'dataset', 'config':{'name':.., 'values':.., 'dtype':..}}``
 * stream  -- ``{'module':'ev44'|'da00'|'link'|.., 'config':{..}}``
 
 There is deliberately no intermediate object model: what a translator builds is

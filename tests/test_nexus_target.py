@@ -224,9 +224,50 @@ def test_the_radial_slit_bank_is_an_aperture(bifrost):
     assert get_attribute(find_child(slits, 'offset'), 'NX_class') == 'NXlog'
 
 
-def test_the_frozen_structure_is_unchanged(bifrost):
-    from .baseline import NEXUS_STRUCTURES, frozen_json, nexus_structures
-    assert nexus_structures() == frozen_json(NEXUS_STRUCTURES)
+def test_the_frozen_structure_changes_only_as_declared(bifrost):
+    """Not "is unchanged": the format is being brought into line with a static checker.
+
+    `NEXUS_MIGRATIONS` says what each deliberate change was, the frozen structure is
+    brought forward by them, and what is left has to match exactly. That proves more than
+    re-minting would -- re-minting says the golden moved, which is also what it says when
+    something breaks.
+    """
+    from .baseline import NEXUS_STRUCTURES, frozen_json, migrated, nexus_structures
+    assert nexus_structures() == migrated(frozen_json(NEXUS_STRUCTURES))
+
+
+def test_every_declared_migration_is_still_doing_something(bifrost):
+    """A rule that changes nothing has been absorbed by a re-mint and should go.
+
+    Otherwise the list becomes a pile nobody dares empty, and the next reader cannot tell
+    which entries still describe the gap between the file and the code.
+    """
+    from copy import deepcopy
+    from .baseline import (NEXUS_MIGRATIONS, NEXUS_STRUCTURES, _walk_nodes,
+                           frozen_json, migrated)
+
+    frozen = frozen_json(NEXUS_STRUCTURES)
+    for description, migrate in NEXUS_MIGRATIONS:
+        before = deepcopy(frozen)
+        for name in before:
+            for node in _walk_nodes(before[name]):
+                migrate(node)
+        assert before != frozen, f'migration does nothing: {description}'
+
+
+def test_no_dataset_still_carries_the_deprecated_key(bifrost):
+    """The rule itself, asserted on the output rather than on the diff.
+
+    This is what outlives the migration list: when the frozen file is re-minted the
+    entry above goes, and this stays saying what the format actually requires.
+    """
+    from .baseline import _walk_nodes, nexus_structures
+    for name, structure in nexus_structures().items():
+        for node in _walk_nodes(structure):
+            config = node.get('config')
+            if isinstance(config, dict) and node.get('module') == 'dataset':
+                assert 'dtype' in config, f'{name}: dataset without a dtype'
+                assert 'type' not in config, f'{name}: dataset still carrying type'
 
 
 # -- run-time values and streams ----------------------------------------------
