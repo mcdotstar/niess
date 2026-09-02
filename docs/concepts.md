@@ -106,10 +106,22 @@ tagged with, and the `WHEN` and `EXTEND` clauses that read and write it. Those a
 McStas expresses something, not what the instrument is, and they mean nothing to NeXus,
 CAD or a chopper-cascade model.
 
-The rule: **if a thing exists in the instrument, it is a niess object; if it exists only
-because of how a target models the instrument, it belongs to that target.** A radial
-slit bank is a real aperture and is an object. A coordinate frame is real and is a node.
-A `secondary_cassette` flag is McStas's bookkeeping and lives in the McStas conversion.
+The rule: **if more than one target needs to know about a thing, it is a niess object;
+if it exists only because of how one target models the instrument, it belongs to that
+target.** A coordinate frame is a node, because McStas, NeXus and CAD each render it. A
+`secondary_cassette` flag is McStas's bookkeeping and lives in the McStas conversion.
+
+Being an object is not the same as being written by every target. BIFROST's radial slit
+bank is an object — McStas emits it, and the beam divides there, which the particle flow
+has to say — and `niess.nexus` writes nothing for it, because there is no ring of slits
+at the sample. It is how a neutron leaving the sample gets tagged with the channel it
+entered. A NeXus file describes the instrument to whoever reduces the data, and a
+simulation device in it is not a smaller answer but a wrong one.
+
+So each target decides what belongs in *its* description. What none of them may do is
+lose the shape of the instrument in the process: the flow record steps over a node that
+was not written rather than dropping it, so the nine channels still say the beam reached
+them from the sample.
 
 Everything a class contributes to a McStas instrument is written on the class:
 

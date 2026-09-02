@@ -104,17 +104,34 @@ class NexusContext(Context):
     def neighbours(self, visit) -> tuple[list, list]:
         """What feeds this node and what it feeds, under their emitted names.
 
-        The graph is keyed on tree paths and the file is written in emitted names, so
-        anything not emitted -- a composite that only contains things -- contributes
-        nothing rather than a dangling reference.
+        The graph is keyed on tree paths and the file is written in emitted names, so a
+        node the conversion did not write cannot be named. Stepping *over* it rather than
+        dropping it is what keeps the chain intact: a composite that only contains
+        things, or a component that is a simulation device rather than part of the
+        instrument, sits in the flow without appearing in the file, and what it joins
+        stays joined.
         """
         graph = self.flow()
         if visit.id not in graph:
             return [], []
-        named = self.emitted_names
-        before = [named[n] for n in graph.predecessors(visit.id) if n in named]
-        after = [named[n] for n in graph.successors(visit.id) if n in named]
-        return before, after
+        return (self._nearest_written(graph, visit.id, graph.predecessors),
+                self._nearest_written(graph, visit.id, graph.successors))
+
+    def _nearest_written(self, graph, start, step) -> list:
+        """The closest written nodes in one direction, over any that were not."""
+        written, found, seen = self.emitted_names, [], {start}
+        queue = list(step(start))
+        while queue:
+            node = queue.pop(0)
+            if node in seen:
+                continue
+            seen.add(node)
+            if node in written:
+                if written[node] not in found:
+                    found.append(written[node])
+            else:
+                queue.extend(step(node))
+        return found
 
     def stream_group(self, selection: dict, name: str = 'data') -> dict:
         """One monitor's or detector's data stream, as the instrument chose it."""

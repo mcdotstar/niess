@@ -99,26 +99,23 @@ class RadialSlitBank(Component):
         return 'secondary_cassette'
 
     def __nexus_leaf__(self, visit):
-        """A ring of openings, as multiple NXslit."""
-        from ..nexus.structure import component_body, emit
-        from ..nexus.nodes import dataset
+        """Nothing. This is not part of the instrument.
 
-        # TODO change this to emit a set of slits, one per opening
-        #      anything depending on this will need to be reformulated a bit
+        It is how a neutron leaving the sample gets tagged with the channel it entered:
+        the emitted McStas component reports which opening it passed, and everything
+        downstream is gated on that. There is no ring of slits at BIFROST's sample to
+        describe -- `slitDistance` is drivable and its default is chosen to clear
+        everything further out, which is what a surface that is not there can afford to
+        do, and no CAD builder draws it.
 
-        emit(visit, component_body('NXslit', [
-            dataset('description', f'{self.count()} radial slits'),
-            dataset('x_gap', float(self.width.to(unit='radian').value),
-                    attrs={'units': 'radian'}),
-            dataset('y_gap', float(self.height.to(unit='m').value),
-                    attrs={'units': 'm'}),
-            # both are knobs a calibration run sweeps, so the file links to them
-            visit.context.linked_log('distance', self.knob('Distance'),
-                               attrs={'units': 'm'}),
-            visit.context.linked_log('offset', self.knob('Angle'),
-                               attrs={'units': 'degrees'}),
-            dataset('angles', [float(v) for v in
-                               self.angles.to(unit='radian').values],
-                    dtype='double', attrs={'units': 'radian'}),
-        ]))
+        It used to be written as one `NXslit`, which was wrong twice over: `NXslit` is
+        one slit and this reported ten, and `x_gap` is a length where this wrote an
+        angle. Ten `NXslit`s would fix the first and not the second, and would put ten
+        apertures into the file that a reduction has to learn to ignore. An absent thing
+        says nothing; ten fabricated ones say something false.
+
+        The beam does still divide here, and the file still says so: `niess.nexus` steps
+        over what it did not write, so the nine channels and the monitor take their
+        `@inputs` from the sample instead.
+        """
         return None

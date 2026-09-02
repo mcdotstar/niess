@@ -174,8 +174,10 @@ def test_bifrost_converts(bifrost):
     assert counted['NXdetector'] == 45     # one per arm, not one per tube
     assert counted['NXguide'] == 119
     assert counted['NXdisk_chopper'] == 6
-    assert counted['NXslit'] == 1          # the radial slit bank
-    assert sum(counted.values()) == 358    # one group per emitted component
+    # no NXslit: the radial slit bank is a simulation device, not an aperture, and is
+    # deliberately not written -- see `test_the_radial_slit_bank_is_not_written`
+    assert 'NXslit' not in counted
+    assert sum(counted.values()) == 357    # one group per emitted component
 
 
 def test_the_tree_classifies_what_an_emitted_instrument_could_not(bifrost):
@@ -206,23 +208,17 @@ def test_arc_and_triplet_come_from_the_tree(bifrost):
     assert numbers[0][0] == icd_pixel(resolution, 1, 2, 0, 0)
 
 
-def test_the_radial_slit_bank_is_an_aperture(bifrost):
-    """It was emitted by Tank's McStas hook, so only McStas could see it.
+def test_the_radial_slit_bank_is_not_written(bifrost):
+    """It is how a neutron gets tagged with the channel it entered, not an aperture.
 
-    It is a real aperture that happens to be used for bookkeeping -- the emitted
-    component reports which opening a neutron passed and everything downstream is gated
-    on that -- rather than bookkeeping that happens to look like an aperture.
+    It was one `NXslit` reporting ten slits, with an angle in `x_gap`, which is a length.
+    Ten `NXslit`s would fix the count and not the units, and would put ten apertures in
+    the file that a reduction has to learn to ignore.
     """
     from niess.nexus.bifrost import BIFROST_REGISTRY
 
     structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
-    slits = find_child(instrument_group(structure), 'slits')
-    assert get_attribute(slits, 'NX_class') == 'NXslit'
-    assert len(value(slits, 'angles')) == 10       # nine channels and the monitor
-    # both knobs a calibration run sweeps are links, not numbers a run could contradict
-    assert get_attribute(find_child(slits, 'distance'), 'NX_class') == 'NXlog'
-    assert get_attribute(find_child(slits, 'offset'), 'NX_class') == 'NXlog'
-
+    assert find_child(instrument_group(structure), 'slits') is None
 
 def test_the_frozen_structure_changes_only_as_declared(bifrost):
     """Not "is unchanged": the format is being brought into line with a static checker.
