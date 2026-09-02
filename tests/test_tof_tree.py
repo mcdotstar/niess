@@ -23,65 +23,38 @@ def as_instrument():
                       parts=(Mount(name='primary', content=bifrost_primary()),))
 
 
-@pytest.fixture(scope='module')
-def existing():
-    """What the C-text route produces, for the same instrument.
 
-    Explicitly `via_instr`: `niess.tof.to_tof_model` is the tree route now, and comparing
-    a route against itself is a test that passes while asserting nothing.
 
-    `niess.tof` imports without the scipp `tof` package and reaches it only when a model
-    is actually built -- which is here, inside a fixture, rather than at the top of this
-    module. So `importorskip` has to be here too: without it the ImportError surfaces as
-    a fixture *error* in every test that asks for `existing`, and a checkout with no
-    extras does not run the suite green, which `tests/optional_dependencies.py` says it
-    must.
+
+
+def test_the_choppers_of_bifrost_are_what_they_are():
+    """What the two routes used to be compared against each other for.
+
+    The instrument-reading route is gone, so there is nothing to compare with -- these
+    are the values that comparison agreed on, written down. Six discs, in beam order,
+    each with the direction, phase and openings the calibration gives it.
     """
-    pytest.importorskip('tof', reason="the C-text comparison builds a tof.Model")
+    specs = chopper_specs(as_instrument(), origin=0.05)
 
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
-    from niess.tof.via_instr import to_tof_model
-
-    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
-    bifrost_primary().to_mccode(assembler)
-    return to_tof_model(assembler)
-
-
-def test_the_two_routes_are_two_functions():
-    """The guard on every comparison below: they must not have become the same one."""
-    from niess.tof import to_tof_model as from_tree
-    from niess.tof.via_instr import to_tof_model as from_instrument
-    assert from_tree is not from_instrument
-
-
-def test_the_two_routes_describe_the_same_choppers(existing):
-    """Same discs, same direction, same phase, same distance -- and the same openings.
-
-    Compared with a tolerance for one reason: the other route writes each window edge
-    into C at twelve significant figures and parses it back, so its -19.13 is a rounded
-    -19.129999999999995. Reading the disc keeps the number it had. Five parts in a
-    thousand million million, in the direction of the tree being right.
-    """
-    from_tree = chopper_specs(
-        as_instrument(), origin=float(existing.source.distance.to(unit='m').value))
-
-    assert len(from_tree) == len(existing.choppers) == 6
-    for mine, theirs in zip(from_tree, existing.choppers):
-        assert mine.name == theirs.name
-        assert mine.frequency == theirs.frequency
-        assert mine.anticlockwise == theirs.anticlockwise
-        assert mine.phase == pytest.approx(theirs.phase)
-        assert mine.distance == pytest.approx(theirs.distance)
-        assert mine.open == pytest.approx(theirs.open)
-        assert mine.close == pytest.approx(theirs.close)
+    assert [(s.name, round(s.distance, 4)) for s in specs] == [
+        ('pulse_shaping_chopper_1', 6.3749),
+        ('pulse_shaping_chopper_2', 6.4239),
+        ('frame_overlap_chopper_1', 8.5716),
+        ('frame_overlap_chopper_2', 15.0207),
+        ('bandwidth_chopper_1', 78.0309),
+        ('bandwidth_chopper_2', 78.0659),
+    ]
+    assert all(s.frequency == 14.0 for s in specs)
+    assert all(s.anticlockwise for s in specs)
+    assert all(len(s.open) == len(s.close) == 1 for s in specs)
+    # every disc is at its calibrated delay, so nothing is phased away from the mark
+    assert all(s.phase == 0.0 for s in specs)
 
 
-def test_a_knob_can_be_overridden_by_name(existing):
+def test_a_knob_can_be_overridden_by_name():
     """Running the same instrument at a different speed.
 
-    The disc names the knob it declared, so nothing here repeats the convention -- which
-    the other route has to, having only a parameter name parsed out of a component call.
+    The disc names the knob it declared, so nothing here repeats the convention.
     """
     slowed = chopper_specs(as_instrument(),
                            values={'pulse_shaping_chopper_1speed': 7.0}, origin=0.05)

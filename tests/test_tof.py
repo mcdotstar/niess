@@ -12,12 +12,10 @@ import pytest
 tof = pytest.importorskip('tof')
 
 import scipp as sc
-from mccode_antlr import Flavor
-from mccode_antlr.assembler import Assembler
 from scipp.spatial import rotations_from_rotvecs
 
-from niess.tof import delay_to_phase, spec_from_windows
-from niess.tof.via_instr import to_tof_model
+from niess.instrument import Instrument, Mount
+from niess.tof import delay_to_phase, spec_from_windows, to_tof_model
 
 # Three openings, 20/40/20 degrees wide, centred 20/120/360 from the mark. Asymmetric on
 # purpose: mirrored about the beam these land nowhere near themselves, so a direction or
@@ -56,16 +54,24 @@ def offline_source(distance=0.0):
     )
 
 
+def bare_source():
+    """A moderator at the origin, which is all the model needs one for."""
+    from niess.components.source import ESSource
+    return ESSource.from_calibration({
+        'name': 'source',
+        'position': sc.vector([0, 0, 0.], unit='m'),
+        'orientation': rotations_from_rotvecs(sc.vector([0, 0, 0.], unit='deg')),
+        'wavelength_minimum': 'source_lambda_min/"angstrom" = 0.75',
+        'wavelength_maximum': 'source_lambda_max/"angstrom" = 10.0',
+    })
+
+
 def built(speed, **kwargs):
     """The `TofSetup` for an instrument holding one disc."""
-    assembler = Assembler('bare', flavor=Flavor.MCSTAS)
-    assembler.parameter('source_lambda_min/"angstrom"=0.75')
-    assembler.parameter('source_lambda_max/"angstrom"=10.0')
-    assembler.component('source', 'ESS_butterfly', at=((0, 0, 0), 'ABSOLUTE'),
-                        parameters={'Lmin': 'source_lambda_min',
-                                    'Lmax': 'source_lambda_max'})
-    disc(speed, **kwargs).to_mccode(assembler, at='source', rotate='source')
-    return to_tof_model(assembler, source=offline_source())
+    return to_tof_model(Instrument(name='bare', parts=(
+        Mount(name='source', content=bare_source()),
+        Mount(name='pack', content=disc(speed, **kwargs)),
+    )), source=offline_source())
 
 
 def wrapped(delta, period):
@@ -159,19 +165,20 @@ def test_a_split_disc_becomes_one_chopper_with_several_cutouts():
     the openings have to be put back together, and the components they were split across
     must not each become a chopper of their own.
     """
-    assembler = Assembler('bare', flavor=Flavor.MCSTAS)
-    assembler.parameter('source_lambda_min/"angstrom"=0.75')
-    assembler.parameter('source_lambda_max/"angstrom"=10.0')
-    assembler.component('source', 'ESS_butterfly', at=((0, 0, 0), 'ABSOLUTE'),
-                        parameters={'Lmin': 'source_lambda_min',
-                                    'Lmax': 'source_lambda_max'})
-    disc(14.0).to_mccode(assembler, at='source', rotate='source')
+    from niess.mccode import to_mccode
 
-    emitted = [c.name for c in assembler.instrument.components
+    tree = Instrument(name='bare', parts=(
+        Mount(name='source', content=bare_source()),
+        Mount(name='pack', content=disc(14.0)),
+    ))
+
+    emitted = [c.name for c in to_mccode(tree).components
                if c.type.name == 'DiskChopper']
     assert emitted == ['pack_slit_0', 'pack_slit_1', 'pack_slit_2']
 
-    setup = to_tof_model(assembler, source=offline_source())
+    # the tree never split it, so there is nothing to put back together -- which is the
+    # difference this test used to be about
+    setup = to_tof_model(tree, source=offline_source())
     assert list(setup.model.choppers) == ['pack']
     assert len(setup.model.choppers['pack'].open) == 3
 
@@ -180,9 +187,10 @@ def test_a_split_disc_becomes_one_chopper_with_several_cutouts():
 
 def teaching_setup(**kwargs):
     from niess.teaching import Primary
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
-    return to_tof_model(assembler, source=offline_source(), **kwargs)
+    teaching = Instrument(name='teaching', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration()),))
+    kwargs.setdefault('source', offline_source())
+    return to_tof_model(teaching, **kwargs)
 
 
 def test_monitors_and_the_sample_become_detectors():
@@ -201,10 +209,7 @@ def test_distances_are_measured_along_the_beam_from_the_source():
 
 
 def test_a_source_with_a_distance_offsets_everything():
-    from niess.teaching import Primary
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
-    setup = to_tof_model(assembler, source=offline_source(distance=2.5))
+    setup = teaching_setup(source=offline_source(distance=2.5))
     assert setup.choppers[0].distance == pytest.approx(2.5 + 6.76, abs=1e-9)
 
 
@@ -232,38 +237,12 @@ def test_the_parameters_it_used_are_reported_with_their_defaults():
     assert 'nothing has to be provided' in repr(setup)
 
 
-def test_the_wavelength_bounds_are_read_when_the_source_is_built_here():
-    """And not when it is not -- the report is what was used, not what exists."""
-    from niess.teaching import Primary
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
-    setup = to_tof_model(assembler, source=offline_source())
-    assert 'source_lambda_min' not in {use.name for use in setup.parameters}
 
 
-def test_a_value_can_be_overridden_and_says_so():
-    setup = teaching_setup().with_values(chopperspeed=70.0)
-    used = {use.name: use for use in setup.parameters}
-    assert used['chopperspeed'].value == pytest.approx(70.0)
-    assert used['chopperspeed'].overridden
-    assert used['chopperspeed'].default == pytest.approx(14.0)
-    assert setup.choppers[0].frequency == pytest.approx(70.0)
-    assert 'nothing has to be provided' not in repr(setup)
 
 
-def test_overriding_something_that_is_not_a_parameter_is_refused():
-    with pytest.raises(ValueError, match='not instrument parameters'):
-        teaching_setup(values={'not_a_knob': 1.0})
 
 
-def test_a_child_assembler_is_refused():
-    """Its parent has not merged it yet, so most of the instrument is not there."""
-    from niess.teaching import Primary
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
-    with assembler.included('section') as child:
-        with pytest.raises(ValueError, match='top-level Assembler'):
-            to_tof_model(child, source=offline_source())
 
 
 # -- a real instrument -----------------------------------------------------------
@@ -275,9 +254,9 @@ def test_bifrost_becomes_a_chopper_cascade_that_chops():
     while being useless, so this checks that the train narrows what reaches the sample.
     """
     from niess.bifrost import Primary
-    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
-    setup = to_tof_model(assembler, source=offline_source())
+    bifrost = Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration()),))
+    setup = to_tof_model(bifrost, source=offline_source())
 
     assert len(setup.choppers) == 6
     assert setup.detectors[-1] == 'sample_origin'
@@ -326,30 +305,8 @@ def movable_instrument():
     return assembler
 
 
-def test_a_component_that_moves_is_left_out_rather_than_fatal():
-    """Its distance along the beam is not a number until the simulation runs.
-
-    `tof` flies neutrons to a fixed distance, so it has nothing to say about a detector on
-    a tank that rotates -- but the rest of the instrument is still worth modelling, and
-    used to be lost with it.
-    """
-    setup = to_tof_model(movable_instrument(), source=offline_source())
-    assert 'fixed_monitor' in setup.detectors
-    assert 'moving_monitor' not in setup.detectors
-    assert len(setup.choppers) == 1
-    assert any('moving_monitor' in note for note in setup.notes)
 
 
-def test_the_last_detector_is_the_furthest_that_can_be_measured():
-    """Not the beam path's end, which on a moving instrument cannot be placed.
-
-    `turntable` is the furthest point that still can be: only its *rotation* depends on
-    the run-time angle, so it sits at a known distance, and the monitor mounted on it does
-    not. On BIFROST the same rule picks `sample_origin`, which is likewise an Arm.
-    """
-    setup = to_tof_model(movable_instrument(), source=offline_source())
-    assert setup.detectors[-1] == 'turntable'
-    assert 'moving_monitor' not in setup.detectors
 
 
 def test_an_expression_that_does_not_reduce_says_so_as_a_value_error():
@@ -369,27 +326,10 @@ def test_an_expression_that_does_not_reduce_says_so_as_a_value_error():
 
 # -- values arrive with their own units -------------------------------------------
 
-@pytest.mark.parametrize('given,expected', [
-    (70.0, 70.0),
-    (sc.scalar(70.0, unit='Hz'), 70.0),
-    (sc.scalar(0.07, unit='kHz'), 70.0),
-])
-def test_a_speed_is_converted_to_what_the_instrument_declares(given, expected):
-    """A calculator is entitled to hand back kHz; the instrument says Hz."""
-    setup = teaching_setup(values={'chopperspeed': given})
-    assert setup.choppers[0].frequency == pytest.approx(expected)
 
 
-def test_a_delay_in_milliseconds_is_converted_to_seconds():
-    setup = teaching_setup(values={'chopperdelay': sc.scalar(17.0, unit='ms')})
-    assert setup.choppers[0].phase == pytest.approx(delay_to_phase(0.017, 14.0))
-    assert next(u for u in setup.parameters
-                if u.name == 'chopperdelay').value == pytest.approx(0.017)
 
 
-def test_a_value_in_the_wrong_unit_is_refused_by_name():
-    with pytest.raises(ValueError, match="chopperspeed is declared in 'Hz'"):
-        teaching_setup(values={'chopperspeed': sc.scalar(1.0, unit='m')})
 
 
 # -- a beam that branches ---------------------------------------------------------
@@ -419,34 +359,7 @@ def placed_detectors(setup):
     return {name: setup.model.detectors[name].distance.value for name in setup.detectors}
 
 
-def test_distances_follow_the_declared_order_without_a_graph():
-    """Which chains the two detectors, so the second is measured through the first.
-
-    `west` comes out 6 m further than `east` -- back to the sample and out the other side
-    -- when they are the same distance from it.
-    """
-    assembler, _ = branching_instrument()
-    placed = placed_detectors(to_tof_model(assembler, source=offline_source()))
-    assert placed['west'] - placed['east'] == pytest.approx(6.0, abs=1e-9)
 
 
-def test_a_given_graph_measures_each_branch_from_where_it_leaves():
-    """Both detectors are 3 m off the same sample, so both are the same distance away."""
-    assembler, flow = branching_instrument()
-    placed = placed_detectors(
-        to_tof_model(assembler, source=offline_source(), graph=flow))
-    assert placed['west'] == pytest.approx(placed['east'], abs=1e-9)
 
 
-def test_the_graph_reaches_the_chopper_train_too():
-    """`build_train` walks the same flow, so a chopper's path has to come from it.
-
-    This one is upstream of the branch, so the two graphs agree about it -- which is the
-    point: handing in a graph must not disturb what was already right.
-    """
-    assembler, flow = branching_instrument()
-    without = to_tof_model(assembler, source=offline_source())
-    given = to_tof_model(assembler, source=offline_source(), graph=flow)
-    assert len(given.choppers) == 1
-    assert given.choppers[0].distance == pytest.approx(without.choppers[0].distance,
-                                                       abs=1e-12)

@@ -1,6 +1,6 @@
 """The chopper train, read off the tree.
 
-`niess.chopcalc.via_instr` reads an emitted McStas instrument, and it does so
+The route this replaced read an emitted McStas instrument, and it did so
 deliberately: an instrument niess did not build works the same way. It is also four
 hundred lines of recovering what the tree already says -- which disc is which, where a
 multi-opening one came apart and how to put it back, and which knob sets its speed.

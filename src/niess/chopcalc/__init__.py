@@ -48,17 +48,12 @@ __all__ = [
 
 def narrow_source_wavelengths(
         obj: Assembler | Instr,
+        chopper_train: ChopperTrain,
         *,
-        source: str | None = None,
-        skip=(),
-        path_lengths=None,
-        latest_emission: float | None = None,
-        graph=None,
         export_choppers: str | None = None,
         export_chopper_count: str | None = None,
         registry: str = CHOPPER_LIB_REGISTRY,
         strict: bool = False,
-        chopper_train: ChopperTrain | None = None,
 ) -> ChopperTrain | None:
     """Restrict the source's wavelength band to what the chopper train passes.
 
@@ -71,17 +66,13 @@ def narrow_source_wavelengths(
         An Instr or **top-level** assembler. A child from ``assembler.included(...)``
         merges into its parent only when the block exits,
         so its choppers are not visible yet.
-    source:
-        The source component's name. Inferred from the beam path when omitted.
-    skip:
-        Chopper names to leave out deliberately. Leaving a chopper out only widens the
-        band, so it is always safe.
-    path_lengths:
-        Flight paths in metres, by chopper name, overriding the measured ones.
-    latest_emission:
-        Seconds after t=0 that the source can still emit. Taken from the source when it
-        says (``tmax_multiplier``); a longer time widens the band, which is the safe
-        direction.
+    chopper_train:
+        The train to narrow to, from `train_from_instrument`. Required: this function is
+        emission, and finding a train is not something it can do from an assembled
+        instrument any more -- reading one back was what `via_instr` did, and that is
+        what the demotion removed. Anything that shaped the search -- which source, which
+        choppers to skip, what flight paths, how late the source still emits -- is an
+        argument to `train_from_instrument` now, where the searching happens.
     export_choppers:
         Publish the train under this name as well, as a ``multi_chopper_parameters *`` in
         DECLARE, for a component that takes the train as a parameter. Allocated in
@@ -91,19 +82,12 @@ def narrow_source_wavelengths(
     export_chopper_count:
         The ``int`` in DECLARE holding how many rows were published. Defaults to
         ``f'{export_choppers}_count'``.
-    graph:
-        The particle flow through the instrument, as a ``networkx`` DiGraph. McCode
-        cannot say that a beam branches, so an instrument whose flow is not the order its
-        components are declared in has to be handed the real one. Built from the
-        instrument when omitted.
     registry:
         The source of library functions called by the emitted C code.
     strict:
         Raise :class:`ChopcalcError` instead of warning and doing nothing. Worth passing
         alongside ``export_choppers``: a component that reads the train needs it to exist,
         and the default is to warn and emit nothing.
-    chopper_train:
-        The ChopperTrain information needed to construct the emitted C code
 
     Returns
     -------
@@ -135,16 +119,6 @@ def narrow_source_wavelengths(
 
     try:
         export = _export_names(instrument, export_choppers, export_chopper_count)
-        if chopper_train is None:
-            # Everything below is emission, and emission does not care how the train was
-            # found: `train_from_instrument` builds the same thing by reading the discs
-            # rather than the components they were emitted as. Imported here rather than
-            # at the top so that this module -- which is emission, and stays -- does not
-            # depend on the route that goes.
-            from .via_instr import build_train
-            chopper_train = build_train(instrument, source=source, skip=skip,
-                                        path_lengths=path_lengths,
-                                        latest_emission=latest_emission, graph=graph)
     except ChopcalcError as error:
         return _refuse(str(error), strict)
     chopper_train = dataclasses.replace(chopper_train, export=export)
