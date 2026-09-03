@@ -348,7 +348,6 @@ def register_defaults() -> None:
     from ..components.component import Component
     from ..components.filter import Filter
     from ..components.frame import Frame
-    from ..components.guide import Guide
     from ..components.monitors import FrameMonitor
     from ..components.source import Source
 
@@ -370,22 +369,11 @@ def register_defaults() -> None:
     def filtered(visit):
         return component_body('NXfilter')
 
-    @translator(Guide)
-    def guide(visit):
-        """m is the guide's own field, not a number recovered from a component call."""
-        obj = visit.obj
-        children = [dataset('description', f'{type(obj).__name__} guide')]
-        for face in ('left', 'right', 'top', 'bottom'):
-            value = getattr(obj, face, None)
-            if isinstance(value, (int, float)):
-                children.append(dataset(f'm_{face}', float(value)))
-        # a guide built in segments carries a length per segment, not one number
-        from scipp import sum as ssum
-        from ..utilities import is_scalar
-        length = obj.length if is_scalar(obj.length) else ssum(obj.length)
-        children.append(dataset('length', float(length.to(unit='m').value),
-                                attrs={'units': 'm'}))
-        return component_body('NXguide', children)
+    # No @translator(Guide): each guide class writes its own `__nexus_leaf__`, because
+    # what an NXguide needs is the shape of the channel and the m-value of every face
+    # of it, and only the class knows what its channel looks like. The generic one that
+    # used to be here wrote `length` and a scalar `m_left`/`m_right`/`m_top`/`m_bottom`,
+    # none of which is a field NXguide has.
 
     @translator(Aperture)
     def aperture(visit):

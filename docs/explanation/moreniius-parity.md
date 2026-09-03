@@ -50,7 +50,7 @@ separate, human step.
 | `utils.py::outer_transform_dependency` | `instrument.py` | Reads `depends_on` from node attributes |
 | `writer.py::convert_types` | `nodes.py::convert_type` | Minus the `NXattr`/`NXfield` branches |
 | `writer.py::_to_absolute` | `nodes.py::to_absolute` + `absolutize_depends_on` | The recursive rewrite is now its own pass rather than part of serialization |
-| `nxoff.py` — `NXoff.from_wedge`, `sphere`, `to_nexus` | `off.py` | |
+| `nxoff.py` — `NXoff.from_wedge`, `to_nexus` | `components/geometry.py::Off` | Geometry is a property of the component, not of the NeXus target, so it sits with the components and each target renders it. `sphere` came across with no caller and has not been carried over |
 | `nexus_structure.py` — `load_instr` | `io/mccode.py` | Reading a file survives; see below for `convert`. It is not a NeXus concern, so it lives with the other McCode readers rather than under `nexus/` |
 | `MorEniius.from_mccode` / `to_nexus_structure` | `to_nexus_structure(instr, ...)` | One function; there was never a reason for the two-stage object |
 

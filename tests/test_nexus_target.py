@@ -171,7 +171,6 @@ def test_an_identity_placement_still_says_what_it_hangs_from():
 
 def test_a_class_may_carry_its_own_nexus_hook():
     """Both idioms work for every target; which reads better depends on the target."""
-    from niess.dispatch import ClassHooks
     from niess.nexus import NiessNexusRegistry
 
     class Odd:
@@ -179,7 +178,41 @@ def test_a_class_may_carry_its_own_nexus_hook():
             return None
 
     resolved = NiessNexusRegistry().resolve_for_object(Odd())
-    assert isinstance(resolved, ClassHooks)
+    assert resolved is not None
+    assert callable(getattr(resolved, 'leaf', None))
+
+
+def test_a_hooks_body_is_written_like_a_registered_ones(teaching):
+    """The two idioms have to mean the same thing, and did not.
+
+    `@translator` takes the body its function returns and calls `emit`; a class hook's
+    return value was simply dropped, so a class that described its own conversion was
+    the only translator whose output went nowhere. Nothing caught it because the one
+    hook anybody had written -- `RadialSlitBank` -- returns None deliberately, so the
+    first hook to return a real body was the first to go missing from the file.
+    """
+    structure = to_nexus_structure(teaching)
+    guides = [child for child in instrument_group(structure)['children']
+              if child.get('type') == 'group'
+              and get_attribute(child, 'NX_class') == 'NXguide']
+    assert len(guides) == 2, 'teaching is a source, two guides, a chopper and a monitor'
+    for guide in guides:
+        assert find_child(guide, 'geometry') is not None
+        assert value(guide, 'description') == 'StraightGuide'
+
+
+def test_a_hook_may_still_decline_to_write_anything():
+    """None from a leaf means "nothing to write", not "write an empty group"."""
+    from niess.nexus import NiessNexusRegistry
+
+    class Silent:
+        def __nexus_leaf__(self, visit):
+            return None
+
+    resolved = NiessNexusRegistry().resolve_for_object(Silent())
+    # no visit is touched, because nothing is emitted -- passing None would blow up if
+    # the wrapper tried to place a body
+    assert resolved.leaf(None) is None
 
 
 def test_registering_wins_over_the_class():

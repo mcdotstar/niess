@@ -57,8 +57,7 @@ def register_bifrost() -> None:
     from ..bifrost.analyzer import Analyzer
     from ..bifrost.triplet import Triplet
     from ..components.filter import RadialFilterCollimator
-    from ..nexus.nodes import group as nx_group
-    from ..nexus.off import NXoff
+    from ..components.geometry import Off, Cylinder
 
     def register(klass, func):
         def run(visit):
@@ -105,7 +104,7 @@ def register_bifrost() -> None:
             dataset('segment_rows', 1),
             dataset('mosaic_horizontal', mosaic, attrs={'units': 'arcminutes'}),
             dataset('mosaic_vertical', mosaic, attrs={'units': 'arcminutes'}),
-            NXoff(vertices, faces).to_nexus('geometry'),
+            Off(vertices, faces).to_nexus('geometry'),
         ], name=visit.emit_name('monochromator'),
            rotation=(0.0, float(visit.ancestor(_arm()).obj.analyzer_theta.value), 0.0))
 
@@ -135,12 +134,10 @@ def register_bifrost() -> None:
         numbers = [[icd_pixel(nj, arc, triplet, tube, position)
                     for position in range(nj)] for tube in range(ni)]
 
-        geometry = nx_group('geometry', 'NXcylindrical_geometry', children=[
-            dataset('vertices', [[0.0, -half_pixel, 0.0], [radius, -half_pixel, 0.0],
-                                 [0.0, half_pixel, 0.0]],
-                    dtype='double', attrs={'units': 'm'}),
-            dataset('cylinders', [[0, 1, 2]]),
-        ])
+        geometry = Cylinder.single({
+            'length': vector([0, 2*half_pixel, 0], unit='m'),
+            'radius': vector([radius, 0, 0], unit='m'),
+        }).to_nexus('geometry')
 
         # Event streaming is what these tubes do: without an NXevent_data group the
         # filewriter has nothing to fill the detector with. Which topic and which source
