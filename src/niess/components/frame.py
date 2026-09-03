@@ -229,7 +229,7 @@ class Frame(Base):
             # which channel, which arm: the frame belongs to the thing that declared it
             extra[self.owner_key] = owner.name
         add_visit_metadata(visit, instance, owner.obj if owner is not None else self,
-                           source_name=visit.name, role='reference-frame', extra=extra)
+                           role='reference-frame', extra=extra)
         when = context.whens.get(visit.id)
         if when is not None:
             instance.WHEN(when)

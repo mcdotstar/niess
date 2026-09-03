@@ -434,7 +434,6 @@ class DiscChopper(Chopper):
             if insert_provenance_metadata:
                 add_niess_metadata(
                     instance, self,
-                    source_name=name,
                     role=('disc-opening-primary' if index == 0 else 'disc-opening-member')
                     if several else self.__mccode_role__(),
                     extra=self._opening_extra(index, opening, closing, several),

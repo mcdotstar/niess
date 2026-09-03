@@ -47,7 +47,7 @@ class Channel(Base):
     @classmethod
     def from_calibration(cls, relative_angle: Variable, **params):
         from math import pi
-        from scipp import sqrt, tan, atan, asin, min, vector, scalar, Variable
+        from scipp import sqrt, tan, atan, asin, min, vector
         from scipp.constants import hbar, neutron_mass
         from scipp.spatial import rotations_from_rotvecs
         from .parameters import known_channel_params, tube_xz_displacement_to_quaternion
@@ -215,7 +215,7 @@ class Channel(Base):
         ra0 = self.cassette_angle.value
         cassette = assembler.component(f"{name}_arm", "Arm", at=((0, 0, 0), relative), rotate=((0, ra0, 0), relative))
         if insert_provenance_metadata:
-            add_niess_metadata(cassette, self, source_name=f'{name}_arm', role='reference-frame',
+            add_niess_metadata(cassette, self, role='reference-frame',
                            extra={'frame': 'cassette', 'channel': name})
         cassette.WHEN(when)
 

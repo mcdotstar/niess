@@ -300,8 +300,7 @@ class Cassette(Base):
         frame = assembler.component(f'{visit.name}_arm', 'Arm',
                                     at=((0, 0, 0), visit.frame),
                                     rotate=((0, self.angle.value, 0), visit.frame))
-        add_niess_metadata(frame, self, source_name=f'{visit.name}_arm',
-                           role='reference-frame')
+        add_niess_metadata(frame, self, role='reference-frame')
         for child in visit.children():          # put the contents in that frame
             visit.context.frames[child.id] = frame
         return frame
