@@ -111,8 +111,12 @@ def test_the_emitted_flow_graph_is_unchanged(bifrost):
 def test_the_tank_emits_what_it_used_to(bifrost):
     built = to_mccode(bifrost)
     names = [c.name for c in built.components]
-    assert len(names) == 358
-    assert names.index('slits') < names.index('elastic_monitor')
+    # 357 rather than 358: the radial slit bank and the nine per-channel filters became
+    # nine tank-level wedges, so one component fewer overall.
+    assert len(names) == 357
+    # emission order still gates the tag: every wedge, then the monitor that closes
+    # their GROUP, then the channels the tag selects between
+    assert names.index('wedge_8') < names.index('elastic_monitor')
     assert names.index('elastic_monitor') < names.index('channel_1_arm')
     frames = [c for c in built.components
               if c.type.name == 'Arm'
@@ -121,11 +125,19 @@ def test_the_tank_emits_what_it_used_to(bifrost):
 
 
 def test_per_particle_state_stays_on_the_mcstas_side(bifrost):
-    """secondary_cassette and its WHEN clauses mean nothing to any other target."""
+    """secondary_cassette and its WHEN clauses mean nothing to any other target.
+
+    192 WHENs rather than 202: the ten components that choose the branch -- nine wedges
+    and the monitor -- are gated by belonging to one GROUP now, not by a WHEN each.
+
+    100 EXTENDs rather than 91: the slit bank's one EXTEND, which turned a slit index
+    into the tag, is replaced by ten -- one per wedge and one for the monitor.
+    """
     built = to_mccode(bifrost)
     assert any('secondary_cassette' in block.source for block in built.user)
-    assert sum(1 for c in built.components if c.when is not None) == 202
-    assert sum(1 for c in built.components if c.extend) == 91
+    assert sum(1 for c in built.components if c.when is not None) == 192
+    assert sum(1 for c in built.components if c.extend) == 100
+    assert len({c.group for c in built.components if c.group}) == 1
 
 
 def test_a_multi_opening_disc_still_groups():

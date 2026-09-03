@@ -53,7 +53,7 @@ def seen(bifrost):
 def test_the_instrument_is_one_object(bifrost):
     from niess.tree import leaves
     assert [label for label, _ in bifrost.__niess_children__()] == ['primary', 'tank']
-    assert len(leaves(bifrost)) == 772  # 158 primary + 614 tank
+    assert len(leaves(bifrost)) == 771  # 158 primary + 613 tank
 
 
 def test_the_whole_instrument_has_one_connected_flow(bifrost):
@@ -62,9 +62,13 @@ def test_the_whole_instrument_has_one_connected_flow(bifrost):
 
     graph = bifrost.to_graph()
     assert nx.number_weakly_connected_components(graph) == 1
-    # the tank's entry is its radial slits, which is where the ten branches start
-    assert list(graph.successors('primary/sample_origin')) == ['tank/slits']
-    assert len(list(graph.successors('tank/slits'))) == 10
+    # The tank declares ten entries and no node above them, so the sample is where the
+    # ten branches start. The radial slits used to be that node, inside the tank; a
+    # neutron is tagged by the wedge it scatters in now, so nothing chooses for it.
+    branches = sorted(graph.successors('primary/sample_origin'))
+    assert len(branches) == 10
+    assert branches == sorted(
+        [f'tank/filter[{i}]' for i in range(9)] + ['tank/monitor'])
 
 
 def test_of_builds_from_keywords():
@@ -79,14 +83,17 @@ def test_of_builds_from_keywords():
 def test_every_derived_component_name_is_one_the_emission_uses(bifrost, emitted_names):
     """The acceptance test for the naming rule.
 
-    169 of BIFROST's 358 components have a niess Component behind them; the other 189
+    168 of BIFROST's 357 components have a niess Component behind them; the other 189
     are the coordinate frames and the two aggregates per arm, neither of which is a
     Component and both of which the McStas translator names for itself.
+
+    One fewer of each than before the wedges moved into the tank: nine per-channel
+    filters and the radial slit bank became nine tank-level wedges.
     """
     walked = [visit.name for visit in visits(bifrost)
               if isinstance(visit.obj, Component) and not visit.obj.__niess_children__()]
-    assert len(walked) == 169
-    assert len(set(walked)) == 169, 'names must be unique across an instrument'
+    assert len(walked) == 168
+    assert len(set(walked)) == 168, 'names must be unique across an instrument'
     assert set(walked) <= set(emitted_names)
 
 
@@ -94,7 +101,7 @@ def test_every_derived_component_name_is_one_the_emission_uses(bifrost, emitted_
     ('primary/closing/jaw_1', 'jaw_1'),
     ('primary/compressor/nboa', 'nboa'),
     ('tank/monitor', 'elastic_monitor'),
-    ('tank/channels[2]/radial_filter_collimator', 'channel_3_radial_filter_collimator'),
+    ('tank/filter[2]', 'wedge_2'),
 ])
 def test_names_are_built_from_what_the_ancestors_contribute(seen, path, expected):
     assert seen[path].name == expected
@@ -144,8 +151,9 @@ def test_each_piece_hangs_where_its_mount_says(seen):
     assert seen['tank/monitor'].frame == 'sample_origin'
     # inside the tank a declared frame takes over: the cassette, then the arm's own
     assert seen['tank/channels[2]/cassette'].frame == 'sample_origin'
-    assert seen['tank/channels[2]/radial_filter_collimator'].frame == \
-        'tank/channels[2]/cassette'
+    # a wedge is the tank's own child, placed at the sample and carrying its angle as
+    # its orientation, so no cassette frame stands between it and the mounting
+    assert seen['tank/filter[2]'].frame == 'sample_origin'
     assert seen['tank/channels[2]/pairs[0]/analyzer'].frame == \
         'tank/channels[2]/pairs[0]/analyzer_point'
 
@@ -227,20 +235,25 @@ def test_building_does_not_rename_anything_in_the_tree(parts):
 
     A tank that had been built once no longer serialised to what it was calibrated
     with, and anything deriving a name from the tree got the prefix twice over.
+
+    The filters are the tank's own children now, so their calibrated names are already
+    unique across the instrument and nothing has to rename them to emit them. Building
+    twice is what would show it if that stopped being true.
     """
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
 
     _, tank = parts
-    before = [channel.radial_filter_collimator.name for channel in tank.channels]
-    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
-    assembler.component('sample_origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
-    tank.to_mccode(assembler, 'sample_origin')
+    before = [wedge.name for wedge in tank.filters]
+    assert before == [f'wedge_{i}' for i in range(9)]
 
-    assert [c.radial_filter_collimator.name for c in tank.channels] == before
-    assert before == ['radial_filter_collimator'] * 9
-    assert 'channel_1_radial_filter_collimator' in \
-           [c.name for c in assembler.instrument.components]
+    for _ in range(2):
+        assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
+        assembler.component('sample_origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
+        tank.to_mccode(assembler, 'sample_origin')
+        assert [wedge.name for wedge in tank.filters] == before
+    emitted = [c.name for c in assembler.instrument.components]
+    assert [name for name in emitted if name.startswith('wedge_')] == before
 
 
 # -- resolving a translator for an object -------------------------------------
@@ -357,8 +370,7 @@ def test_a_turned_mount_still_walks_and_names_the_same(parts):
               rotation=(0, a4, 0)),
     ))
     names = {v.id: v.name for v in visits(turned)}
-    assert names['tank/channels[2]/radial_filter_collimator'] == \
-        'channel_3_radial_filter_collimator'
+    assert names['tank/filter[2]'] == 'wedge_2'
     # the turn is a frame the contents hang off, so that the turn reaches them; what
     # they are called is untouched, which is what "not a change of what is in it" means
     frames = {v.id: v.frame for v in visits(turned)}

@@ -114,7 +114,7 @@ def test_the_baseline_describes_the_instruments_we_think_it_does(built):
     """A golden minted from a broken build would pass every test above."""
     assert len(built['teaching'].components) == 7
     assert len(built['bifrost_primary'].components) == 158
-    assert len(built['bifrost'].components) == 358
+    assert len(built['bifrost'].components) == 357
     assert [s.name for s in built['bifrost'].included] == [
         'bifrost_compressor', 'bifrost_curved', 'bifrost_expanding',
         'bifrost_straight', 'bifrost_closing',

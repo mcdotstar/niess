@@ -23,7 +23,7 @@ def main(outdir: Path) -> None:
     # --8<-- [end:quickstart]
 
     from niess.mccode import to_mccode
-    assert len(to_mccode(bifrost).components) == 358
+    assert len(to_mccode(bifrost).components) == 357
     instrument = structure['children'][0]['children'][0]
     assert len(instrument['children']) > 350
 

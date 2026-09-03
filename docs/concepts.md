@@ -85,8 +85,8 @@ Reading the tree also classifies more. A window with nothing to say emits as a M
 
 **Names.** A component keeps the name it was calibrated with, under whatever contains
 it. Sections contribute nothing, so a guide three sections deep is still `unit_29_straight`;
-a BIFROST channel contributes `channel_3`, so its filter is
-`channel_3_radial_filter_collimator`.
+a BIFROST channel contributes `channel_3`, so its first analyzer is
+`channel_3_1_monochromator`.
 
 **Frames.** Where a thing is measured from. A frame is a declared node like any other —
 it has no size and nothing passes through it, so it is invisible to the flow graph, and
@@ -111,12 +111,20 @@ if it exists only because of how one target models the instrument, it belongs to
 target.** A coordinate frame is a node, because McStas, NeXus and CAD each render it. A
 `secondary_cassette` flag is McStas's bookkeeping and lives in the McStas conversion.
 
-Being an object is not the same as being written by every target. BIFROST's radial slit
-bank is an object — McStas emits it, and the beam divides there, which the particle flow
-has to say — and `niess.nexus` writes nothing for it, because there is no ring of slits
-at the sample. It is how a neutron leaving the sample gets tagged with the channel it
-entered. A NeXus file describes the instrument to whoever reduces the data, and a
-simulation device in it is not a smaller answer but a wrong one.
+Being an object is not the same as being written the same way by every target. BIFROST's
+nine radial filter-collimators are objects — real wedges of beryllium and collimating
+blades around the sample — and each target says what it needs to about them. McStas puts
+all nine in a single `GROUP`, so a neutron scatters in at most one, and an `EXTEND` on
+each writes the `secondary_cassette` flag the channel below is gated on. That grouping
+and that flag are how McStas expresses "the beam divides here"; `niess.nexus` writes the
+wedges as components and says nothing about either, because a NeXus file describes the
+instrument to whoever reduces the data and a simulation device in it is not a smaller
+answer but a wrong one.
+
+This used to be done by a ring of radial slits at the sample, an object that existed only
+to tag neutrons and that `niess.nexus` therefore had to be told to skip. Letting the
+wedges do their own tagging removed it, and with it the question of what to write for a
+component that was never there.
 
 So each target decides what belongs in *its* description. What none of them may do is
 lose the shape of the instrument in the process: the flow record steps over a node that

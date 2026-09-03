@@ -37,7 +37,7 @@ def test_composite_built_instances_are_tagged(bifrost):
         provenance = NiessProvenance.from_instance(component)
         by_type.setdefault(component.type.name, []).append(provenance)
 
-    for type_name in ('Monochromator_Rowland', 'Detector_tubes', 'Slit_radial_multi'):
+    for type_name in ('Monochromator_Rowland', 'Detector_tubes', 'Radial_col_filter'):
         assert type_name in by_type, f'{type_name} missing from the assembled instrument'
         assert all(p is not None for p in by_type[type_name])
 

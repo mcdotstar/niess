@@ -11,8 +11,8 @@ from; this is only the machinery that drives it. See `ObjectTranslator` for the 
 
 What the walk supplies, so no translator works it out for itself:
 
-  names   `channel_3_radial_filter_collimator` is the filter's own name under what the
-          channel contributes, not an f-string rebuilt at emission time
+  names   `channel_3_1_monochromator` is the analyzer's own name under what the channel
+          and the arm contribute, not an f-string rebuilt at emission time
   frames  what a component is placed against, threaded down from the mounting
   order   declaration order, which is beam order
 

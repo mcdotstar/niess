@@ -42,7 +42,7 @@ def linked_nxlog(name: str, source: str, attrs: dict | None = None) -> dict:
     return group(name, 'NXlog', children=nxlog_data_links(source), attrs=attrs)
 
 
-def motor_group(name: str, source: str, topic: str, attrs: dict | None = None) -> dict:
+def motor_group(name: str, source: str, topic: str, attrs: dict | None = None, default: Any = None) -> dict:
     """A NXlog group constructed to hold a NXpositioner value or NXtransformations entry
 
     The group has a list of attributes including the NX_class, depends_on,
@@ -64,6 +64,9 @@ def motor_group(name: str, source: str, topic: str, attrs: dict | None = None) -
     }
     """
     dtype = (attrs or {}).pop('dtype', None)
+    if dtype is None and default is not None:
+        from .nodes import convert_type
+        dtype, _ = convert_type(default)
     units = (attrs or {}).pop('units', None)
     return group(
         name,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from niess.components.component import Base
-from niess.components import RadialFilterCollimator
 
 
 class Channel(Base):
@@ -10,13 +9,12 @@ class Channel(Base):
     from scipp import Variable
     from .arm import Arm
 
-    radial_filter_collimator: RadialFilterCollimator
     pairs: tuple[Arm, Arm, Arm, Arm, Arm]
 
     def __niess_label__(self, label: str) -> str:
-        """A channel names everything inside it: ``channel_3_radial_filter_collimator``,
-        ``channel_3_1_monochromator``. This replaces the in-place mutation of the
-        filter's own name that emission used to do.
+        """A channel names everything inside it: ``channel_3_1_monochromator``,
+        ``channel_3_2_triplet``. This replaces the in-place mutation of a child's own
+        name that emission used to do.
         """
         from ..tree import label_index
         index = label_index(label)
@@ -40,17 +38,14 @@ class Channel(Base):
     @classmethod
     def from_dict(cls, data):
         from .arm import Arm
-        radial_filter_collimator = data['radial_filter_collimator']
-        if isinstance(radial_filter_collimator, dict):
-            radial_filter_collimator = RadialFilterCollimator.from_dict(radial_filter_collimator)
         pairs = data['pairs']
         if not hasattr(pairs, '__len__') or len(pairs) != 5:
             raise ValueError(f'Blades must have 5 elements (not {len(pairs)})')
         pairs = tuple(p if isinstance(p, Arm) else Arm.from_dict(p) for p in pairs)
-        return cls(radial_filter_collimator, (pairs[0], pairs[1], pairs[2], pairs[3], pairs[4]))
+        return cls(tuple((pairs[0], pairs[1], pairs[2], pairs[3], pairs[4])))
 
-    @staticmethod
-    def from_calibration(relative_angle: Variable, **params):
+    @classmethod
+    def from_calibration(cls, relative_angle: Variable, **params):
         from math import pi
         from scipp import sqrt, tan, atan, asin, min, vector, scalar, Variable
         from scipp.constants import hbar, neutron_mass
@@ -64,31 +59,6 @@ class Channel(Base):
         tau = params.get('tau', 2 * pi / vp['d_spacing'])
 
         sample = vp['sample']
-
-        rfc_height = params.get(
-            'beryllium_filter_height',
-            params.get('radial_collimator_height', scalar(80., unit='mm'))
-        )
-        rfc_width = params.get(
-            'beryllium_filter_width',
-            params.get('radial_collimator_width', scalar(180., unit='deg'))
-        )
-        rfc_params: dict[str, str | Variable] = {
-            'name': 'radial_filter_collimator',
-            'height': rfc_height,
-            'filter_inner_radius': params.get('beryllium_filter_inner_radius', scalar(0., unit='mm')),
-            'filter_outer_radius': params.get('beryllium_filter_outer_radius', scalar(0., unit='mm')),
-            'collimator_inner_radius': params.get('radial_collimator_inner_radius', scalar(0., unit='mm')),
-            'collimator_outer_radius': params.get('radial_collimator_outer_radius', scalar(0., unit='mm')),
-            'angle_width': rfc_width,
-            'collimation': params.get('radial_collimator_collimation', rfc_width),
-            'composition': params.get('beryllium_filter_ncrystal_cfg', 'Be_sg194'),
-            'temperature': params.get('beryllium_filter_temperature', scalar(0., unit='K')),
-            # positioned relative to the sample, at (0, 0, 0)
-            # rotated relative the sample-analyzer-vector, (0, 0, 0) degrees
-        }
-
-        rfc = RadialFilterCollimator.from_calibration(rfc_params)
 
         analyzer_vector = vector([1, 0, 0]) * vp['sample_analyzer_distance']
 
@@ -162,7 +132,7 @@ class Channel(Base):
             )
             pairs.append(Arm.from_calibration(ap, tv, detector_position['analyzer', idx], dl, **params))
 
-        return Channel(rfc, (pairs[0], pairs[1], pairs[2], pairs[3], pairs[4]))
+        return cls(tuple((pairs[0], pairs[1], pairs[2], pairs[3], pairs[4])))
 
     def triangulate_detectors(self, unit=None):
         from ..spatial import combine_triangulations
@@ -218,7 +188,6 @@ class Channel(Base):
                          rotation=vector([0., 1., 0.]) * self.cassette_angle,
                          extra={'frame': 'cassette'}, owner_key='channel')
         return (('cassette', cassette),
-                ('radial_filter_collimator', self.radial_filter_collimator),
                 *((f'pairs[{i}]', arm) for i, arm in enumerate(self.pairs)))
 
     def __niess_child_frame__(self, visit, label, default):
@@ -228,15 +197,14 @@ class Channel(Base):
     def __mccode_enter__(self, visit):
         """The per-particle state the channel's contents are gated on.
 
-        Which channel a neutron was tagged with by the radial slits is a fact about one
-        Monte Carlo history, so it lives here and nowhere else.
+        Which channel a neutron was tagged with by the wedge it scattered in is a fact
+        about one Monte Carlo history, so it lives here and nowhere else.
         """
         context = visit.context
         when = f'{1 + visit.index} == secondary_cassette'
         for declaration in ('int secondary_scattered;', 'int analyzer;', 'int flag;'):
             context.assembler.ensure_user_var(declaration)
         context.whens[f'{visit.id}/cassette'] = when
-        context.whens[f'{visit.id}/radial_filter_collimator'] = when
         return None
 
     def to_mccode(self, assembler: Assembler, relative: Instance, name: str,
@@ -253,18 +221,6 @@ class Channel(Base):
 
         for uv in ('int secondary_scattered;', 'int analyzer;', 'int flag;'):
             assembler.ensure_user_var(uv)
-
-        # The filter is calibrated as 'radial_filter_collimator' and emitted as
-        # 'channel_3_radial_filter_collimator', because instance names have to be unique
-        # across an instrument. Emit a renamed copy rather than renaming the filter:
-        # assigning to it left the tree holding the emitted name afterwards, so a tank
-        # that had been built once no longer serialised to what it was calibrated with,
-        # and anything deriving the name from the tree got it twice over.
-        from msgspec.structs import replace
-        filtered = replace(self.radial_filter_collimator,
-                           name=f'{name}_radial_filter_collimator')
-        rfc = filtered.to_mccode(assembler, cassette, cassette)
-        rfc.WHEN(when)
 
         for arm_index, arm in enumerate(self.pairs):
             arm_name = f"{name}_{1 + arm_index}"

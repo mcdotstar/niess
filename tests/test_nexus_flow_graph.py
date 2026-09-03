@@ -46,7 +46,7 @@ def test_a_component_feeding_several_records_all_of_them(instrument_group):
     assert isinstance(outputs, list)
     assert len(outputs) == 10
     assert 'elastic_monitor' in outputs
-    assert sum(1 for name in outputs if 'radial_filter_collimator' in name) == 9
+    assert sum(1 for name in outputs if name.startswith('wedge_')) == 9
 
 
 def test_one_name_is_written_as_a_name_not_a_list_of_one(instrument_group):

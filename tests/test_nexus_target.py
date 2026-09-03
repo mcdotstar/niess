@@ -121,6 +121,50 @@ def test_a_thing_at_the_origin_needs_no_transformation(teaching):
     structure = to_nexus_structure(teaching)
     source = find_child(instrument_group(structure), 'source')
     assert find_child(source, 'transformations') is None
+    # but it still says what it hangs from -- '.' being how NeXus spells "nothing"
+    assert value(source, 'depends_on') == '.'
+
+
+def test_an_identity_placement_still_says_what_it_hangs_from():
+    """It added no transformation of its own, so it used to say nothing at all.
+
+    A wedge or a cassette at exactly zero degrees produced no NXtransformations group,
+    and the `depends_on` was written only when that group was -- so the component fell
+    out of the chain entirely. Under a motorised mounting that is a real error and not
+    a cosmetic one: nothing recorded that wedge_4 turns with the tank, so a reader
+    driving a4 would leave it behind while its eight siblings moved.
+
+    Fixed by writing the parent's link instead. NeXus lets `depends_on` name a
+    transformation in another group, so there is no identity transformation to invent.
+    """
+    from niess.instrument import Instrument, Mount
+    from niess.components.motor import Motor
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+
+    a4 = Motor(name='a4', unit='degree', source='a4', topic='motion', default=0.0)
+    instrument = Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
+        Mount(name='tank', content=Tank.from_calibration(tank_parameters()),
+              relative_to='sample_origin', rotation=(0, a4, 0)),
+    ))
+    group = instrument_group(to_nexus_structure(instrument, registry=BIFROST_REGISTRY))
+    mounting = '/entry/instrument/tank_mounting/transformations/rotation_y'
+
+    # wedge_4 is the one at zero degrees, and channel_5_arm is its cassette
+    for name in ('wedge_4', 'channel_5_arm'):
+        component = find_child(group, name)
+        assert find_child(component, 'transformations') is None, name
+        assert value(component, 'depends_on') == mounting, name
+
+    # its neighbours turn about their own angle first, then hang off the same mounting
+    for name in ('wedge_3', 'wedge_5'):
+        component = find_child(group, name)
+        rotation = find_child(find_child(component, 'transformations'), 'rotation_y')
+        assert get_attribute(rotation, 'depends_on') == mounting, name
+        assert value(component, 'depends_on') == \
+            f'/entry/instrument/{name}/transformations/rotation_y'
 
 
 # -- how a translator is written ----------------------------------------------
@@ -208,17 +252,26 @@ def test_arc_and_triplet_come_from_the_tree(bifrost):
     assert numbers[0][0] == icd_pixel(resolution, 1, 2, 0, 0)
 
 
-def test_the_radial_slit_bank_is_not_written(bifrost):
-    """It is how a neutron gets tagged with the channel it entered, not an aperture.
+def test_no_aperture_is_written_for_the_cassette_tagging(bifrost):
+    """Tagging a neutron with the channel it entered is not a thing at the sample.
 
-    It was one `NXslit` reporting ten slits, with an angle in `x_gap`, which is a length.
-    Ten `NXslit`s would fix the count and not the units, and would put ten apertures in
-    the file that a reduction has to learn to ignore.
+    It used to be a `RadialSlitBank`, emitted as one `NXslit` reporting ten slits with
+    an angle in `x_gap`, which is a length. Ten `NXslit`s would have fixed the count and
+    not the units, and would have put ten apertures in the file that a reduction has to
+    learn to ignore -- so `niess.nexus` wrote nothing for it.
+
+    The wedges do the tagging now, and they are real: nine radial filter-collimators
+    that a reduction should see. What must not come back is an aperture standing in for
+    the tagging, so this checks both halves -- the slits are gone, and the nine things
+    that replaced them are written as the components they are.
     """
     from niess.nexus.bifrost import BIFROST_REGISTRY
 
-    structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
-    assert find_child(instrument_group(structure), 'slits') is None
+    group = instrument_group(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
+    assert find_child(group, 'slits') is None
+    written = [find_child(group, f'wedge_{i}') for i in range(9)]
+    assert all(w is not None for w in written)
+    assert not any(get_attribute(w, 'NX_class') == 'NXslit' for w in written)
 
 def test_the_frozen_structure_changes_only_as_declared(bifrost):
     """Not "is unchanged": the format is being brought into line with a static checker.
