@@ -41,7 +41,8 @@ and its contents can be inspected without walking dictionaries by hand:
 ```
 
 That yields `NXmoderator`, `NXguide`, `NXdisk_chopper`, `NXaperture`, `NXmonitor` and
-`NXcoordinate_system` groups. The chopper's `rotation_speed` is not a number but a link
+`NXcomponent` groups — the last of those being the things that are only a place, which
+say so in a `description`. The chopper's `rotation_speed` is not a number but a link
 to an `NXlog`, because `chopperspeed` is settable at run time — see
 [constants become values, run-time knobs become links](how-to/nexus-structure.md#constants-become-values-run-time-knobs-become-links).
 

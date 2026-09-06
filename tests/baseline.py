@@ -288,6 +288,14 @@ def _rename_config_key(old: str, new: str):
 
 
 NEXUS_MIGRATIONS = [
+    # `unit` is not a key the ESS f144 contract declares -- it requires `value_units`,
+    # and a config carrying only `unit` is rejected outright. The file escaped that for
+    # a while only because the module also carried a `units` attribute and the validator
+    # excuses a missing `value_units` when one is present. That excuse is not a
+    # contract. A pure key rename, so the frozen file is brought forward rather than
+    # re-minted; delete this at the next mint.
+    ('f144 configs name `value_units`, not `unit`',
+     _rename_config_key('unit', 'value_units')),
     # Empty is the resting state. A rule goes here when a deliberate change can be
     # stated as one -- a key rename across every node, say -- and the frozen file is
     # then left alone until the campaign settles. A change that rearranges the shape of

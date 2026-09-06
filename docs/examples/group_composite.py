@@ -75,8 +75,9 @@ def main(outdir: Path) -> None:
               if c.get('type') == 'group']
     # --8<-- [end:nexus]
 
-    # one disc, because it never came apart
-    assert groups == ['origin', 'pack', 'sample']
+    # one disc, because it never came apart. `neutron_prod_info` is the instrument's
+    # own furniture -- the pulse reference times -- rather than a component of the beam.
+    assert [g for g in groups if g != 'neutron_prod_info'] == ['origin', 'pack', 'sample']
     pack = find_child(instrument_group, 'pack')
     assert get_attribute(pack, 'NX_class') == 'NXdisk_chopper'
     assert find_child(pack, 'slits')['config']['values'] == 3

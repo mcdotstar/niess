@@ -6,14 +6,23 @@ the beam. BIFROST does: after the sample one beam becomes many, and an instrumen
 converter recorded every component past that point as fed by whichever happened to be
 declared before it. That route had to be *handed* the real flow, as `graph=`.
 
-A niess instrument states it. `__niess_flow__` is part of the tree, so the `@inputs` and
-`@outputs` attributes follow from the instrument rather than from an argument.
+A niess instrument states it. `__niess_flow__` is part of the tree, so the `inputs` and
+`outputs` datasets follow from the instrument rather than from an argument.
+
+They are datasets rather than attributes because that is what `NXcomponent` declares
+them as, and every class extending it inherits them as fields.
 """
 import pytest
 
 from niess.instrument import Instrument, Mount
 from niess.nexus import to_nexus_structure
-from niess.nexus.nodes import children_of, get_attribute
+from niess.nexus.nodes import children_of, find_child
+
+
+def flow(node, direction):
+    """The `inputs` or `outputs` a group records, or None when it records none."""
+    found = find_child(node, direction)
+    return None if found is None else found['config']['values']
 
 
 @pytest.fixture(scope='module')
@@ -37,12 +46,12 @@ def instrument_group():
 
 def test_a_component_records_what_feeds_it(instrument_group):
     sample = instrument_group['sample_origin']
-    assert get_attribute(sample, 'inputs') == 'slit'
+    assert flow(sample, 'inputs') == 'slit'
 
 
 def test_a_component_feeding_several_records_all_of_them(instrument_group):
     """The branch declaration order cannot express: ten paths leave the sample."""
-    outputs = get_attribute(instrument_group['sample_origin'], 'outputs')
+    outputs = flow(instrument_group['sample_origin'], 'outputs')
     assert isinstance(outputs, list)
     assert len(outputs) == 10
     assert 'elastic_monitor' in outputs
@@ -51,7 +60,7 @@ def test_a_component_feeding_several_records_all_of_them(instrument_group):
 
 def test_one_name_is_written_as_a_name_not_a_list_of_one(instrument_group):
     """What the standard, and every reader of these files, expects."""
-    assert isinstance(get_attribute(instrument_group['sample_origin'], 'inputs'), str)
+    assert isinstance(flow(instrument_group['sample_origin'], 'inputs'), str)
 
 
 def test_the_chain_steps_over_what_was_not_written(instrument_group):
@@ -65,7 +74,7 @@ def test_the_chain_steps_over_what_was_not_written(instrument_group):
     assert 'slits' not in instrument_group
     for name, node in instrument_group.items():
         if 'radial_filter_collimator' in name:
-            assert get_attribute(node, 'inputs') == 'sample_origin'
+            assert flow(node, 'inputs') == 'sample_origin'
 
 
 def test_a_composite_contributes_no_dangling_reference(instrument_group):
@@ -77,7 +86,7 @@ def test_a_composite_contributes_no_dangling_reference(instrument_group):
     emitted = set(instrument_group)
     for node in instrument_group.values():
         for direction in ('inputs', 'outputs'):
-            names = get_attribute(node, direction)
+            names = flow(node, direction)
             if names is None:
                 continue
             for name in ([names] if isinstance(names, str) else names):

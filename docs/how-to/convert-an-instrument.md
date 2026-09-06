@@ -74,7 +74,7 @@ it can express is declaration order. BIFROST's tank branches:
 ```
 
 Ten paths leave the sample — nine channels and the elastic monitor — and a neutron takes
-one. That is what NeXus states through each group's `inputs` and `outputs`.
+one. That is what NeXus states through each group's `inputs` and `outputs` datasets.
 
 **What a thing will be called, and what it is measured from.**
 

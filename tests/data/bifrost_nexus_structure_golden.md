@@ -24,9 +24,10 @@ never exercised those translators either.
 ## Parity
 
 `niess.nexus.to_nexus_structure` reproduces this file's structure: identical component
-names in identical order, and an identical `NX_class` census (132 `NXcoordinate_system`,
-119 `NXguide`, 45 `NXcrystal`, 45 `NXdetector`, 6 `NXdisk_chopper`, 5 `NXmonitor`,
-5 `NXaperture`, 1 `NXmoderator`, 2 datasets).
+names in identical order, and a matching `NX_class` census (132 `NXcomponent` where the
+golden has 132 `NXcoordinate_system` — see difference 8 — 119 `NXguide`, 45 `NXcrystal`,
+45 `NXdetector`, 6 `NXdisk_chopper`, 5 `NXmonitor`, 5 `NXaperture`, 1 `NXmoderator`,
+2 datasets).
 
 Leaf differences remain in the categories below; every one is accounted for, none is
 unexplained. Categories 1-3 and 6 date from the original port; 4 and 5 are later
@@ -134,6 +135,23 @@ rather than both: an instrument that phases its choppers in degrees does not sur
 round trip. It only affects instruments written against the old convention — a BIFROST
 rebuilt from `niess.bifrost.parameters` declares `<name>delay/"s"` and translates to a
 proper `NXlog` link.
+
+### 8. Reference frames and beam-path flow — the NXDL conformance pass
+
+Two changes made together, both to satisfy a static NeXus checker reading the NXDL.
+
+`NXcoordinate_system` describes the axes of a coordinate system, not a thing standing in
+one, and `NXinstrument` does not list it among the children it accepts. The 132 groups
+that are only a place — a declared frame, a sample position, a window — are now
+`NXcomponent`, the base class every instrument component extends, each carrying a
+`description` that says it is a reference frame.
+
+`inputs` and `outputs` were written as group attributes. `NXcomponent` declares them as
+*fields*, so every class extending it inherits them as fields; a validator reading the
+NXDL rejects them written any other way. They are now datasets.
+
+Neither change moves any value: the same names are recorded, for the same components, in
+the same order.
 
 ## Not represented here
 
