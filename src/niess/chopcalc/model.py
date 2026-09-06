@@ -12,20 +12,21 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ChopperEntry:
-    """One row of the generated ``multi_chopper_parameters`` array."""
+    """One row of the generated ``chopper_parameters`` array."""
 
     name: str
     """The instance name, or the disc's group id when several openings share a disc."""
     speed: str
     """Hz. The sign sets the direction of rotation, and is preserved."""
     delay: str
-    """Seconds, when the disc's zero-angle point is on the path."""
-    windows: tuple[tuple[str, str], ...]
-    """Each opening as a ``(minimum, maximum)`` angle in degrees from the zero-angle
-    point. chopper-lib puts an edge at angle ``a`` on the beam at
-    ``delay + a / (360 * speed)``, so these are signed and the sign of ``speed`` decides
-    which edge of a pair is reached first. A plain ``DiskChopper`` has one window,
-    symmetric about zero -- which is what makes its row mean what it always meant."""
+    """Seconds, when the angle ``beam`` is on the beam path."""
+    beam: str
+    """Degrees from the disc's top-dead-centre mark to where the beam crosses it."""
+    edges: tuple[str, ...]
+    """The disc's slit edges, in degrees from the mark, two per opening -- the same flat,
+    increasing array the ``CollectorDiskChopper`` component and the NeXus
+    ``NXdisk_chopper`` standard use. chopper-lib 4.0.0 reads exactly this, so these are
+    the disc's own numbers rather than a conversion of them."""
     path: str
     """Metres travelled from the source, along the beam."""
     note: str | None = None

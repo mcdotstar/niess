@@ -5,8 +5,8 @@ from textwrap import indent
 
 from .model import ChopperTrain, Export
 
-CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v3.0.0'
-CHOPPER_LIB_MINIMUM_VERSION = 30000
+CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.0.0'
+CHOPPER_LIB_MINIMUM_VERSION = 40000
 INCLUDE_MARKER = '%include "chopper-lib"'
 ARRAY_MARKER = 'chopcalc_choppers'
 INDEX_MARKER = 'chopcalc_i'
@@ -16,7 +16,7 @@ DECLARE_TEXT = f'''
 /* niess.chopcalc: chopper-lib, for narrowing the source wavelength band */
 {INCLUDE_MARKER}
 #if !defined(CHOPPER_LIB_VERSION) || CHOPPER_LIB_VERSION < {CHOPPER_LIB_MINIMUM_VERSION}
-#error "niess.chopcalc describes discs by their openings; chopper-lib 3.0.0 or newer is required"
+#error "niess.chopcalc describes discs by their slit edges; chopper-lib 4.0.0 or newer is required"
 #endif
 '''
 
@@ -45,7 +45,7 @@ def export_declare_text(export: Export) -> str:
  * the whole run -- which it is not otherwise, being freed as INITIALIZE leaves. Pass
  * (double *) {export.choppers} to a component whose parameter is declared that way.
  */
-multi_chopper_parameters * {export.choppers} = NULL;
+chopper_parameters * {export.choppers} = NULL;
 int {export.count} = 0;
 """
 
@@ -66,24 +66,24 @@ def initialize_text(train: ChopperTrain) -> str:
     source = train.source
     count = len(train.choppers)
 
-    # A row carries a pointer to its openings, so each gets an array of its own, allocated
-    # where the row is written. Checking them all at once afterwards keeps the table above
-    # readable and the boilerplate the same size however many discs there are.
+    # A row carries a pointer to its slit edges, so each gets an array of its own,
+    # allocated where the row is written. Checking them all at once afterwards keeps the
+    # table above readable and the boilerplate the same size however many discs there are.
     rows = '\n'.join(
-        f'  {ARRAY_MARKER}[{i}] = (multi_chopper_parameters){{'
-        f'{c.speed}, {c.delay}, {len(c.windows)},\n'
-        f'    (chopper_window *) calloc({len(c.windows)}, sizeof(chopper_window)),'
-        f' {c.path}}};'
-        f' /* {c.name}, {len(c.windows)} opening{"" if len(c.windows) == 1 else "s"}'
+        f'  {ARRAY_MARKER}[{i}] = (chopper_parameters){{'
+        f'{c.speed}, {c.delay}, {c.beam}, {len(c.edges)},\n'
+        f'    (double *) calloc({len(c.edges)}, sizeof(double)), {c.path}}};'
+        f' /* {c.name}, {len(c.edges) // 2} opening'
+        f'{"" if len(c.edges) == 2 else "s"}'
         f'{"" if c.note is None else " -- " + c.note} */'
         for i, c in enumerate(train.choppers)
     )
-    # written out index by index: the values differ per opening, so a loop would need a
+    # written out index by index: the values differ per edge, so a loop would need a
     # table to read from, and the table would be this
-    openings = '\n'.join(
-        f'  {ARRAY_MARKER}[{i}].windows[{w}] = (chopper_window){{{lo}, {hi}}};'
+    edges = '\n'.join(
+        f'  {ARRAY_MARKER}[{i}].edges[{e}] = {angle};'
         for i, c in enumerate(train.choppers)
-        for w, (lo, hi) in enumerate(c.windows)
+        for e, angle in enumerate(c.edges)
     )
 
     if train.export is None:
@@ -116,29 +116,29 @@ def initialize_text(train: ChopperTrain) -> str:
 {indent(chr(10).join(" * " + n for n in notes), "")}
  */
 {{
-  multi_chopper_parameters * {ARRAY_MARKER} = (multi_chopper_parameters *) calloc(
-    {count}, sizeof(multi_chopper_parameters));
+  chopper_parameters * {ARRAY_MARKER} = (chopper_parameters *) calloc(
+    {count}, sizeof(chopper_parameters));
   if ({ARRAY_MARKER} == NULL) {{
     printf("{OUT_OF_MEMORY}\\n");
     exit(-1);
   }}
 {rows}
   for (int {INDEX_MARKER} = 0; {INDEX_MARKER} < {count}; ++{INDEX_MARKER}) {{
-    if ({ARRAY_MARKER}[{INDEX_MARKER}].windows == NULL) {{
+    if ({ARRAY_MARKER}[{INDEX_MARKER}].edges == NULL) {{
       printf("{OUT_OF_MEMORY}\\n");
       exit(-1);
     }}
   }}
-{openings}
+{edges}
   double chopcalc_latest = {source.latest_emission}; /* {source.latest_emission_note}, s */
   double chopcalc_min = {source.lambda_min}, chopcalc_max = {source.lambda_max};
-  unsigned chopcalc_bands = multi_chopper_wavelength_limits(
+  unsigned chopcalc_bands = chopper_wavelength_limits(
     &{source.lambda_min}, &{source.lambda_max},
     {count}, {ARRAY_MARKER},
     chopcalc_min, chopcalc_max, chopcalc_latest);
   if (chopcalc_bands == 0 || !({source.lambda_max} > {source.lambda_min})
       || {source.lambda_min} <= 0) {{
-    /* multi_chopper_wavelength_limits leaves its outputs alone when it finds nothing; putting
+    /* chopper_wavelength_limits leaves its outputs alone when it finds nothing; putting
      * the band back makes that a property of this instrument rather than of whichever
      * library version was resolved. It also keeps a degenerate band away from
      * ESS_butterfly, whose own INITIALIZE exits when Lmin >= Lmax. */
@@ -168,12 +168,12 @@ def initialize_text(train: ChopperTrain) -> str:
 def _release(name: str, count: str) -> str:
     """Give back a train built by :func:`initialize_text`.
 
-    Each row owns its openings, so those go first: freeing the row array alone loses every
-    window array with it. Emitted at the end of INITIALIZE when nothing else reads the
+    Each row owns its slit edges, so those go first: freeing the row array alone loses
+    every edge array with it. Emitted at the end of INITIALIZE when nothing else reads the
     train, and in FINALLY when something does -- the same lines, in one place or the other.
     """
     return f'''  for (int {INDEX_MARKER} = 0; {INDEX_MARKER} < {count}; ++{INDEX_MARKER}) {{
-    if ({name}[{INDEX_MARKER}].windows != NULL) free({name}[{INDEX_MARKER}].windows);
+    if ({name}[{INDEX_MARKER}].edges != NULL) free({name}[{INDEX_MARKER}].edges);
   }}
   free({name});'''
 

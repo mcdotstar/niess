@@ -56,19 +56,15 @@ def _source_entry(visit, latest_emission: float | None) -> SourceEntry:
                        latest_emission_note=note)
 
 
-def _windows(disc) -> tuple[tuple[str, str], ...]:
-    """Every opening, in chopper-lib's frame.
+def _edges(disc) -> tuple[str, ...]:
+    """Every slit edge, in the disc's own frame.
 
-    chopper-lib measures from the disc's zero-angle point and puts the edge at angle
-    ``a`` on the beam at ``delay + a / (360 * speed)``. A niess slit edge is measured
-    from the top-dead-centre mark and ``{disc}delay`` is when ``beam_angle`` is on the
-    beam -- so ``beam_angle`` is chopper-lib's zero point and an edge ``e`` sits at
-    ``beam_angle - e``. The pair reverses because an opening counter-clockwise of the
-    beam is reached by turning the other way.
+    There is nothing to convert. chopper-lib 4.0.0 measures from the same top-dead-centre
+    mark the disc's ``slits()`` do, and takes ``beam_angle`` as a field of its own rather
+    than expecting the caller to fold it in -- so the openings go across as written, in
+    the order the component and the NeXus standard write them.
     """
-    beam = float(disc.beam_angle.to(unit='deg').value)
-    return tuple((_c_double(beam - closing), _c_double(beam - opening))
-                 for opening, closing in disc.slits())
+    return tuple(_c_double(edge) for opening in disc.slits() for edge in opening)
 
 
 def train_from_instrument(instrument, latest_emission: float | None = None,
@@ -113,9 +109,10 @@ def train_from_instrument(instrument, latest_emission: float | None = None,
             name=visit.name,
             speed=disc.speed_parameter(),
             # every opening turns with the disc, so they share its delay; where each one
-            # sits relative to that is what the windows say
+            # sits relative to that is what the edges say
             delay=disc.delay_parameter(),
-            windows=_windows(disc),
+            beam=_c_double(float(disc.beam_angle.to(unit='deg').value)),
+            edges=_edges(disc),
             path=_c_double(path),
         ))
 
