@@ -46,7 +46,7 @@ brep = ['build123d']
 examples = ['tof>=25.11', 'chopcal>=0.5.1', 'plopp', 'nbclient', 'nbformat']
 # Zensical is pre-1.0 and ships weekly; pin exactly and bump deliberately.
 docs = [
-  'zensical==0.0.57',
+  'zensical==0.0.59',
   'mkdocstrings-python>=2.0.6',
 ]
 
