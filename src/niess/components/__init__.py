@@ -2,7 +2,7 @@ from .secondary import DirectSecondary, IndirectSecondary
 from .crystals import IdealCrystal, Crystal
 from .detectors import Wire, DiscreteWire, DiscreteTube, He3Tube
 from .aperture import Aperture, Jaw, Slit
-from .chopper import Chopper, DiscChopper, FermiChopper
+from .chopper import Chopper, DiscChopper, FermiChopper, NXDiskChopper
 from .collimator import Collimator, SollerCollimator, RadialCollimator
 from .component import Component
 from .filter import (
@@ -30,6 +30,7 @@ __all__ = [
     'Chopper',
     'DiscChopper',
     'FermiChopper',
+    'NXDiskChopper',
     'Collimator',
     'SollerCollimator',
     'RadialCollimator',

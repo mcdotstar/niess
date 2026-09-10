@@ -1,12 +1,13 @@
 import msgspec
-from scipp import Variable
+from scipp import Variable, scalar, array, vector
+from scipp.spatial import rotations_from_rotvecs
 from .component import Component
 from mccode_antlr.instr import Instance
 from mccode_antlr.assembler import Assembler
+from mccode_antlr.common import InstrumentParameter
 
 
 def _zero_degrees() -> Variable:
-    from scipp import scalar
     return scalar(0.0, unit='deg')
 
 
@@ -25,8 +26,6 @@ def disc_beam_offset(radius: Variable, height: Variable | None = None,
     point -- the two disagreeing is what put every BIFROST disc on the wrong side of the
     beam in the first place.
     """
-    from scipp import vector
-    from scipp.spatial import rotations_from_rotvecs
     turn = _zero_degrees() if zero_angle is None else zero_angle
     if beam_angle is not None:
         turn = turn + beam_angle
@@ -101,7 +100,7 @@ class DiscChopper(Chopper):
 
     @property
     def speed(self):
-        from scipp import dot, vector
+        from scipp import dot
         from ..spatial import __is_vector__
         if not __is_vector__(self.velocity):
             return self.velocity.to(unit='Hz')
@@ -134,15 +133,12 @@ class DiscChopper(Chopper):
         the whole component turns about its own z by that much to match. The default of
         zero leaves the emitted rotation exactly as it was.
         """
-        from scipp import vector
-        from scipp.spatial import rotations_from_rotvecs
         turn = (self.zero_angle + self.beam_angle).to(unit='deg')
         return self.orientation * rotations_from_rotvecs(
             vector(value=[0., 0., turn.value], unit='deg'))
 
     @classmethod
     def from_calibration(cls, cal: dict):
-        from scipp import scalar, array, vector
         name = cal['name']
         position = cal['position']
         orientation = cal['orientation']
@@ -468,6 +464,168 @@ class DiscChopper(Chopper):
                 )
             instances.append(instance)
         return instances if several else instances[0]
+
+
+class NXDiskChopper(Chopper):
+    """The replacement for DiscChopper which emits a single McStas NXdisk_chopper
+
+    Geometry following the NeXus NXdisk_chopper specification:
+    - all angles measured with respect to the disk top-dead-center pickup point
+      with positive angles increasing counter-clockwise when seen from the source
+      position (z forward, y vertical, x to the left)
+    - window edges defined in a monotonically increasing list, starting with
+      an opening edge, and spanning less than 360 degrees. Note: NeXus is stricter here,
+      requiring the values to be strictly positive.
+    - a beam angle is the position where the disk and beam path intersect
+
+    Additionally, this component knows the position of its top-dead-center pickup
+    with respect to its local coordinate system. This value is not needed by the Nexus
+    specification because it can be deduced when the beam path is defined by other
+    components, e.g., a preceeding or following guide.
+    This deduction is not simple in the McStas world, so NXdisk_chopper.comp accepts
+    `zero_angle` to place the top-dead-center pickup relative to the local y-axis.
+
+    """
+    # Non-NeXus helper variable for McStas: the position of the pickup w
+    zero_angle: Variable = msgspec.field(default_factory=_zero_degrees)
+    """Angle from +y to the zero-mark on the disk housing"""
+    beam_angle: Variable = msgspec.field(default_factory=_zero_degrees)
+    """Angle from the disk housing zero-mark to the beam intersection with the disk"""
+    park_angle: Variable = msgspec.field(default_factory=_zero_degrees)
+    """Angle of the disk when the frequency is zero"""
+
+    @classmethod
+    def from_calibration(cls, cal: dict):
+        required = ('name', 'position', 'orientation', 'radius', 'windows', 'width', 'height')
+        name, position, orientation, radius, windows, width, height = (cal[k] for k in required)
+        velocity = cal.get('velocity', cal.get('frequency'))
+        if velocity is None:
+            raise ValueError('velocity must be defined in calibration')
+        delay = cal.get('delay', scalar(0.0, unit='s'))
+        zero_angle = cal.get('zero_angle', scalar(0.0, unit='deg'))
+        beam_angle = cal.get('beam_angle', scalar(0.0, unit='deg'))
+        park_angle = cal.get('park_angle', scalar(0.0, unit='deg'))
+        if windows is None:
+            half = cal['angle'].to(unit='deg') / 2 * array(values=[-1, 1], dims='edges')
+            windows = beam_angle.to(unit='deg') + half
+        return cls(
+            name=name, position=position, orientation=orientation,
+            velocity=velocity, delay=delay,
+            radius=radius, windows=windows,
+            width=width, height=height,
+            zero_angle=zero_angle, beam_angle=beam_angle, park_angle=park_angle,
+        )
+
+    def __mccode__(self):
+        params = {
+            'slit_edges': self.edge_array_identifier(),
+            'n_edges': len(self.windows),
+            'radius': self.radius.to(unit='m').value,
+            'nu': self.speed_parameter().name,
+            'delay': self.delay_parameter().name,
+            'park_angle': self.park_angle_parameter().name,
+            'zero_angle': self.zero_angle.to(unit='deg'),
+            'beam_angle': self.beam_angle.to(unit='deg'),
+        }
+        if self.width is not None:
+            params['width'] = self.width.to(unit='m').value
+        if self.height is not None:
+            params['height'] = self.height.to(unit='m').value
+        return 'NXdisk_chopper', params
+
+    def to_mccode(
+            self, assembler: Assembler, at: Instance | str | None = None,
+            rotate: Instance | str | None = None, insert_provenance_metadata: bool = True,
+    ) -> Instance:
+        from ..assembler import ensure_runtime_parameter, ensure_registry
+        # Make sure the chopper-lib repository is known (for NXdisk_chopper.comp)
+        ensure_registry(assembler, "mcdotstar/mcstas-chopper-lib@v4.1.0")
+        # Make sure the user controllable knobs are present
+        for parameter in (self.speed_parameter(), self.delay_parameter(), self.park_angle_parameter()):
+            ensure_runtime_parameter(assembler, parameter)
+        # Insert the edge array into the instrument DECLARE block
+        assembler.declare_array('double', self.edge_array_identifier(), self.edge_array_values())
+        return super().to_mccode(assembler, at, rotate, insert_provenance_metadata)
+
+    def speed_parameter(self) -> InstrumentParameter:
+        return InstrumentParameter(f"{self.name}speed", "Hz", self.velocity.to(unit='Hz').value)
+
+    def delay_parameter(self) -> InstrumentParameter:
+        return InstrumentParameter(f"{self.name}delay", "s", self.delay.to(unit='s').value)
+
+    def park_angle_parameter(self) -> InstrumentParameter:
+        return InstrumentParameter(f"{self.name}park_angle", "deg", self.park_angle.to(unit='deg').value)
+
+    def nexus_slit_edges(self) -> list[float|int]:
+        pairs = sorted((a % 360.0, a % 360.0 + (b - a)) for a, b in self._window_pairs())
+        ordered = [edge for slit in pairs for edge in slit]
+        if any(b <= a for a, b in zip(ordered, ordered[1:])) or any(not 0.0<=edge<360.0 for edge in ordered[:-1]):
+            raise ValueError(f'slit_edges {self.windows} cannot be written as required.')
+        return ordered
+
+    def _window_pairs(self) -> list[tuple[float | int, float| int]]:
+        """ Return paired window edges, verifying basic data properties
+
+        E.g., McStas does not care if the windows are all positive but NeXus does,
+        but both need strictly increasing edge values spanning less than 360. degrees.
+        """
+        edges = [float(v) for v in self.windows.to(unit='deg').values]
+        if len(edges) < 2 or len(edges) % 2:
+            raise ValueError(
+                f'{self.name} has {len(edges)} slit edges;'
+                'an even number >=2 is required.'
+            )
+        pairs = sorted([(a, b) for a, b in zip(edges[:-1], edges[1:])])
+        if any(b <= a for a, b in pairs):
+            raise ValueError(f'{self.name} slit edges must strictly increase: {edges}')
+        if (diff := pairs[-1][1] - pairs[0][0]) > 360.0:
+            raise ValueError(f'{self.name} spans {diff} degrees; which would overlap')
+        return pairs
+
+    def edge_array_identifier(self) -> str:
+        """When translated to McStas, the component inserts its edge values as an array
+        with this identifier into the instrument DECLARE block.
+
+        This allows the component instance definition and, optionally, the chopper-lib
+        wavelength/emission-time narrowing functions to reuse the same data.
+        """
+        return f"{self.name}edges"
+
+    def edge_array_values(self) -> list[float | int]:
+        return [angle for pair in self._window_pairs() for angle in pair]
+
+    @property
+    def speed(self):
+        from scipp import dot, vector
+        from ..spatial import __is_vector__
+        if not __is_vector__(self.velocity):
+            return self.velocity.to(unit='Hz')
+        # TODO verify the _input_ follows the NeXus convention (this is right.)
+        return dot(vector(value=[0, 0, -1.]), self.velocity).to(unit='Hz')
+
+    def beam_offset(self) -> Variable:
+        # follow corrected beam offset calculation in NXdisk_chopper.comp
+        from scipp import vector, scalar, sqrt
+        from scipp.spatial import rotations_from_rotvecs
+        turn = _zero_degrees() if self.zero_angle is None else self.zero_angle
+        if self.beam_angle is None:
+            turn = turn + self.beam_angle
+        half_width = self.width / 2.0 if self.width is not None else scalar(0., unit='m')
+        if half_width > self.radius:
+            raise ValueError(f"A disk of radius {self.radius} can not have a {self.width} wide aperture")
+        reach = sqrt(self.radius ** 2 - self.width ** 2)
+        height = reach if self.height is None else self.height
+        if height > reach:
+            raise ValueError(f"A disk of radius {self.radius}, with a {self.width} wide aperture, can not fit a {self.height} high aperture")
+        radial = (reach - height / 2.0) * vector([0, 1., 0])
+        # we must rotate [0, radial, 0] by the *opposite* of ABS_BEAM_ROT = [0, 0, -turn]
+        # since we want the vector from the beam position to the spindle position
+        rotation = rotations_from_rotvecs(vector([0, 0, 1.]) * turn)
+        return (rotation * radial).to(unit='m')
+
+    def __mccode_offset__(self) -> Variable:
+        return self.beam_offset()
+
 
 
 class FermiChopper(Chopper):
