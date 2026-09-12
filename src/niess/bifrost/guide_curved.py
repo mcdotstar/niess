@@ -161,7 +161,7 @@ def curved_guide_device_partial_dict(ref_p, ref_r, dev_name, dev_dict, table, pr
     return d, ref_p, ref_r
 
 
-def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_height) -> tuple[dict, Variable, Variable]:
+def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_width, bunker_chopper_height) -> tuple[dict, Variable, Variable]:
     """
     Parameter dictionary for the post-Pulse Shaping Chopper guides
 
@@ -350,11 +350,17 @@ def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_hei
     # `position` is the spindle and the beam crosses below it, so the disc centre
     # sits that far above the beam. One formula, shared with the chopper.
     beam_angle = scalar(180., unit='deg')
-    spindle = -disc_beam_offset(radius, bunker_chopper_height, beam_angle=beam_angle)
+    spindle = -disc_beam_offset(
+        radius=radius,
+        width=bunker_chopper_width,
+        height=bunker_chopper_height,
+        beam_angle=beam_angle
+    )
     p['frame_overlap_chopper_1'] = {
         'position': at_relative(last_p, last_r, device_gap/2 * z) + spindle,
         'orientation': last_r,
         'radius': radius,
+        'width': bunker_chopper_width,
         'height': bunker_chopper_height,
         'angle': scalar(38.26, unit='deg'),
         'frequency': scalar(14.0, unit='Hz'),
@@ -388,6 +394,7 @@ def curved_guide_parameters(guide_start_vec, guide_start_rot, bunker_chopper_hei
 
     foc = {
         'radius': radius,
+        'width': bunker_chopper_width,
         'height': bunker_chopper_height,
         'angle': scalar(52.01, unit='deg'),
         'frequency': scalar(14.0, unit='Hz'),

@@ -11,30 +11,41 @@ def _zero_degrees() -> Variable:
     return scalar(0.0, unit='deg')
 
 
-def disc_beam_offset(radius: Variable, height: Variable | None = None,
+def disc_beam_offset(radius: Variable,
+                     width: Variable | None = None,
+                     height: Variable | None = None,
                      zero_angle: Variable | None = None,
                      beam_angle: Variable | None = None) -> Variable:
     """Spindle to beam crossing, for a disc of this size with the beam at this angle.
 
-    The length is ``radius - height/2``, McStas' rule for centring the beam in a slit's
-    radial extent, with ``height`` standing in as ``radius`` when it is unset. The
-    direction is ``zero_angle + beam_angle`` counter-clockwise about +z from the local +y
-    axis, so the default of zero puts the beam at the top of the disc.
+    The spindle must be offset from the beam for the chopper to have any use.
+    The original McStas approach calculates the offset to ensure that the top of the
+    beam aperture is at the circumference of the disc. An improved calculation ensures
+    that the far corners of the aperture are on the disc circumference, and is
+    degenerate with the old approach in the case where the width is 0 (or unknown)
 
-    Shared with the calibration code, which has the opposite problem: it knows where the
-    beam runs and has to place the spindle. Having one formula rather than two is the
-    point -- the two disagreeing is what put every BIFROST disc on the wrong side of the
-    beam in the first place.
+    The distance from spindle to beam position is the disk reach minus half the
+    aperture height. The reach is the third side of the triangle with hypotenuse equal
+    to the disc radius and one side equal to half of hte aperture width.
+        sqrt(radius^2 - (width/2)^2) - height/2
+
+    The direction is ``zero_angle + beam_angle`` counter-clockwise about +z from
+    the local +y-axis, so the default of zero puts the beam at the top of the disc.
     """
+    from scipp import sqrt
     turn = _zero_degrees() if zero_angle is None else zero_angle
     if beam_angle is not None:
         turn = turn + beam_angle
-    radial = radius / 2 if height is None else radius - height / 2
-    rotation = rotations_from_rotvecs(
-        vector(value=[0., 0., turn.to(unit='deg').value], unit='deg'))
-    # metres regardless of what the calibration measured the disc in, since this is added
-    # to a position and handed to McCode
-    return (radial * (rotation * vector([0., 1., 0.]))).to(unit='m')
+    half_width = width / 2.0 if width is not None else scalar(0., unit=radius.unit)
+    if half_width > radius:
+        raise ValueError(f"Aperture width {2*half_width} too wide for disk with {radius=}")
+    reach = sqrt(radius ** 2 - half_width.to(unit=radius.unit)**2)
+    height = reach if height is None else height
+    if height > reach:
+        raise ValueError(f"Aperture width {2*half_width} and height {height} too large for disk with {radius=}")
+    radial = (reach - height.to(unit=reach.unit) / 2.0) * vector([0, 1.0, 0])
+    rotation = rotations_from_rotvecs(vector([0, 0, 1.]) * turn)
+    return (rotation * radial).to(unit='m')
 
 
 class Chopper(Component):
@@ -117,8 +128,13 @@ class DiscChopper(Chopper):
         as though it were geometry, and went stale the moment ``radius`` or ``height``
         was edited.
         """
-        return disc_beam_offset(self.radius, self.height,
-                                self.zero_angle, self.beam_angle)
+        return disc_beam_offset(
+            radius=self.radius,
+            # no width=self.width, because DiskChopper only uses the simple calculation
+            height=self.height,
+            zero_angle=self.zero_angle,
+            beam_angle= self.beam_angle
+        )
 
     def __mccode_offset__(self) -> Variable:
         return self.beam_offset()
@@ -496,8 +512,10 @@ class NXDiskChopper(Chopper):
 
     @classmethod
     def from_calibration(cls, cal: dict):
-        required = ('name', 'position', 'orientation', 'radius', 'windows', 'width', 'height')
-        name, position, orientation, radius, windows, width, height = (cal[k] for k in required)
+        required = ('name', 'position', 'orientation', 'radius')
+        name, position, orientation, radius = (cal[k] for k in required)
+        none_ok = ('windows', 'width', 'height')
+        windows, width, height = (cal.get(k) for k in none_ok)
         velocity = cal.get('velocity', cal.get('frequency'))
         if velocity is None:
             raise ValueError('velocity must be defined in calibration')
@@ -506,7 +524,7 @@ class NXDiskChopper(Chopper):
         beam_angle = cal.get('beam_angle', scalar(0.0, unit='deg'))
         park_angle = cal.get('park_angle', scalar(0.0, unit='deg'))
         if windows is None:
-            half = cal['angle'].to(unit='deg') / 2 * array(values=[-1, 1], dims='edges')
+            half = cal['angle'].to(unit='deg') / 2 * array(values=[-1, 1], dims=['edges'])
             windows = beam_angle.to(unit='deg') + half
         return cls(
             name=name, position=position, orientation=orientation,
@@ -524,13 +542,13 @@ class NXDiskChopper(Chopper):
             'nu': self.speed_parameter().name,
             'delay': self.delay_parameter().name,
             'park_angle': self.park_angle_parameter().name,
-            'zero_angle': self.zero_angle.to(unit='deg'),
-            'beam_angle': self.beam_angle.to(unit='deg'),
+            'zero_angle': self.zero_angle.to(unit='deg').value,
+            'beam_angle': self.beam_angle.to(unit='deg').value,
         }
         if self.width is not None:
-            params['width'] = self.width.to(unit='m').value
+            params['xwidth'] = self.width.to(unit='m').value
         if self.height is not None:
-            params['height'] = self.height.to(unit='m').value
+            params['yheight'] = self.height.to(unit='m').value
         return 'NXdisk_chopper', params
 
     def to_mccode(
@@ -547,14 +565,18 @@ class NXDiskChopper(Chopper):
         assembler.declare_array('double', self.edge_array_identifier(), self.edge_array_values())
         return super().to_mccode(assembler, at, rotate, insert_provenance_metadata)
 
+    def _parameter(self, name: str, value: Variable) -> InstrumentParameter:
+        unit = f'/"{value.unit}"' if value.unit is not None else ''
+        return InstrumentParameter.parse(f'{self.name}{name}{unit}={value.value}')
+
     def speed_parameter(self) -> InstrumentParameter:
-        return InstrumentParameter(f"{self.name}speed", "Hz", self.velocity.to(unit='Hz').value)
+        return self._parameter('speed', self.velocity.to(unit='Hz'))
 
     def delay_parameter(self) -> InstrumentParameter:
-        return InstrumentParameter(f"{self.name}delay", "s", self.delay.to(unit='s').value)
+        return self._parameter('delay', self.delay.to(unit='s'))
 
     def park_angle_parameter(self) -> InstrumentParameter:
-        return InstrumentParameter(f"{self.name}park_angle", "deg", self.park_angle.to(unit='deg').value)
+        return self._parameter('park_angle', self.park_angle.to(unit='deg'))
 
     def nexus_slit_edges(self) -> list[float|int]:
         pairs = sorted((a % 360.0, a % 360.0 + (b - a)) for a, b in self._window_pairs())
@@ -604,24 +626,14 @@ class NXDiskChopper(Chopper):
         return dot(vector(value=[0, 0, -1.]), self.velocity).to(unit='Hz')
 
     def beam_offset(self) -> Variable:
-        # follow corrected beam offset calculation in NXdisk_chopper.comp
-        from scipp import vector, scalar, sqrt
-        from scipp.spatial import rotations_from_rotvecs
-        turn = _zero_degrees() if self.zero_angle is None else self.zero_angle
-        if self.beam_angle is None:
-            turn = turn + self.beam_angle
-        half_width = self.width / 2.0 if self.width is not None else scalar(0., unit='m')
-        if half_width > self.radius:
-            raise ValueError(f"A disk of radius {self.radius} can not have a {self.width} wide aperture")
-        reach = sqrt(self.radius ** 2 - self.width ** 2)
-        height = reach if self.height is None else self.height
-        if height > reach:
-            raise ValueError(f"A disk of radius {self.radius}, with a {self.width} wide aperture, can not fit a {self.height} high aperture")
-        radial = (reach - height / 2.0) * vector([0, 1., 0])
-        # we must rotate [0, radial, 0] by the *opposite* of ABS_BEAM_ROT = [0, 0, -turn]
-        # since we want the vector from the beam position to the spindle position
-        rotation = rotations_from_rotvecs(vector([0, 0, 1.]) * turn)
-        return (rotation * radial).to(unit='m')
+        # follows corrected beam offset calculation in NXdisk_chopper.comp
+        return disc_beam_offset(
+            radius=self.radius,
+            width=self.width,
+            height=self.height,
+            zero_angle=self.zero_angle,
+            beam_angle=self.beam_angle
+        )
 
     def __mccode_offset__(self) -> Variable:
         return self.beam_offset()

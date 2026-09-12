@@ -146,17 +146,25 @@ def primary_parameters(use_tcs=False):
     p['compressor'] = primary_compressor_parameters(guide_zero, guide_zero_rot)
     nose = p['compressor']['nose']
 
+    bunker_chopper_width = scalar(30.41, unit='mm').to(unit='m') # ESS-5450567.2, may be larger than actual
     bunker_chopper_height = scalar(0.047514 + 2 * 0.00331, unit='m')  # 2 * margin of error for floor settling in bunker
+    hall_chopper_width = scalar(60.0, unit='mm').to(unit='m')  # shown in draft tender document, unclear if accurate
     hall_chopper_height = scalar(0.09 + 2 * 0.00423, unit='m')  # 2 * margin of error for piles settling under the long guide hall
     radius = 350 * mm
     # `position` is the spindle and the beam crosses the disc below it, so the disc
     # centre sits that far above the beam. One formula, shared with the chopper.
     beam_angle = scalar(180., unit='deg')
-    spindle = -disc_beam_offset(radius, bunker_chopper_height, beam_angle=beam_angle)
+    spindle = -disc_beam_offset(
+        radius=radius,
+        width=bunker_chopper_width,
+        height=bunker_chopper_height,
+        beam_angle=beam_angle
+    )
     p['pulse_shaping_chopper_1'] = {
         'position': at_relative(nose['end'], nose['orientation'], (0.0306 * m) * z) + spindle,
         'orientation': nose['orientation'],
         'radius': radius,
+        'width': bunker_chopper_width,
         'height': bunker_chopper_height,
         'angle': scalar(170., unit='deg'),
         'frequency': scalar(14., unit='Hz'),
@@ -167,6 +175,7 @@ def primary_parameters(use_tcs=False):
         'position': at_relative_dict(p['pulse_shaping_chopper_1'], (0.049 * m) * z),
         'orientation': p['pulse_shaping_chopper_1']['orientation'],
         'radius': radius,
+        'width': bunker_chopper_width,
         'height': bunker_chopper_height,
         'angle': scalar(170., unit='deg'),
         'frequency': scalar(14., unit='Hz'),
@@ -185,14 +194,14 @@ def primary_parameters(use_tcs=False):
     # Element 6 in the old McStas instrument is the curved section. It includes
     # the first and second frame overlap choppers and a copper-substrate 'collimation'
     # section which helps prevent streaming
-    p['curved'], rel_p, rel_r = curved_guide_parameters(rel_p, rel_r, bunker_chopper_height)
+    p['curved'], rel_p, rel_r = curved_guide_parameters(rel_p, rel_r, bunker_chopper_width, bunker_chopper_height)
 
     # Following the curved section is the expanding 'connector' section including
     # the bunker wall feed through. There is a monitor but no choppers here
     p['expanding'], rel_p, rel_r = expanding_guide_parameters(rel_p, rel_r)
 
     # The straight section includes the bandwidth choppers and a monitor
-    p['straight'], rel_p, rel_r = straight_guide_parameters(rel_p, rel_r, hall_chopper_height)
+    p['straight'], rel_p, rel_r = straight_guide_parameters(rel_p, rel_r, hall_chopper_width, hall_chopper_height)
 
     # The closing section focuses the beam and includes divergence limiting jaws
     p['closing'], rel_p, rel_r = closing_guide_parameters(rel_p, rel_r)

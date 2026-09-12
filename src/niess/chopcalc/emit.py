@@ -5,8 +5,8 @@ from textwrap import indent
 
 from .model import ChopperTrain, Export
 
-CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.0.0'
-CHOPPER_LIB_MINIMUM_VERSION = 40000
+CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.1.0'
+CHOPPER_LIB_MINIMUM_VERSION = 40100
 INCLUDE_MARKER = '%include "chopper-lib"'
 ARRAY_MARKER = 'chopcalc_choppers'
 INDEX_MARKER = 'chopcalc_i'
@@ -16,7 +16,7 @@ DECLARE_TEXT = f'''
 /* niess.chopcalc: chopper-lib, for narrowing the source wavelength band */
 {INCLUDE_MARKER}
 #if !defined(CHOPPER_LIB_VERSION) || CHOPPER_LIB_VERSION < {CHOPPER_LIB_MINIMUM_VERSION}
-#error "niess.chopcalc describes discs by their slit edges; chopper-lib 4.0.0 or newer is required"
+#error "niess.chopcalc describes discs by their openings; chopper-lib 4.1.0 or newer is required"
 #endif
 '''
 
@@ -66,30 +66,30 @@ def initialize_text(train: ChopperTrain) -> str:
     source = train.source
     count = len(train.choppers)
 
-    # A row carries a pointer to its slit edges, so each gets an array of its own,
-    # allocated where the row is written. Checking them all at once afterwards keeps the
-    # table above readable and the boilerplate the same size however many discs there are.
-    rows = '\n'.join(
-        f'  {ARRAY_MARKER}[{i}] = (chopper_parameters){{'
-        f'{c.speed}, {c.delay}, {c.beam}, {len(c.edges)},\n'
-        f'    (double *) calloc({len(c.edges)}, sizeof(double)), {c.path}}};'
-        f' /* {c.name}, {len(c.edges) // 2} opening'
-        f'{"" if len(c.edges) == 2 else "s"}'
-        f'{"" if c.note is None else " -- " + c.note} */'
+    # A row carries a pointer to its openings, so each gets an array of its own, allocated
+    # where the row is written. Checking them all at once afterwards keeps the table above
+    # readable and the boilerplate the same size however many discs there are.
+    rows = []
+    for i, c in enumerate(train.choppers):
+        row = f'  {ARRAY_MARKER}[{i}] = (chopper_parameters)' + '{'
+        row += f'{c.speed}, {c.delay}, {c.beam}, {c.edge_count}, '
+        row += (c.edges if isinstance(c.edges, str) else f' (double *) calloc({c.edge_count}, sizeof(double))')
+        row += f', {c.path}, {c.aperture}' + '};'
+        row += f' /* {c.name}, {c.edge_count/2} opening {"" if c.edge_count<3 else "s"} {"" if c.note is None else " -- " + c.note} */'
+        rows.append(row)
+
+    rows = '\n'.join(rows)
+
+    openings = '\n'.join(
+        f'  {ARRAY_MARKER}[{i}].edges[{w}] = {edge};'
         for i, c in enumerate(train.choppers)
-    )
-    # written out index by index: the values differ per edge, so a loop would need a
-    # table to read from, and the table would be this
-    edges = '\n'.join(
-        f'  {ARRAY_MARKER}[{i}].edges[{e}] = {angle};'
-        for i, c in enumerate(train.choppers)
-        for e, angle in enumerate(c.edges)
+        for w, edge in enumerate(c.edges) if isinstance(c.edges, tuple)
     )
 
     if train.export is None:
         handover = f'''
   /* nothing else reads the train, so give it back before leaving */
-{_release(ARRAY_MARKER, str(count))}'''
+{_release(ARRAY_MARKER, tuple(i for i, c in enumerate(train.choppers) if isinstance(c.edges, tuple)))}'''
     else:
         handover = f'''
   /* hand the train over; FINALLY releases it */
@@ -165,17 +165,18 @@ def initialize_text(train: ChopperTrain) -> str:
     return body
 
 
-def _release(name: str, count: str) -> str:
+def _release(name: str, choppers: tuple[int, ...]) -> str:
     """Give back a train built by :func:`initialize_text`.
 
     Each row owns its slit edges, so those go first: freeing the row array alone loses
     every edge array with it. Emitted at the end of INITIALIZE when nothing else reads the
     train, and in FINALLY when something does -- the same lines, in one place or the other.
     """
-    return f'''  for (int {INDEX_MARKER} = 0; {INDEX_MARKER} < {count}; ++{INDEX_MARKER}) {{
-    if ({name}[{INDEX_MARKER}].edges != NULL) free({name}[{INDEX_MARKER}].edges);
-  }}
-  free({name});'''
+    lines = '\n'.join(
+        f'if ({name}[{i}].edges != NULL) free({name}[{i}].edges;' for i in choppers
+    )
+    return f'''{lines}
+    free({name});'''
 
 
 def finalize_text(export: Export) -> str:
@@ -183,7 +184,7 @@ def finalize_text(export: Export) -> str:
     return f'''
 /* niess.chopcalc: release the published chopper train */
 if ({export.choppers} != NULL) {{
-{_release(export.choppers, export.count)}
+{_release(export.choppers, export.values)}
   {export.choppers} = NULL;
   {export.count} = 0;
 }}
