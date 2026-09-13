@@ -129,7 +129,7 @@ def initialize_text(train: ChopperTrain) -> str:
       exit(-1);
     }}
   }}
-{edges}
+{openings}
   double chopcalc_latest = {source.latest_emission}; /* {source.latest_emission_note}, s */
   double chopcalc_min = {source.lambda_min}, chopcalc_max = {source.lambda_max};
   unsigned chopcalc_bands = chopper_wavelength_limits(
