@@ -181,6 +181,9 @@ cython_debug/
 *.ipynb
 
 .idea/
-.idea/modules.xml
 uv.lock
-.idea/*
+.idea/inspectionProfiles/Project_Default.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
