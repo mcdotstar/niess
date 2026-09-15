@@ -183,3 +183,4 @@ cython_debug/
 .idea/
 .idea/modules.xml
 uv.lock
+.idea/*
