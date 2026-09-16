@@ -156,6 +156,34 @@ accepted but not yet used in the emitted component.
 it can be moved in and out of the beam at run time. `RadialFilterCollimator` needs the
 `mcdotstar/mcstas-radial-filter-collimator@main` component registry.
 
+## Unmodelled components
+
+| niess class | emits | calibration keys |
+| --- | --- | --- |
+| `Opaque` | whatever it was given | `mccode_type`, `mccode_parameters`, and optionally `when`, `group`, `extend`, `split`, `removable` |
+
+A McStas component niess has no class for, carried through verbatim. It holds a component
+type name and the arguments to pass it, and emits exactly that.
+
+It exists for [converting a `.instr`](../how-to/translate-an-instr.md), where most
+components of a real instrument have no niess class. Without somewhere to put them a
+converter has to drop them or guess, and the default below makes the guess silently — so
+`Opaque` is the alternative that says what it is. Its role is `unmodelled-component`
+rather than `physical-component`, which is what lets a target dispatch on "niess does not
+know what this is".
+
+It is a placeholder, not a shortcut. Emitting McStas is all it can do: it carries no
+dimensions, so there is nothing for `niess.brep` to draw and nothing for `niess.nexus` to
+write beyond a placement. Counting them in a converted module measures how much of the
+instrument is still McStas-shaped. A component that is genuinely part of an instrument
+niess models needs a class — three methods, described in
+[Writing a component](../how-to/new-instrument-submodule.md#writing-a-component).
+
+Note that `mccode_antlr` writes only `when`, `group` and `extend` back out. `SPLIT` and
+`REMOVABLE` are set on the emitted instance and are visible to anything reading the
+`Instr` object, but `Instance.to_file` prints neither, so they do not survive being
+written as `.instr` text.
+
 ## Declared but not implemented
 
 !!! warning "These emit an `Arm`"

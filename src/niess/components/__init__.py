@@ -13,6 +13,7 @@ from .filter import (
 from .guide import EllipticGuide, TaperedGuide, StraightGuide, Guide, StraightGuides, TaperedGuides
 from .moderator import Moderator
 from .monitors import FissionChamber, He3Monitor, BeamCurrentMonitor, GEM2D
+from .opaque import Opaque
 from .source import ESSource
 from .section import Section
 
@@ -54,6 +55,7 @@ __all__ = [
     'He3Monitor',
     'BeamCurrentMonitor',
     'GEM2D',
+    'Opaque',
     'ESSource',
     'Section',
 ]
