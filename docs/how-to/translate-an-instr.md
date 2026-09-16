@@ -1,9 +1,16 @@
 # Translate a McStas `.instr`
 
-You have a working McStas model and want it as a `niess.{instrument}` submodule. This
-guide walks through
-[`teaching_hand_written.instr`](https://github.com/mcdotstar/niess/blob/main/docs/examples/teaching_hand_written.instr) —
-a plain seven-component instrument — and ends at `niess.teaching`.
+You have a working McStas model and want it as a `niess.{instrument}` submodule.
+`niess-scaffold` does the mechanical part; this guide is about the part it cannot do.
+
+```console
+$ niess-scaffold my_instrument.instr -o src/niess --origin sample
+```
+
+That reads the instrument, resolves every placement, maps the components it recognises
+onto niess classes, wraps the rest in [`Opaque`](../reference/components.md#unmodelled-components),
+checks that everything still lands where the `.instr` puts it, and writes a package you
+own and edit.
 
 ## What you gain, and what it costs
 
@@ -16,104 +23,153 @@ The cost is real. The `.instr` file stops being the source of truth. If someone 
 it directly afterwards, the change is lost the next time the module is built. Decide
 that up front.
 
-## 1. Inventory the original
+## What the tool does not do
 
-Read the instrument rather than the file — placements are already resolved for you:
+**It converts a small fraction of a real instrument.** The mapping is deliberately
+limited to cases where the McStas component type *determines* the niess class. For
+`ESS_IN5_reprate` that is 8 components of 50; the other 42 become `Opaque`. This is the
+honest state of niess's component library rather than a limitation of the converter, and
+the conversion report is a prioritised list of what is missing.
+
+**It cannot recognise a composite.** BIFROST's 45 analyzers are one
+`Monochromator_Rowland` each in the emitted file, and nothing can reconstruct
+`Analyzer(blades=...)` from that. Recognising that several components are one device is
+the work you are here to do.
+
+**It cannot group.** You get one flat `Section`, because which components belong together
+is a statement about the instrument.
+
+**It cannot recover units or intent.** Everything is metres and degrees, because that is
+all a `.instr` carries.
+
+## What you get
+
+```
+src/niess/my_instrument/
+    __init__.py         the conversion report, as the module docstring
+    structure.py        a Section: every component, typed, in beam order
+    parameters.py       the calibration, chained the way the .instr chained it
+    instrument.py       instrument() -> Instrument
+    test_placement.py   the check that everything is still where it was
+    my_instrument.instr the file it came from
+```
+
+## Then do this, roughly in order
+
+### 1. Replace `Opaque` components, most frequent first
+
+Each `Opaque` is a component that emits McStas faithfully and tells no other target
+anything. Replacing one with a real niess class is what makes NeXus and CAD able to say
+something about it. Work down the report:
+
+```
+Still `Opaque`, most frequent first -- this is the to-do list:
+    12  L_monitor
+     7  PSD_monitor
+     6  Guide
+```
+
+Look for a fit in [the component reference](../reference/components.md). If nothing fits,
+writing a component is three methods — see
+[Writing a component](new-instrument-submodule.md#writing-a-component). If the type is one
+a *general* tool should always map the same way, add a recipe to
+`niess/scaffold/recipes.py` instead, and every future conversion gets it.
+
+### 2. Group into sections, in beam order
+
+Contiguous components that do one job become a `Section`, which emits as a `%include`
+rather than more lines in the top-level `TRACE`. Section *field* order must be beam order,
+because `Section.from_calibration` constructs positionally; the calibration dictionary is
+looked up by name, so its key order is yours to choose.
+
+### 3. Re-express the numbers in the units they were measured in
+
+`scalar(1.5, unit='m')` becomes `1500 * mm` if that is what the drawing says. Conversion
+happens exactly once, at the `__mccode__` boundary, so nothing downstream cares.
+
+### 4. Decide what should be run-time again
+
+The report names the instrument parameters that drove geometry:
+
+```
+Instrument parameters that drove geometry and are now constants.
+The geometry no longer follows them:
+  GUI_start = 2
+  TT = 50
+```
+
+These are written into `parameters.py` as named constants, so the relationships the author
+expressed survive as Python — a component placed `AT (0, 0, GUI_start)` still reads
+`vector([0.0, 0.0, GUI_start], unit='m')`. What is lost is that they are *knobs*. A
+detector tank angle really should be run-time: make it a `Motor` on a `Mount`
+(see [`niess.bifrost`](https://github.com/mcdotstar/niess/blob/main/src/niess/bifrost/bifrost.py)'s
+`a3`/`a4`). A guide start distance really is fixed geometry: leave it a constant.
+
+## Keep the test
+
+`test_placement.py` asserts that every component in the original `.instr` is at the same
+absolute position in what the module emits. It is the only thing that will tell you if
+step 1, 2 or 3 moved something by a millimetre. It is *not* a text diff, and should not
+become one:
+
+> Do not diff the generated text against the original — it will never match, and should
+> not: different names, different ordering, added metadata.
+
+!!! warning "Two traps worth knowing about, because the tool hit both"
+
+    **A component's own reference point.** A niess `DiscChopper`'s `position` is its
+    *spindle*; the emitted `AT` is where the beam crosses the disc. So the generated
+    `parameters.py` keeps two things apart: `at[...]` is where the `.instr` put each
+    component and is what the chain is built from, while a chopper's `position` is
+    `at[...]` plus the offset to its spindle. Chaining off the spindle instead would carry
+    that offset into every component downstream.
+
+    **`Instr.resolve_orientations()` is not a safe reference.** It loses the
+    degrees-to-radians conversion on a *symbolic* rotation angle, so an instrument placed
+    through `ROTATED (0, TT, 0)` resolves to `sin(TT)` with `TT` in degrees. `niess.scaffold`
+    measures both sides with its own `placements` for that reason, and
+    `check_against_mccode` refuses to use McStas as a reference where it cannot be trusted.
+
+## Doing it by hand
+
+Nothing here requires the CLI. `niess.scaffold` is an ordinary module:
+
+```python
+from niess.io.mccode import load_instr
+from niess.scaffold import convert, summary, to_instrument, write
+
+instr = load_instr('my_instrument.instr')
+conversion = convert(instr, origin='sample')
+print(summary(conversion))
+
+instrument = to_instrument(conversion)   # the Instrument, with no source generated
+write(conversion, 'src/niess')           # or the module
+```
+
+Reading an instrument without converting it at all is one call, which is how to take
+stock before deciding whether to convert at all:
 
 ```python
 --8<-- "inventory_instr.py:inventory"
 ```
 
-For the teaching instrument that prints seven components and four run-time parameters.
-Write down, for each component: its McStas type, what it is placed relative to, and
-which of its arguments are instrument parameters rather than numbers. Those three
-things determine everything that follows.
-
-## 2. Map each component onto a niess class
-
-Work down [the component reference](../reference/components.md).
-
-| in the `.instr` | niess class |
-| --- | --- |
-| `ESS_butterfly` | `ESSource` |
-| `Guide_gravity` | `StraightGuide` (or `TaperedGuide`, `EllipticGuide`) |
-| `DiskChopper` | `DiscChopper` |
-| `Slit` with run-time `xmin`/`xmax` | `Jaw` |
-| `TOF_monitor` | a `FrameMonitor` subclass — `FissionChamber` here |
-| `Arm` | `Component` |
-
-Two things to notice while mapping:
-
-- **The jaw's opening was already run-time.** `xmin = jaw_l` in the original becomes
-  free: `Jaw` declares `{name}_l` and `{name}_r` itself, so you delete those instrument
-  parameters from your list rather than re-declaring them. The same goes for the
-  chopper's `nu` and `delay`.
-- **Nothing may fit.** If so, that component needs a `Component` subclass — three
-  methods, described in
-  [Writing a component](new-instrument-submodule.md#writing-a-component).
-
-## 3. Group into sections, in beam order
-
-Contiguous components that do one job become a `Section`. Here the two guide units
-become `Guides`, and everything becomes `Primary`. Section *field* order must be beam
-order, because `Section.from_calibration` constructs positionally; the calibration
-dictionary is looked up by name, so its key order is yours to choose.
-
-The declaration and the rules are covered in
-[Build a new instrument submodule](new-instrument-submodule.md#1-declare-the-structure);
-the rest of this page is the part specific to translating.
-
-## 4. Turn the `AT` chain into a calibration
-
-This is the actual translation work. Each `AT (0, 0, d) RELATIVE previous` becomes an
-`at_relative(ref_p, ref_r, d * z)` call, and each section builder returns the reference
-for the next:
-
-| `.instr` | `parameters.py` |
-| --- | --- |
-| `AT (0, 0, 1.5) RELATIVE source` | `at_relative(ref_p, ref_r, 1500 * mm * z)` |
-| `AT (0, 0, 2.01) RELATIVE unit_1` | chained from the previous unit's exit |
-| `ROTATED (0, 3, 0) RELATIVE prev` | `mccode_quaternion(0, 3, 0)` |
-
-Numbers keep the units the drawing uses — `1500 * mm`, `scalar(170.0, unit='deg')` —
-and are converted exactly once, inside `__mccode__`.
-
-!!! warning "Watch for offsets in the original's placement chain"
-
-    The hand-written file places the chopper at `(0, -0.35, 3.25)`: the disc *centre*
-    sits below the beam. In niess that is the chopper's `offset`, and the beam-axis
-    position stays on the axis, so everything downstream chains from the axis rather
-    than inheriting the drop. Translating the `AT` lines literally, component by
-    component, would carry `-0.35` into every component after the chopper.
-
-    This is exactly the class of error step 5 catches.
-
-## 5. Prove it
-
-Do not diff the generated text against the original — it will never match, and should
-not: different names, different ordering, added metadata. Compare where the components
-actually *are*:
+And a submodule you wrote *by hand* deserves the same check the generated
+`test_placement.py` does, against the file it replaces:
 
 ```python
 --8<-- "verify_translation.py:verify"
 ```
 
-`resolve_orientations()` gives each component's absolute placement, so this asserts the
-one thing that must be true: the translation puts everything in the same place as the
-instrument it replaces. This example runs in niess's own test suite, which is how the
-guide stays honest.
-
-## 6. Keep the original
-
-Commit the `.instr` you translated from as a test fixture, and keep the comparison in
-step 5 as a test. It is the only thing that will tell you if a later refactor moves a
-component by a millimetre.
+`resolve_orientations()` is used there rather than `niess.scaffold`'s own `placements`
+because the teaching instrument has no rotations at all. For anything that does, use
+`niess.scaffold.verify.compare`, for the reason in the warning above.
 
 ## Checklist
 
-- [ ] Every `COMPONENT` line mapped to a niess class, or a new subclass written
-- [ ] Instrument parameters that components generate themselves removed from your list
-- [ ] `AT`/`ROTATED` chains expressed with `at_relative` / `mccode_quaternion`
-- [ ] Offsets modelled as `offset`, not folded into downstream positions
-- [ ] Absolute placements verified against the original
+- [ ] Conversion report read, and the `Opaque` list understood as the work queue
+- [ ] Every `Opaque` either replaced, or deliberately left
+- [ ] Components grouped into `Section`s in beam order
+- [ ] Numbers re-expressed in the units of the drawing
+- [ ] Frozen parameters either promoted back to run-time or accepted as fixed
+- [ ] `test_placement.py` still passing, and committed
 - [ ] The original `.instr` kept as a fixture
