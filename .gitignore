@@ -177,6 +177,8 @@ cython_debug/
 # ...but the documentation's worked examples and fixtures are source, not output
 !docs/examples/*.instr
 !docs/examples/*.json
+# and so are the instruments the test suite converts
+!tests/data/*.instr
 *.xml
 *.ipynb
 
