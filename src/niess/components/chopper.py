@@ -590,6 +590,13 @@ class NXDiskChopper(Chopper):
 
         E.g., McStas does not care if the windows are all positive but NeXus does,
         but both need strictly increasing edge values spanning less than 360. degrees.
+
+        The edges are *two per opening*, so the pairs are taken every other edge --
+        ``[10, 30, 100, 140]`` is two openings, ``(10, 30)`` and ``(100, 140)``. Zipping
+        consecutive edges instead reads the gap between two openings as an opening of its
+        own, which turns a three-slit disc into a five-slit one that passes nearly
+        everything. That is invisible for a single opening, where the two pairings agree,
+        and every BIFROST disc has one -- so nothing caught it.
         """
         edges = [float(v) for v in self.windows.to(unit='deg').values]
         if len(edges) < 2 or len(edges) % 2:
@@ -597,7 +604,7 @@ class NXDiskChopper(Chopper):
                 f'{self.name} has {len(edges)} slit edges;'
                 'an even number >=2 is required.'
             )
-        pairs = sorted([(a, b) for a, b in zip(edges[:-1], edges[1:])])
+        pairs = sorted((edges[i], edges[i + 1]) for i in range(0, len(edges), 2))
         if any(b <= a for a, b in pairs):
             raise ValueError(f'{self.name} slit edges must strictly increase: {edges}')
         if (diff := pairs[-1][1] - pairs[0][0]) > 360.0:
