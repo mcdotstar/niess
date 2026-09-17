@@ -107,7 +107,6 @@ def test_a_multi_opening_disc_is_one_disc(multi_opening):
     assert get_attribute(disc, 'NX_class') == 'NXdisk_chopper'
     assert value(disc, 'slits') == 3
     assert value(disc, 'slit_edges') == [10., 30., 100., 140., 350., 370.]
-    assert value(disc, 'zero_position') == 15.0
     assert value(disc, 'beam_position') == 90.0
 
 
@@ -370,22 +369,6 @@ def test_every_log_says_where_its_values_come_from(bifrost):
                 f'{name}: {node.get("name")} fills itself with {modules}'
 
 
-def test_a_disc_writes_the_field_name_the_format_asks_for(bifrost):
-    """`zero_position`, not `top_dead_center`.
-
-    A calibration may still be *given* `top_dead_center` -- that is an input alias for
-    `zero_angle` and `test_the_nexus_names_are_accepted` covers it. This is the written
-    field, and the two are deliberately allowed to differ.
-    """
-    from .baseline import _walk_nodes, nexus_structures
-
-    for name, structure in nexus_structures().items():
-        for node in _walk_nodes(structure):
-            config = node.get('config') or {}
-            assert config.get('name') != 'top_dead_center', \
-                f'{name}: a disc still writes top_dead_center'
-
-
 def test_no_dataset_still_carries_the_deprecated_key(bifrost):
     """The rule itself, asserted on the output rather than on the diff.
 
@@ -429,8 +412,10 @@ def test_a_driven_edge_is_a_positioner(teaching):
         driven = find_child(jaw, edge)
         assert get_attribute(driven, 'NX_class') == 'NXpositioner', edge
         assert get_attribute(find_child(driven, 'value'), 'NX_class') == 'NXlog', edge
-    # its height is fixed, so it stays a number
-    assert find_child(jaw, 'y_gap')['config']['values'] > 0
+    # Only the driven edges are recorded. `x_gap`/`y_gap` are `NXslit` fields and this is
+    # an `NXaperture`, so the jaw's fixed height is deliberately not in the file -- see
+    # the note in `niess.components.slitbank`.
+    assert find_child(jaw, 'y_gap') is None
 
 
 def test_a_monitor_carries_its_stream(teaching):

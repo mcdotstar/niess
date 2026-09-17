@@ -41,12 +41,6 @@ class Aperture(Component):
         """The run-time knobs its edges are set by, keyed by which edge."""
         return {k: InstrumentParameter.parse(v) for k, v in self.edge_strings().items()}
 
-    # def __mccode_extra__(self) -> dict[str, float]:
-    #     return {
-    #         'width': self.width.to(unit='m').value,
-    #         'height': self.height.to(unit='m').value,
-    #     }
-
     def __mccode__(self):
         edges = self.edge_parameters()
         params = {}
