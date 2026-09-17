@@ -30,8 +30,12 @@ def main(outdir: Path) -> None:
     # from the beam, negated -- so the survey stays a survey and the geometry stays in
     # one place.
     chopper = calibration['chopper']
+    # By keyword, not by position: `disc_beam_offset` takes `width` second now, so
+    # passing `height` positionally silently binds it to the width and leaves the height
+    # defaulting to the disc's reach -- which halves the offset rather than erroring.
     calibration['chopper']['position'] -= disc_beam_offset(
-        chopper['radius'], chopper['height'], beam_angle=chopper['beam_angle'])
+        radius=chopper['radius'], height=chopper['height'],
+        beam_angle=chopper['beam_angle'])
     for name, z in (('unit_1', 1.5), ('unit_2', 3.51)):
         calibration['guides'][name]['position'] = vector([0, 0, z], unit='m')
         calibration['guides'][name]['orientation'] = upright

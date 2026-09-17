@@ -46,7 +46,7 @@ def main(outdir: Path) -> None:
     text = str(assembler.instrument)
     # the library, and the guard that stops an older one being used silently
     assert '%include "chopper-lib"' in text
-    assert 'CHOPPER_LIB_VERSION < 40000' in text
+    assert 'CHOPPER_LIB_VERSION < 40201' in text
     # the narrowing writes through the source's own parameters
     assert '&source_lambda_min, &source_lambda_max' in text
     # and it is in the instrument's INITIALIZE, which runs before every component's

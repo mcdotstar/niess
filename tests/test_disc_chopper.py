@@ -405,12 +405,12 @@ def test_every_bifrost_chopper_lands_on_the_beam():
     the beam and ran them through the top -- a mirror image of the real instrument.
     """
     from niess.bifrost import Primary
-    from niess.components import DiscChopper as Disc
+    from niess.components import DISC_CHOPPERS
 
     def discs(section, prefix=''):
         for name, kind in section.items():
             member = getattr(section, name)
-            if isinstance(member, Disc):
+            if isinstance(member, DISC_CHOPPERS):
                 yield f'{prefix}{name}', member
             elif hasattr(member, 'items'):
                 yield from discs(member, f'{prefix}{name}.')
@@ -431,14 +431,21 @@ def test_bifrost_no_longer_says_its_offsets():
     Each of BIFROST's six discs used to carry `offset` as a hand-written
     `-(radius - height/2) * y`, repeated across three files and agreeing with the angles
     only by luck. `beam_angle = 180` says the same thing once.
+
+    The radial distance is no longer `radius - height/2`. That centred the beam in the
+    slit's radial extent but put the aperture's far *corners* off the disc; the reach is
+    the chord `sqrt(radius^2 - (width/2)^2)`, so an aperture of finite width sits slightly
+    closer to the spindle. It is degenerate with the old rule at zero width, and the
+    shift goes as the aperture: 0.330 mm for BIFROST's four 30.4 mm discs, 1.288 mm for
+    its two 60 mm bandwidth discs.
     """
     from niess.bifrost import Primary
-    from niess.components import DiscChopper as Disc
+    from niess.components import DISC_CHOPPERS
 
     def discs(section):
         for name, kind in section.items():
             member = getattr(section, name)
-            if isinstance(member, Disc):
+            if isinstance(member, DISC_CHOPPERS):
                 yield member
             elif hasattr(member, 'items'):
                 yield from discs(member)
@@ -446,6 +453,10 @@ def test_bifrost_no_longer_says_its_offsets():
     found = list(discs(Primary.from_calibration()))
     assert len(found) == 6
     for disc in found:
-        radial = disc.radius - disc.height / 2
+        from scipp import sqrt, scalar
+        radius = disc.radius.to(unit='m')
+        half_width = ((disc.width / 2).to(unit='m') if disc.width is not None
+                      else scalar(0.0, unit='m'))
+        radial = sqrt(radius ** 2 - half_width ** 2) - disc.height.to(unit='m') / 2
         assert disc.beam_offset().to(unit='m').value == pytest.approx(
-            [0.0, -radial.to(unit='m').value, 0.0], abs=1e-12)
+            [0.0, -radial.value, 0.0], abs=1e-12)

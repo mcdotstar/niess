@@ -12,6 +12,7 @@ def _zero_degrees() -> Variable:
 
 
 def disc_beam_offset(radius: Variable,
+                     *,
                      width: Variable | None = None,
                      height: Variable | None = None,
                      zero_angle: Variable | None = None,
@@ -31,6 +32,12 @@ def disc_beam_offset(radius: Variable,
 
     The direction is ``zero_angle + beam_angle`` counter-clockwise about +z from
     the local +y-axis, so the default of zero puts the beam at the top of the disc.
+
+    Everything after ``radius`` is keyword-only. ``width`` was inserted ahead of
+    ``height`` when the chord calculation arrived, so a caller passing two positional
+    arguments went on working and silently meant something else -- the height became the
+    width and the height defaulted to the reach, halving the offset. There is no reading
+    of a bare second argument that is safe, so there is no bare second argument.
     """
     from scipp import sqrt
     turn = _zero_degrees() if zero_angle is None else zero_angle
@@ -56,6 +63,134 @@ class Chopper(Component):
     windows: Variable
     width: Variable  # the path width
     height: Variable  # the path height
+
+    #: The knob suffix a parked disc's angle is set by. `NXdisk_chopper` names the field
+    #: `park_angle` and declares a parameter for it; the McStas `DiskChopper` route
+    #: predates that and spells it `park`. Both reach a forwarder as a PV name, so
+    #: neither can be quietly renamed here.
+    _park_suffix = 'park'
+
+    def _parameter(self, suffix: str, value: Variable) -> InstrumentParameter:
+        """One run-time knob of this chopper, named for it and carrying its unit."""
+        unit = f'/"{value.unit}"' if value.unit is not None else ''
+        return InstrumentParameter.parse(f'{self.name}{suffix}{unit}={value.value}')
+
+    def speed_parameter(self) -> InstrumentParameter:
+        """The run-time knob this disc's rotation speed is set by.
+
+        Named here rather than spelled out at each use: it appears in the emitted
+        component's parameters, in the generated C that offsets each opening, and in the
+        NXlog a NeXus file links to for the value. Three places is enough for them to
+        drift.
+        """
+        return self._parameter('speed', self.speed)
+
+    def delay_parameter(self) -> InstrumentParameter:
+        """The run-time knob saying when this disc's reference opening is at the beam."""
+        return self._parameter('delay', self.delay.to(unit='s'))
+
+    def park_parameter(self) -> InstrumentParameter:
+        """The run-time knob saying where a parked disc is standing.
+
+        A disc that is not turning still blocks or passes the beam, depending on whether
+        an opening happens to be in front of it -- which McStas' own ``DiskChopper``
+        cannot express, because a zero frequency there becomes ``omega = 1e-15`` and the
+        disc falls permanently open rather than stopping somewhere.
+
+        A chopper that does not model where it parks reports zero rather than refusing:
+        the knob still needs a name, because a NeXus file links a `park_angle` log to it
+        either way.
+        """
+        # An explicit None check, not `or`: the truth value of a scipp variable with a
+        # unit is undefined, so `park_angle or default` raises for a disc that has one.
+        parked = getattr(self, 'park_angle', None)
+        if parked is None:
+            parked = _zero_degrees()
+        return self._parameter(self._park_suffix, parked.to(unit='deg'))
+
+    def __niess_pv_root__(self, key: str) -> str | None:
+        """The chopper controller driving this disc, if one is declared.
+
+        ``key`` is ignored: unlike an aperture, whose edges are separately driven axes,
+        a disc has one controller and every one of its eight logs hangs off it.
+        """
+        return self.pv_root
+
+    def group_name(self) -> str:
+        """The McStas GROUP the emitted openings share, when there is more than one.
+
+        Instance names are unique within an instrument, so deriving the group from this
+        disc's name makes it unique too.
+        """
+        return f'{self.name}_group'
+
+    def nexus_slit_edges(self) -> list[float]:
+        """This disc's slit edges as ``NXdisk_chopper`` asks for them.
+
+        The standard says: "Angle of each edge of every slit from the position of the
+        top-dead-center timestamp sensor, anticlockwise when facing away from the source. The
+        first edge must be the opening edge of a slit, thus the last edge may have an angle
+        greater than 360 degrees." So: positive, strictly increasing, opening edge first, and
+        only the *final* edge past 360 -- which happens exactly when the last slit crosses the
+        mark.
+
+        ``DiscChopper`` is deliberately looser, because a slit across the mark reads better as
+        ``[-85, 85]`` than as ``[275, 445]`` and one may be written a turn late. Getting from
+        there to here is not a shift of the whole list: the wrap belongs to *one* slit, and
+        adding 360 to every edge carries the slits that were already in range out past it --
+        ``[-10, 10, 60, 90]`` would become ``[350, 370, 420, 450]``, whose third edge is an
+        opening past 360. What is needed is to rotate which slit comes first.
+
+        So each slit's *opening* edge moves into ``[0, 360)`` carrying its width, and the
+        slits are ordered by it. The slit containing the mark is the only one that can wrap,
+        and openings that do not overlap force it to sort last, so "only the final edge
+        exceeds 360" falls out rather than being imposed.
+        """
+        edges = [angle for opening in self.slits() for angle in opening]
+        if not edges:
+            return []
+        # `%` on a negative float gives the positive residue in Python, which is what this
+        # wants -- not math.fmod, which keeps the sign of the operand.
+        slits = sorted((opening % 360.0, opening % 360.0 + (closing - opening))
+                       for opening, closing in zip(edges[::2], edges[1::2]))
+        ordered = [edge for slit in slits for edge in slit]
+
+        if any(b <= a for a, b in zip(ordered, ordered[1:])) \
+                or any(not 0.0 <= edge < 360.0 for edge in ordered[:-1]):
+            raise ValueError(
+                f'slit edges {edges} cannot be written as NXdisk_chopper wants them: '
+                f'{ordered} is not increasing with only its last edge past 360 degrees. '
+                f'Openings that overlap each other do this, and a disc cannot have them.'
+            )
+        return ordered
+
+    def slits(self) -> list[tuple[float, float]]:
+        """The ``(opening, closing)`` edge pair of each opening, in degrees from the mark.
+
+        Validates what the pairs have to satisfy to be openings of one disc: an even
+        number of strictly increasing edges spanning no more than a revolution. They are
+        not required to be positive -- an opening centred on a beam at ``beam_angle = 0``
+        straddles the mark, and writing it as ``[-85, 85]`` says so more plainly than
+        ``[275, 445]``. ``nexus_slit_edges`` puts them in the order ``NXdisk_chopper``
+        asks for, which is where that convention actually applies.
+        """
+        edges = [float(v) for v in self.windows.to(unit='deg').values]
+        if len(edges) < 2 or len(edges) % 2:
+            raise ValueError(
+                f'{self.name} has {len(edges)} slit edges; an even number of at least '
+                'two is required, two per opening'
+            )
+        if any(b <= a for a, b in zip(edges, edges[1:])):
+            raise ValueError(f'{self.name} slit edges must strictly increase: {edges}')
+        if edges[-1] - edges[0] > 360.0:
+            # Exactly 360 is the limiting case: the last opening closes precisely where
+            # the first one opens. Beyond that they would overlap themselves.
+            raise ValueError(
+                f'{self.name} spans {edges[-1] - edges[0]} degrees; the openings would '
+                'overlap themselves'
+            )
+        return [(edges[i], edges[i + 1]) for i in range(0, len(edges), 2)]
+
 
 
 class DiscChopper(Chopper):
@@ -206,73 +341,6 @@ class DiscChopper(Chopper):
             tdc_channel=cal.get('tdc_channel', '00-TS-I'),
         )
 
-    def nexus_slit_edges(self) -> list[float]:
-        """This disc's slit edges as ``NXdisk_chopper`` asks for them.
-
-        The standard says: "Angle of each edge of every slit from the position of the
-        top-dead-center timestamp sensor, anticlockwise when facing away from the source. The
-        first edge must be the opening edge of a slit, thus the last edge may have an angle
-        greater than 360 degrees." So: positive, strictly increasing, opening edge first, and
-        only the *final* edge past 360 -- which happens exactly when the last slit crosses the
-        mark.
-
-        ``DiscChopper`` is deliberately looser, because a slit across the mark reads better as
-        ``[-85, 85]`` than as ``[275, 445]`` and one may be written a turn late. Getting from
-        there to here is not a shift of the whole list: the wrap belongs to *one* slit, and
-        adding 360 to every edge carries the slits that were already in range out past it --
-        ``[-10, 10, 60, 90]`` would become ``[350, 370, 420, 450]``, whose third edge is an
-        opening past 360. What is needed is to rotate which slit comes first.
-
-        So each slit's *opening* edge moves into ``[0, 360)`` carrying its width, and the
-        slits are ordered by it. The slit containing the mark is the only one that can wrap,
-        and openings that do not overlap force it to sort last, so "only the final edge
-        exceeds 360" falls out rather than being imposed.
-        """
-        edges = [angle for opening in self.slits() for angle in opening]
-        if not edges:
-            return []
-        # `%` on a negative float gives the positive residue in Python, which is what this
-        # wants -- not math.fmod, which keeps the sign of the operand.
-        slits = sorted((opening % 360.0, opening % 360.0 + (closing - opening))
-                       for opening, closing in zip(edges[::2], edges[1::2]))
-        ordered = [edge for slit in slits for edge in slit]
-
-        if any(b <= a for a, b in zip(ordered, ordered[1:])) \
-                or any(not 0.0 <= edge < 360.0 for edge in ordered[:-1]):
-            raise ValueError(
-                f'slit edges {edges} cannot be written as NXdisk_chopper wants them: '
-                f'{ordered} is not increasing with only its last edge past 360 degrees. '
-                f'Openings that overlap each other do this, and a disc cannot have them.'
-            )
-        return ordered
-
-    def slits(self) -> list[tuple[float, float]]:
-        """The ``(opening, closing)`` edge pair of each opening, in degrees from the mark.
-
-        Validates what the pairs have to satisfy to be openings of one disc: an even
-        number of strictly increasing edges spanning no more than a revolution. They are
-        not required to be positive -- an opening centred on a beam at ``beam_angle = 0``
-        straddles the mark, and writing it as ``[-85, 85]`` says so more plainly than
-        ``[275, 445]``. ``nexus_slit_edges`` puts them in the order ``NXdisk_chopper``
-        asks for, which is where that convention actually applies.
-        """
-        edges = [float(v) for v in self.windows.to(unit='deg').values]
-        if len(edges) < 2 or len(edges) % 2:
-            raise ValueError(
-                f'{self.name} has {len(edges)} slit edges; an even number of at least '
-                'two is required, two per opening'
-            )
-        if any(b <= a for a, b in zip(edges, edges[1:])):
-            raise ValueError(f'{self.name} slit edges must strictly increase: {edges}')
-        if edges[-1] - edges[0] > 360.0:
-            # Exactly 360 is the limiting case: the last opening closes precisely where
-            # the first one opens. Beyond that they would overlap themselves.
-            raise ValueError(
-                f'{self.name} spans {edges[-1] - edges[0]} degrees; the openings would '
-                'overlap themselves'
-            )
-        return [(edges[i], edges[i + 1]) for i in range(0, len(edges), 2)]
-
     def __mccode__(self) -> tuple[str, dict]:
         """The disc's parameters, taking its first opening.
 
@@ -286,9 +354,9 @@ class DiscChopper(Chopper):
             'theta_0': closing - opening,
             'nslit': 1,
             'radius': self.radius.to(unit='m').value,
-            'nu': self.speed_parameter(),
+            'nu': self.speed_parameter().name,
             # Not `phase`: a non-zero one makes DiskChopper ignore `delay` and warn.
-            'delay': self.delay_parameter(),
+            'delay': self.delay_parameter().name,
         }
         # Only add width or height if provided:
         if self.width is not None:
@@ -296,46 +364,6 @@ class DiscChopper(Chopper):
         if self.height is not None:
             params['yheight'] = self.height.to(unit='m').value
         return 'DiskChopper', params
-
-    def speed_parameter(self) -> str:
-        """The run-time knob this disc's rotation speed is set by.
-
-        Named here rather than spelled out at each use: it appears in the emitted
-        component's parameters, in the generated C that offsets each opening, and in the
-        NXlog a NeXus file links to for the value. Three places is enough for them to
-        drift.
-        """
-        return f'{self.name}speed'
-
-    def delay_parameter(self) -> str:
-        """The run-time knob saying when this disc's reference opening is at the beam."""
-        return f'{self.name}delay'
-
-    def park_parameter(self) -> str:
-        """The run-time knob saying where a parked disc is standing.
-
-        A disc that is not turning still blocks or passes the beam, depending on whether
-        an opening happens to be in front of it -- which McStas' own ``DiskChopper``
-        cannot express, because a zero frequency there becomes ``omega = 1e-15`` and the
-        disc falls permanently open rather than stopping somewhere.
-        """
-        return f'{self.name}park'
-
-    def __niess_pv_root__(self, key: str) -> str | None:
-        """The chopper controller driving this disc, if one is declared.
-
-        ``key`` is ignored: unlike an aperture, whose edges are separately driven axes,
-        a disc has one controller and every one of its eight logs hangs off it.
-        """
-        return self.pv_root
-
-    def group_name(self) -> str:
-        """The McStas GROUP the emitted openings share, when there is more than one.
-
-        Instance names are unique within an instrument, so deriving the group from this
-        disc's name makes it unique too.
-        """
-        return f'{self.name}_group'
 
     def _counter_clockwise_turn(self, opening: float, closing: float) -> float:
         """How far counter-clockwise this opening is from the beam, in degrees.
@@ -383,12 +411,12 @@ class DiscChopper(Chopper):
         """
         turn = self._counter_clockwise_turn(opening, closing)
         if turn == 0:
-            return self.delay_parameter()
+            return self.delay_parameter().name
 
-        speed = self.speed_parameter()
+        speed = self.speed_parameter().name
         assembler.declare(f'double {name}_delay;')
         assembler.initialize(
-            f'{name}_delay = {self.delay_parameter()} + '
+            f'{name}_delay = {self.delay_parameter().name} + '
             f'({speed} < 0 ? {360.0 - turn} : {turn}) / (360.0 * fabs({speed}));'
         )
         return f'{name}_delay'
@@ -408,7 +436,7 @@ class DiscChopper(Chopper):
             'beam_position': self.beam_angle.to(unit='deg').value,
             # The disc's own timing, so a translator rebuilding the disc can link it
             # without re-deriving the parameter naming convention.
-            'delay_parameter': self.delay_parameter(),
+            'delay_parameter': self.delay_parameter().name,
         }
         if several:
             extra['disc_group_id'] = self.name
@@ -436,10 +464,10 @@ class DiscChopper(Chopper):
         from ..spatial import mccode_ordered_angles
 
         ensure_runtime_line(
-            assembler, f'{self.speed_parameter()}/"Hz" = {self.speed.value}')
+            assembler, f'{self.speed_parameter().name}/"Hz" = {self.speed.value}')
         ensure_runtime_line(
             assembler,
-            f'{self.delay_parameter()}/"s" = {self.delay.to(unit="s").value}'
+            f'{self.delay_parameter().name}/"s" = {self.delay.to(unit="s").value}'
         )
 
         position = self.position + self.__mccode_offset__()
@@ -510,6 +538,20 @@ class NXDiskChopper(Chopper):
     park_angle: Variable = msgspec.field(default_factory=_zero_degrees)
     """Angle of the disk when the frequency is zero"""
 
+    #: The EPICS chopper controller this disc really is, when somebody has wired one up.
+    #: Every ESS chopper log hangs off it -- ``{pv_root}:Spd_R``, ``:TotDly``, and the
+    #: top-dead-centre channel ``{pv_root}:{tdc_channel}``. Without it a file can only be
+    #: written in simulated mode, so dropping it in the move to `NXdisk_chopper` took
+    #: real-mode NeXus away from every BIFROST disc.
+    pv_root: str | None = None
+    #: The TDC channel suffix, which is per-chopper rather than fixed: BIFROST's six
+    #: discs use ``00-TS-I`` through ``03-TS-I``. Only meaningful with ``pv_root``.
+    tdc_channel: str = '00-TS-I'
+
+    #: `NXdisk_chopper.comp` declares the parked angle as `park_angle`, so that is the
+    #: knob a run sets and the log a forwarder serves.
+    _park_suffix = 'park_angle'
+
     @classmethod
     def from_calibration(cls, cal: dict):
         required = ('name', 'position', 'orientation', 'radius')
@@ -541,7 +583,7 @@ class NXDiskChopper(Chopper):
             'radius': self.radius.to(unit='m').value,
             'nu': self.speed_parameter().name,
             'delay': self.delay_parameter().name,
-            'park_angle': self.park_angle_parameter().name,
+            'park_angle': self.park_parameter().name,
             'zero_angle': self.zero_angle.to(unit='deg').value,
             'beam_angle': self.beam_angle.to(unit='deg').value,
         }
@@ -557,59 +599,17 @@ class NXDiskChopper(Chopper):
     ) -> Instance:
         from ..assembler import ensure_runtime_parameter, ensure_registry
         # Make sure the chopper-lib repository is known (for NXdisk_chopper.comp)
-        ensure_registry(assembler, "mcdotstar/mcstas-chopper-lib@v4.1.0")
+        # Pinned in one place: `niess.chopcalc.emit.CHOPPER_LIB_REGISTRY`, whose
+        # guard is what fails loudly if an older library is used anyway.
+        from ..chopcalc.emit import CHOPPER_LIB_REGISTRY
+        ensure_registry(assembler, CHOPPER_LIB_REGISTRY)
         # Make sure the user controllable knobs are present
-        for parameter in (self.speed_parameter(), self.delay_parameter(), self.park_angle_parameter()):
+        for parameter in (self.speed_parameter(), self.delay_parameter(),
+                          self.park_parameter()):
             ensure_runtime_parameter(assembler, parameter)
         # Insert the edge array into the instrument DECLARE block
         assembler.declare_array('double', self.edge_array_identifier(), self.edge_array_values())
         return super().to_mccode(assembler, at, rotate, insert_provenance_metadata)
-
-    def _parameter(self, name: str, value: Variable) -> InstrumentParameter:
-        unit = f'/"{value.unit}"' if value.unit is not None else ''
-        return InstrumentParameter.parse(f'{self.name}{name}{unit}={value.value}')
-
-    def speed_parameter(self) -> InstrumentParameter:
-        return self._parameter('speed', self.velocity.to(unit='Hz'))
-
-    def delay_parameter(self) -> InstrumentParameter:
-        return self._parameter('delay', self.delay.to(unit='s'))
-
-    def park_angle_parameter(self) -> InstrumentParameter:
-        return self._parameter('park_angle', self.park_angle.to(unit='deg'))
-
-    def nexus_slit_edges(self) -> list[float|int]:
-        pairs = sorted((a % 360.0, a % 360.0 + (b - a)) for a, b in self._window_pairs())
-        ordered = [edge for slit in pairs for edge in slit]
-        if any(b <= a for a, b in zip(ordered, ordered[1:])) or any(not 0.0<=edge<360.0 for edge in ordered[:-1]):
-            raise ValueError(f'slit_edges {self.windows} cannot be written as required.')
-        return ordered
-
-    def _window_pairs(self) -> list[tuple[float | int, float| int]]:
-        """ Return paired window edges, verifying basic data properties
-
-        E.g., McStas does not care if the windows are all positive but NeXus does,
-        but both need strictly increasing edge values spanning less than 360. degrees.
-
-        The edges are *two per opening*, so the pairs are taken every other edge --
-        ``[10, 30, 100, 140]`` is two openings, ``(10, 30)`` and ``(100, 140)``. Zipping
-        consecutive edges instead reads the gap between two openings as an opening of its
-        own, which turns a three-slit disc into a five-slit one that passes nearly
-        everything. That is invisible for a single opening, where the two pairings agree,
-        and every BIFROST disc has one -- so nothing caught it.
-        """
-        edges = [float(v) for v in self.windows.to(unit='deg').values]
-        if len(edges) < 2 or len(edges) % 2:
-            raise ValueError(
-                f'{self.name} has {len(edges)} slit edges;'
-                'an even number >=2 is required.'
-            )
-        pairs = sorted((edges[i], edges[i + 1]) for i in range(0, len(edges), 2))
-        if any(b <= a for a, b in pairs):
-            raise ValueError(f'{self.name} slit edges must strictly increase: {edges}')
-        if (diff := pairs[-1][1] - pairs[0][0]) > 360.0:
-            raise ValueError(f'{self.name} spans {diff} degrees; which would overlap')
-        return pairs
 
     def edge_array_identifier(self) -> str:
         """When translated to McStas, the component inserts its edge values as an array
@@ -621,7 +621,7 @@ class NXDiskChopper(Chopper):
         return f"{self.name}edges"
 
     def edge_array_values(self) -> list[float | int]:
-        return [angle for pair in self._window_pairs() for angle in pair]
+        return [angle for opening in self.slits() for angle in opening]
 
     @property
     def speed(self):
@@ -645,6 +645,15 @@ class NXDiskChopper(Chopper):
     def __mccode_offset__(self) -> Variable:
         return self.beam_offset()
 
+
+
+#: Every class that is a disc turning in the beam, whichever McStas component emits it:
+#: `DiscChopper` emits one `DiskChopper` per opening, `NXDiskChopper` emits one
+#: chopper-lib `NXdisk_chopper`. They are siblings rather than one subclassing the other,
+#: so `isinstance(x, DiscChopper)` silently misses half of them -- which is exactly how
+#: `niess.tof` and `niess.nexus` came to see no choppers at all. Anything asking "is this
+#: a disc?" asks with this.
+DISC_CHOPPERS = (DiscChopper, NXDiskChopper)
 
 
 class FermiChopper(Chopper):

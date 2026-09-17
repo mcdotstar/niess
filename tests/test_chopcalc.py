@@ -208,7 +208,7 @@ def test_the_include_is_guarded_against_an_older_chopper_lib(teaching):
     narrow(teaching)
     text = str(teaching.instrument)
     assert '%include "chopper-lib"' in text
-    assert 'CHOPPER_LIB_VERSION < 40000' in text
+    assert 'CHOPPER_LIB_VERSION < 40201' in text
     assert '#error' in text
 
 
@@ -251,6 +251,45 @@ def test_the_train_can_be_published_for_a_component_to_read(teaching):
     assert 'train = NULL;' in text
 
 
+def _unbalanced(text: str) -> str | None:
+    """The first delimiter in `text` that is closed wrongly or never closed."""
+    pairs = {')': '(', ']': '[', '}': '{'}
+    stack = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        code = line.split('/*')[0]
+        for char in code:
+            if char in '([{':
+                stack.append((char, line_number, line.strip()))
+            elif char in pairs:
+                if not stack or stack[-1][0] != pairs[char]:
+                    return f'line {line_number}: unexpected {char!r} in {line.strip()!r}'
+                stack.pop()
+    if stack:
+        char, line_number, line = stack[0]
+        return f'line {line_number}: {char!r} never closed in {line!r}'
+    return None
+
+
+@pytest.mark.parametrize('export', [None, 'train'], ids=['kept', 'published'])
+def test_the_emitted_c_has_balanced_delimiters(export):
+    """Nothing else here reads the emitted C as C.
+
+    Every other assertion in this file looks for a substring, which cannot see a missing
+    bracket. `_release` shipped `free(train[0].edges;` -- valid Python, invalid C -- and
+    the suite stayed green, because the instrument is never compiled here and BIFROST,
+    whose rows hold DECLARE arrays, emits no free line to be wrong.
+
+    This is a balance check, not a compiler: it catches a delimiter that is never closed
+    and nothing subtler. Compiling for real needs chopper-lib's headers and the McStas
+    runtime, which is a different kind of test than this file is.
+    """
+    from niess.teaching import Primary
+    built = _built('teaching', Primary.from_calibration())
+    narrow(built, export_choppers=export, strict=True) if export else narrow(built)
+    text = str(built.instrument)
+    assert _unbalanced(text) is None, _unbalanced(text)
+
+
 def test_publishing_moves_the_release_rather_than_copying_the_train(teaching):
     """The train is on the heap whether or not anything else reads it.
 
@@ -272,9 +311,11 @@ def test_publishing_moves_the_release_rather_than_copying_the_train(teaching):
     assert kept.count(release) == 1
     assert published.count(release) == 0
     assert published.count('free(train);') == 1
-    # each row's edges go back before the row array, or they would leak with it
-    assert 'free(chopcalc_choppers[chopcalc_i].edges);' in kept
-    assert 'free(train[chopcalc_i].edges);' in published
+    # each row's edges go back before the row array, or they would leak with it --
+    # per row, not in a loop, because a row whose edges are a DECLARE array was never
+    # allocated and must not be freed
+    assert 'free(chopcalc_choppers[0].edges);' in kept
+    assert 'free(train[0].edges);' in published
     # and nothing is copied to get there
     assert 'edges[chopcalc_w]' not in published
 

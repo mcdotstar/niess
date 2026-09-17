@@ -57,19 +57,11 @@ def _source_entry(visit, latest_emission: float | None) -> SourceEntry:
 
 
 def _speed(obj) -> str:
-    if isinstance(obj, DiscChopper):
-        return obj.speed_parameter()
-    if isinstance(obj, NXDiskChopper):
-        return obj.speed_parameter().name
-    raise ValueError(f'speed unknown for {obj}')
+    return obj.speed_parameter().name
 
 
 def _delay(obj) -> str:
-    if isinstance(obj, DiscChopper):
-        return obj.delay_parameter()
-    if isinstance(obj, NXDiskChopper):
-        return obj.delay_parameter().name
-    raise ValueError(f'delay unknown for {obj}')
+    return obj.delay_parameter().name
 
 
 def _beam(obj) -> str:

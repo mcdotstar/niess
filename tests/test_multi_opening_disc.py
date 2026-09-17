@@ -193,15 +193,17 @@ def test_the_nexus_disc_pairs_its_edges_the_same_way():
     as five, and the disc passed nearly everything. Nothing caught it because the two
     pairings agree for a single opening, and every BIFROST disc has one.
 
-    Asserted against `DiscChopper`, which pairs correctly, so the two disc classes
-    cannot drift apart on the one question they must answer identically.
+    Both classes now read their openings from one `Chopper.slits`, which is the real
+    fix -- there is no second implementation left to pair them differently. Asserted
+    across both anyway: agreeing is the requirement, and a future disc class that
+    reintroduces its own pairing should fail here.
     """
     from niess.components import NXDiskChopper
     cal = calibration(width=scalar(0.03, unit='m'), delay=scalar(0.0, unit='s'))
     disc, nexus_disc = (c.from_calibration(dict(cal))
                         for c in (DiscChopper, NXDiskChopper))
-    assert nexus_disc._window_pairs() == disc.slits()
-    assert len(nexus_disc._window_pairs()) == 3
+    assert nexus_disc.slits() == disc.slits()
+    assert len(nexus_disc.slits()) == 3
     assert nexus_disc.edge_array_values() == list(EDGES)
 
 

@@ -500,7 +500,7 @@ def _da00_config(topic: str, source: str, bins: int) -> dict:
 def register_defaults() -> None:
     """Attach the per-type translators. Called on import; separate so it reads as a list."""
     from ..components.aperture import Aperture
-    from ..components.chopper import DiscChopper
+    from ..components.chopper import DISC_CHOPPERS
     from ..components.component import Component
     from ..components.filter import Filter
     from ..components.frame import Frame
@@ -568,9 +568,15 @@ def register_defaults() -> None:
         children.append(context.stream_group(selection))
         return component_body('NXmonitor', children)
 
-    @translator(DiscChopper)
+    @translator(*DISC_CHOPPERS)
     def disc_chopper(visit):
         """One disc, however many McStas components it would take to simulate it.
+
+        Registered for every class in `DISC_CHOPPERS`, not just one: they are siblings,
+        and a disc registered under only its sibling's name falls through to the bare
+        `Component` translator and comes out as a reference frame with a description --
+        no openings, no speed, no delay. Silently, because an unregistered type is not an
+        error. That is what happened to all six BIFROST discs.
 
         This is the case that drove the whole refactor. A disc whose openings are
         neither identical nor evenly spaced cannot be a single McStas DiskChopper, so

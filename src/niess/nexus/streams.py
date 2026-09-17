@@ -150,10 +150,12 @@ def chopper_logs(disc, binding) -> list[dict]:
     topic = binding.topic
     if not binding.canonical:
         return [
-            f144_log('rotation_speed', disc.speed_parameter(), topic, 'Hz', 'double'),
+            f144_log('rotation_speed', disc.speed_parameter().name, topic,
+                     'Hz', 'double'),
             tdct_log('top_dead_center', f'{disc.name}_tdc', topic),
-            f144_log('mark_delay', disc.delay_parameter(), topic, 's', 'double'),
-            f144_log('park_angle', disc.park_parameter(), topic, 'degrees', 'double'),
+            f144_log('mark_delay', disc.delay_parameter().name, topic, 's', 'double'),
+            f144_log('park_angle', disc.park_parameter().name, topic,
+                     'degrees', 'double'),
         ]
 
     root = binding.pv_root

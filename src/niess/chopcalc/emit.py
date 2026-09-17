@@ -5,8 +5,14 @@ from textwrap import indent
 
 from .model import ChopperTrain, Export
 
-CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.1.0'
-CHOPPER_LIB_MINIMUM_VERSION = 40100
+CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.2.1'
+#: 4.2.1, not 4.1.0, and the reason is `chopper_wavelength_limits` -- the one
+#: function this module calls. It goes through `range_set_sort`, which until 4.2.1
+#: "gave different answers on different platforms, which is how a chopper train's
+#: admitted band came out 0.098 AA wide on Windows and 1.906 AA on Linux for the
+#: same discs". The struct layout has been stable since 4.0.0, so an older library
+#: links and runs -- it just answers the question wrong, and differently by host.
+CHOPPER_LIB_MINIMUM_VERSION = 40201
 INCLUDE_MARKER = '%include "chopper-lib"'
 ARRAY_MARKER = 'chopcalc_choppers'
 INDEX_MARKER = 'chopcalc_i'
@@ -16,7 +22,7 @@ DECLARE_TEXT = f'''
 /* niess.chopcalc: chopper-lib, for narrowing the source wavelength band */
 {INCLUDE_MARKER}
 #if !defined(CHOPPER_LIB_VERSION) || CHOPPER_LIB_VERSION < {CHOPPER_LIB_MINIMUM_VERSION}
-#error "niess.chopcalc describes discs by their openings; chopper-lib 4.1.0 or newer is required"
+#error "niess.chopcalc narrows a band with chopper_wavelength_limits; chopper-lib 4.2.1 or newer is required"
 #endif
 '''
 
@@ -75,7 +81,9 @@ def initialize_text(train: ChopperTrain) -> str:
         row += f'{c.speed}, {c.delay}, {c.beam}, {c.edge_count}, '
         row += (c.edges if isinstance(c.edges, str) else f' (double *) calloc({c.edge_count}, sizeof(double))')
         row += f', {c.path}, {c.aperture}' + '};'
-        row += f' /* {c.name}, {c.edge_count/2} opening {"" if c.edge_count<3 else "s"} {"" if c.note is None else " -- " + c.note} */'
+        openings = c.edge_count // 2
+        note = '' if c.note is None else f' -- {c.note}'
+        row += f' /* {c.name}, {openings} opening{"" if openings == 1 else "s"}{note} */'
         rows.append(row)
 
     rows = '\n'.join(rows)
@@ -171,9 +179,13 @@ def _release(name: str, choppers: tuple[int, ...]) -> str:
     Each row owns its slit edges, so those go first: freeing the row array alone loses
     every edge array with it. Emitted at the end of INITIALIZE when nothing else reads the
     train, and in FINALLY when something does -- the same lines, in one place or the other.
+
+    Only the rows named in ``choppers`` are freed. A row whose edges are a DECLARE array
+    -- what `NXDiskChopper` emits -- was never allocated, and handing that to ``free`` is
+    undefined behaviour rather than a leak avoided.
     """
     lines = '\n'.join(
-        f'if ({name}[{i}].edges != NULL) free({name}[{i}].edges;' for i in choppers
+        f'    if ({name}[{i}].edges != NULL) free({name}[{i}].edges);' for i in choppers
     )
     return f'''{lines}
     free({name});'''
