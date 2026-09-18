@@ -224,12 +224,22 @@ def test_primary_without_parameters():
     assert p0 == pp
 
 
-def test_instrument_to_json():
-    from pathlib import Path
-    from niess.io.json import save_json
+def test_instrument_to_json(tmp_path):
+    """save_json writes a loadable file.
+
+    This used to write primary.json and tank.json into the tests directory and assert
+    nothing -- it was a file generator wearing a test's name, and the two files it left
+    behind were never read by anything. What the object model actually serialises to is
+    frozen in tests/test_baseline.py; what is worth checking here is that save_json
+    produces something load_json can read back.
+    """
+    from niess.io.json import load_json, save_json
     from niess.bifrost.parameters import primary_parameters, tank_parameters
     from niess.bifrost.primary import Primary
     from niess.bifrost.tank import Tank
-    root = Path(__file__).parent
-    save_json(Primary.from_calibration(primary_parameters()), root / 'primary.json')
-    save_json(Tank.from_calibration(tank_parameters()), root / 'tank.json')
+
+    for name, obj in (('primary', Primary.from_calibration(primary_parameters())),
+                      ('tank', Tank.from_calibration(tank_parameters()))):
+        path = tmp_path / f'{name}.json'
+        save_json(obj, path)
+        assert load_json(path) == obj

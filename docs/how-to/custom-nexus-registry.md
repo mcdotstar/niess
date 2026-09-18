@@ -89,9 +89,9 @@ Pass the registry per conversion:
 
 Because your registry extends the default rather than mutating it, the same instrument
 still converts the ordinary way when you do not pass it. That isolation is deliberate:
-`niess.cspec` and `niess.bifrost` both build `Detector_tubes`, and BIFROST's translator
-bakes in ICD pixel numbering and its own Kafka topic. Registering that globally would
-silently corrupt every other instrument's detectors.
+`Detector_tubes` is not a BIFROST-only component, and BIFROST's translator bakes in ICD
+pixel numbering and its own Kafka topic. Registering that globally would silently corrupt
+every other instrument's detectors.
 
 ## Many instances, one NeXus group
 

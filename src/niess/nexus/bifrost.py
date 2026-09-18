@@ -39,7 +39,7 @@ BIFROST_DETECTOR_TOPIC = 'bifrost_detector'
 #: Registering here rather than on DEFAULT_NEXUS_REGISTRY keeps the choice scoped to
 #: the conversion that asks for it. Were these on the shared default, merely importing
 #: this module would give any *other* instrument's Detector_tubes BIFROST's ICD pixel
-#: numbering and detector topic -- and niess.cspec builds Detector_tubes too.
+#: numbering and detector topic -- and Detector_tubes is not a BIFROST-only component.
 BIFROST_REGISTRY = NiessNexusRegistry(parent=DEFAULT_NEXUS_REGISTRY)
 
 # BIFROST_nxs writes its triplet placement as "WHEN (c == secondary_cassette && a == analyzer)"

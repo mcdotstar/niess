@@ -259,6 +259,15 @@ class DiscChopper(Chopper):
         beam = self.beam_angle.to(unit='deg').value
         return (beam - centre) % 360.0
 
+    def opening_turns(self) -> list[float]:
+        """How far counter-clockwise each opening is from the beam, in degrees.
+
+        The disc's timing geometry, in declaration order, without any of the McStas
+        machinery that turns it into a per-component ``delay``.
+        """
+        return [self._counter_clockwise_turn(opening, closing)
+                for opening, closing in self.slits()]
+
     def _slit_delay(
             self, assembler: Assembler, name: str, opening: float, closing: float
     ) -> str:

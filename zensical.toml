@@ -24,7 +24,6 @@ nav = [
   ] },
   { "Reference" = [
     { "Components" = "reference/components.md" },
-    { "Command line" = "reference/cli.md" },
     { "API: niess.nexus" = "reference/api/nexus.md" },
     { "API: niess.dispatch" = "reference/api/dispatch.md" },
     { "API: niess.tof" = "reference/api/tof.md" },
@@ -117,8 +116,8 @@ paths = ["src"]
 inventories = ["https://docs.python.org/3/objects.inv"]
 
 [project.plugins.mkdocstrings.handlers.python.options]
-# niess.cspec.Pack and niess.bifrost.Tank import inside their class bodies, which makes
-# those imports class members; griffe cannot resolve them without the targets loaded.
+# niess.bifrost.Tank and friends import inside their class bodies, which makes those
+# imports class members; griffe cannot resolve them without the targets loaded.
 preload_modules = ["mccode_antlr", "scipp", "networkx", "msgspec"]
 docstring_style = "numpy"
 docstring_section_style = "list"

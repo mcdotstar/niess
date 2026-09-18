@@ -21,7 +21,7 @@ from .instrument import (
     component_body,
     to_nexus_structure,
 )
-from .cli import load_instr
+from .loader import load_instr
 # The node constructors a translator builds its output from, and the readers used to
 # inspect a finished structure. Re-exported so writing a translator needs one import.
 from .nodes import (

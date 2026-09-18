@@ -12,12 +12,11 @@ def test_bifrost_whole():
     tank = Tank.from_calibration(tank_parameters())
 
 
-def test_bifrost_mccode():
+def test_bifrost_mccode(tmp_path):
     from niess.bifrost.parameters import primary_parameters, tank_parameters
     from niess.bifrost import Tank, Primary
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from pathlib import Path
 
     bifrost = Assembler('bifrost', flavor=Flavor.MCSTAS)
 
@@ -34,31 +33,15 @@ def test_bifrost_mccode():
     with bifrost.included('bifrost_tank') as tank_assembler:
         tank.to_mccode(tank_assembler, 'sample_origin', flat=False)
 
+    # Extraction writes the whole %include tree out as files; do it somewhere
+    # disposable. It used to land in the working directory, leaving a bifrost_extract/
+    # of 58 .instr files in the source tree every time the suite ran.
     from mccode_antlr.io import extract
-    extract.extract_to_directory(bifrost.instrument, Path() / "bifrost_extract")
+    extract.extract_to_directory(bifrost.instrument, tmp_path / 'bifrost_extract')
+    assert (tmp_path / 'bifrost_extract').is_dir()
 
-    # The following test is extremely fragile and only useful when making possibly
-    # breaking changes for local testing. The CI does not enforce the McCode version
-    # use for fetched components, so this is very likely to break.
-    #
-    # from mccode_antlr.io.json import load_json
-    # from msgspec.structs import fields
-    #
-    # # The loaded-from-state Instr should be equivalent across most niess changes
-    # # but may break with changes in mccode-antlr.
-    # # It is therefore up to you to decide if a new bifrost_assembler.json should be
-    # # minted -- Good luck!
-    # instr = load_json(Path(__file__).parent / "bifrost_assembler.json")
-    #
-    # # All members of the instrument should be the same, but registry equivalency
-    # # is too strict since the order is not terribly important for a built-instr.
-    # for par in fields(instr):
-    #     if par.name != 'registries':
-    #         assert getattr(instr, par.name) == getattr(bifrost.instrument, par.name)
-    # #
-    # # # If the above failed due to upstream changes, you probably want to stash any
-    # # # modifications you've made, then come back here, disable the above and enable
-    # # # the following:
-    # # from mccode_antlr.io.json import save_json
-    # # save_json(Path(__file__).parent / "bifrost_assembler.json", bifrost.instrument)
-    # # # Then restore your changes and re-enable the checks above.
+    # The Instr-JSON comparison that used to live here is gone with
+    # tests/bifrost_assembler.json. It was commented out because a raw mccode-antlr
+    # serialisation is not stable across upstream releases -- the file had gone stale by
+    # a release, still carrying pulse_shaping_chopper_1phase after 0.6.0 renamed it to
+    # delay. tests/test_baseline.py freezes what niess actually decides instead.

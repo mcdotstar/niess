@@ -14,6 +14,17 @@ class Channel(Base):
     radial_filter_collimator: RadialFilterCollimator
     pairs: tuple[Arm, Arm, Arm, Arm, Arm]
 
+    @property
+    def cassette_angle(self) -> Variable:
+        """How far this channel is turned about the sample, from the tank centreline.
+
+        Every arm in a channel shares it -- ``rtp_parameters`` raises if they disagree --
+        so it belongs to the channel rather than to any one arm. Computed inside
+        to_mccode until now, where only the McStas conversion could reach it.
+        """
+        from scipp import vector
+        return self.sample_space_angle(vector([0, 0, 0], unit='m')).to(unit='degree')
+
     @classmethod
     def from_dict(cls, data):
         from .arm import Arm
@@ -177,11 +188,9 @@ class Channel(Base):
         return sa, ad, x7, y7, a7, x9, y9, a9, ra0
 
     def to_mccode(self, assembler: Assembler, relative: Instance, name: str, when: str = None, settings: dict = None, flat: bool=True, **kwargs):
-        from scipp import concat, all, isclose, vector
         from niess.mccode import add_niess_metadata
         # For each channel we need to define the local coordinate system, relative to the provided sample
-        origin = vector([0, 0, 0], unit='m')
-        ra0 = self.sample_space_angle(origin).to(unit='degree').value
+        ra0 = self.cassette_angle.value
         cassette = assembler.component(f"{name}_arm", "Arm", at=((0, 0, 0), relative), rotate=((0, ra0, 0), relative))
         add_niess_metadata(cassette, self, source_name=f'{name}_arm', role='reference-frame',
                            extra={'frame': 'cassette', 'channel': name})

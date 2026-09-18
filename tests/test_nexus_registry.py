@@ -3,9 +3,10 @@
 They used to be registered on the shared ``DEFAULT_NEXUS_REGISTRY`` at import time,
 which made the opt-in per *process* rather than per conversion: once anything imported
 ``niess.nexus.bifrost``, every later conversion in that process picked up BIFROST's
-translators. That is not hypothetical -- ``niess.cspec`` builds ``Detector_tubes`` too,
-so a CSPEC instrument would silently inherit BIFROST's ICD pixel numbering and detector
-topic. Now each instrument has its own registry, extending the default one.
+translators. That is not hypothetical -- ``Detector_tubes`` is not a BIFROST-only
+component, so another instrument using it would silently inherit BIFROST's ICD pixel
+numbering and detector topic. Now each instrument has its own registry, extending the
+default one.
 """
 import pytest
 
@@ -132,23 +133,3 @@ def test_detector_tubes_translation_follows_the_registry(registry_name):
         assert get_attribute(tubes, 'NX_class') == 'NXcoordinate_system'
         assert find_child(tubes, 'data') is None
 
-
-def test_load_registry_imports_by_module_and_name():
-    from niess.nexus.bifrost import BIFROST_REGISTRY
-    from niess.nexus.cli import load_registry
-
-    assert load_registry(None) is None
-    assert load_registry('niess.nexus.bifrost:BIFROST_REGISTRY') is BIFROST_REGISTRY
-
-
-@pytest.mark.parametrize('specification', ['niess.nexus.bifrost', 'no_colon_here', ':X'])
-def test_load_registry_rejects_malformed_specifications(specification):
-    from niess.nexus.cli import load_registry
-    with pytest.raises(ValueError, match='module:attribute'):
-        load_registry(specification)
-
-
-def test_load_registry_reports_a_missing_attribute():
-    from niess.nexus.cli import load_registry
-    with pytest.raises(ValueError, match='defines no NOT_A_REGISTRY'):
-        load_registry('niess.nexus.bifrost:NOT_A_REGISTRY')
