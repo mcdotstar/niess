@@ -3,11 +3,12 @@
 Notable changes to niess, newest first.
 
 Versions follow [semantic versioning](https://semver.org/), with the pre-1.0 caveat that a
-minor release may still remove things. 0.6.0 does, so it is a minor bump rather than a
-patch; everything removed is listed below with what replaces it.
+minor release may still remove things. 0.7.0 removes a great deal -- a whole translation
+route -- so it is a minor bump rather than a patch; everything removed is listed below
+with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.7.0
 
 ### Added — `niess.scaffold`, and a `.instr` migration path
 
@@ -319,6 +320,40 @@ The previous behaviour is `niess.nexus.via_instr`, `niess.tof.via_instr` and
 - `niess.tof` and `niess.chopcalc` no longer reach into the demoted route for shared
   arithmetic — `niess.chopcalc.paths` holds what both use, including the beam-path walk
   and `global_position`, which `niess.tof` had been importing as a private.
+
+### Migrating from 0.6.0
+
+| 0.6.0 | 0.7.0 |
+| --- | --- |
+| `to_nexus_structure(instr)`, `to_tof_model(assembler)`, `save_step(instr)` | build a niess `Instrument` and pass that; see **Changed — three names now mean the tree route** |
+| `niess.targets.*` | see the **import paths** table above |
+| `import niess; niess.Crystal` | `from niess.components import Crystal` |
+| `RadialSlitBank` | gone; the cassette's `EXTEND` writes `secondary_cassette` |
+| `MultiSlitChopper`-era `DiscChopper` for BIFROST | `NXDiskChopper`, one chopper-lib `NXdisk_chopper` per disc |
+| provenance `source_name` | read it off the instance; schema is 3 |
+| chopper-lib 4.1.0 | **4.2.1 or newer**, enforced by an `#error` guard |
+
+**Converting an instrument niess did not build is no longer supported.** That is the
+headline removal and there is no drop-in replacement: the `Instr`-reading route behind each
+target is gone. Reading a `.instr` still works — `niess.io.mccode.load_instr` — and
+`niess-scaffold` turns one into a niess submodule you own and edit, once, so what runs
+afterwards is ordinary niess source. See **Added — `niess.scaffold`**.
+
+**Regenerate any reference NeXus files.** More moved this time than in 0.6.0:
+
+- disc choppers are chopper-lib `NXdisk_chopper` groups, with `slit_edges` in a `DECLARE`
+  array and a `{disc}park_angle` knob
+- the beam crossing moved by up to 1.288 mm, because the reach is now the chord
+  `sqrt(radius² - (width/2)²)` rather than the radius
+- `zero_position` is gone from `NXdisk_chopper`, and `x_gap`/`y_gap` from apertures
+- BIFROST's radial-slit `NXslit` is gone — it described ten slits that are not there
+- dataset modules carry `dtype`, not `type`, which older files got wrong
+
+**Regenerate cached CAD or OFF geometry too.** An elliptic guide's half-width was evaluated
+at the wrong place; across BIFROST's primary the median error was 10% and the worst 100%.
+
+If you build with an older chopper-lib the instrument will not compile, which is deliberate:
+until 4.2.1 the band arithmetic gave different answers on different platforms.
 
 ## 0.6.0
 

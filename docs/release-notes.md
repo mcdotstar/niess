@@ -5,6 +5,6 @@ What changed in each version, and what to do about it. This page is the reposito
 rather than written twice.
 
 Each release on GitHub carries the same notes, and installing a version pins you to what it
-says: `pip install 'niess==0.6.0'`.
+says: `pip install 'niess==0.7.0'`.
 
 --8<-- "CHANGELOG.md:releases"
