@@ -105,6 +105,24 @@ class Section(msgspec.Struct, tag=True):
         #      scipp.Variable and mccode_antlr.? are converted
         return cls.from_calibration(d)
 
+    def __mccode_enter__(self, visit):
+        """A section is a scope, not a component.
+
+        Without ``_flat`` it becomes an ``%include``d sub-instrument, so the emitted
+        McStas mirrors how the beamline is thought about rather than being one flat
+        list. ``Guides`` inside ``teaching`` becomes ``teaching_guides``.
+        """
+        import re
+        if getattr(self, '_flat', False):
+            return None
+        spaced = re.sub('([A-Z]+)', r'_\1', type(self).__name__).lower()
+        assembler = visit.context.assembler
+        return visit.context.push(assembler.included(f'{assembler.name}{spaced}'))
+
+    def __mccode_exit__(self, visit, entered):
+        if entered is not None:
+            visit.context.pop()
+
     def __niess_flow__(self, graph, path):
         """Children in declaration order, which for a section is beam order."""
         from ..tree import chain_flow

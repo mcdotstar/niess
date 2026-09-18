@@ -199,6 +199,39 @@ class Channel(Base):
 
         return sa, ad, x7, y7, a7, x9, y9, a9, ra0
 
+    def __niess_children__(self):
+        """The cassette frame, the filter, then the five arms.
+
+        The frame is declared rather than emitted: it is where everything in the channel
+        is measured from, which is a fact about the channel and not about McStas.
+        """
+        from ..components.frame import Frame
+        from scipp import vector
+        cassette = Frame(name='arm',
+                         rotation=vector([0., 1., 0.]) * self.cassette_angle,
+                         extra={'frame': 'cassette'}, owner_key='channel')
+        return (('cassette', cassette),
+                ('radial_filter_collimator', self.radial_filter_collimator),
+                *((f'pairs[{i}]', arm) for i, arm in enumerate(self.pairs)))
+
+    def __niess_child_frame__(self, visit, label, default):
+        """Everything in the channel sits in its cassette frame; the frame itself does not."""
+        return default if label == 'cassette' else f'{visit.id}/cassette'
+
+    def __mccode_enter__(self, visit):
+        """The per-particle state the channel's contents are gated on.
+
+        Which channel a neutron was tagged with by the radial slits is a fact about one
+        Monte Carlo history, so it lives here and nowhere else.
+        """
+        context = visit.context
+        when = f'{1 + visit.index} == secondary_cassette'
+        for declaration in ('int secondary_scattered;', 'int analyzer;', 'int flag;'):
+            context.assembler.ensure_user_var(declaration)
+        context.whens[f'{visit.id}/cassette'] = when
+        context.whens[f'{visit.id}/radial_filter_collimator'] = when
+        return None
+
     def to_mccode(self, assembler: Assembler, relative: Instance, name: str, when: str = None, settings: dict = None, flat: bool=True, **kwargs):
         from niess.mccode import add_niess_metadata
         # For each channel we need to define the local coordinate system, relative to the provided sample

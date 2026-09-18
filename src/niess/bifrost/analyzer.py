@@ -121,6 +121,35 @@ class Analyzer(Base):
         )
         return params
 
+    def __mccode_enter__(self, visit):
+        """One Monochromator_Rowland, however many blades.
+
+        SKIP because the blades are this component's own business: McStas takes them as
+        a count and a shape, not as seven components. They stay in the tree, so a target
+        that wants their real positions can walk them.
+        """
+        from scipp import vector
+        from niess.walk import SKIP
+        from .arm import Arm
+
+        context = visit.context
+        arm = visit.ancestor(Arm)
+        name = arm.emit_name('monochromator')
+        self.to_mccode(
+            context.assembler,
+            source=context.reference(arm.frame),   # what the arm itself sits in
+            relative=context.reference(visit.frame),
+            sink=arm.emit_name('triplet'),
+            theta=arm.obj.analyzer_theta.value,
+            name=name,
+            when=context.whens.get(visit.id),
+            extend=(f'secondary_scattered = (SCATTERED) ? 1 : 0;\n'
+                    f'analyzer = (SCATTERED) ? {1 + arm.index} : 0;'),
+            origin=vector([0, 0, 0], unit='m'),
+        )
+        context.emitted[visit.id] = name
+        return SKIP
+
     def to_mccode(self, assembler: Assembler, source: str, relative: str, sink: str, theta: float, name: str,
                   when: str = None, extend: str = None, origin: Variable = None):
         from niess.mccode import add_niess_metadata, ensure_registry

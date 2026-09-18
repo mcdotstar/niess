@@ -135,6 +135,10 @@ def chain_flow(node, graph, path):
     exits: tuple[str, ...] = ()
     for label, child in children:
         child_entries, child_exits = child.__niess_flow__(graph, path + (label,))
+        if not child_entries and not child_exits:
+            # transparent: a coordinate frame is not a thing a neutron passes through,
+            # so the components either side of it chain as though it were not there
+            continue
         if not entries:
             entries = child_entries
         for source in exits:

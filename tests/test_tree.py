@@ -67,8 +67,9 @@ def test_tank_is_deliberately_finer_than_its_emission(tank):
     import collections
     kinds = collections.Counter(type(node).__name__ for _, node in leaves(tank))
     assert kinds == {'Crystal': 369, 'He3Tube': 135, 'RadialFilterCollimator': 9,
-                     'He3Monitor': 1}
-    assert sum(kinds.values()) == 514
+                     'He3Monitor': 1, 'Frame': 99}
+    # the ninety-nine frames are declared nodes, not emission artefacts
+    assert sum(kinds.values()) == 613
 
 
 def test_the_composites_have_the_children_we_think_they_do(tank):
@@ -76,9 +77,9 @@ def test_the_composites_have_the_children_we_think_they_do(tank):
            ['monitor'] + [f'channels[{i}]' for i in range(9)]
     channel = tank.channels[0]
     assert [label for label, _ in channel.__niess_children__()] == \
-           ['radial_filter_collimator'] + [f'pairs[{i}]' for i in range(5)]
+           ['cassette', 'radial_filter_collimator'] + [f'pairs[{i}]' for i in range(5)]
     assert [label for label, _ in channel.pairs[0].__niess_children__()] == \
-           ['analyzer', 'detector']
+           ['analyzer_point', 'analyzer', 'detector_angle', 'detector']
 
 
 # -- data is not a child ------------------------------------------------------
@@ -229,3 +230,70 @@ def test_flow_nodes_are_tree_paths(tank):
     with pytest.raises(TypeError, match='unhashable'):
         hash(tank.channels[0])
     assert all(isinstance(node, str) for node in tank.to_graph())
+
+
+# -- frames -------------------------------------------------------------------
+
+def test_frames_are_declared_nodes_any_target_can_see(tank):
+    """They used to exist only as a side effect of emitting McStas.
+
+    So the only way to learn that an analyzer sits 1.19 m along its channel and rolled a
+    quarter turn was to emit a McStas instrument and read it back.
+    """
+    from niess.components.frame import Frame
+
+    found = {path: node for path, node in walk(tank) if isinstance(node, Frame)}
+    assert len(found) == 99  # nine cassettes, two per arm
+    assert ('channels[2]', 'cassette') in found
+    assert ('channels[2]', 'pairs[0]', 'analyzer_point') in found
+    assert ('channels[2]', 'pairs[0]', 'detector_angle') in found
+
+
+def test_a_frame_is_transparent_to_flow(tank):
+    """Nothing passes through it, so the things either side chain to each other."""
+    graph = tank.to_graph()
+    assert not [node for node in graph
+                if node.endswith(('cassette', 'analyzer_point', 'detector_angle'))]
+    assert graph.has_edge('channels[0]/radial_filter_collimator',
+                          'channels[0]/pairs[0]/analyzer')
+
+
+def test_a_declared_turn_survives_being_emitted_exactly(tank):
+    """Why a frame carries axis-angle rather than a quaternion.
+
+    Eight of BIFROST's nine cassette angles come back changed in the last bit or two
+    through a quaternion, which is physically nothing and textually a different
+    instrument.
+    """
+    for channel in tank.channels:
+        cassette = dict(channel.__niess_children__())['cassette']
+        assert cassette.angles() == (0.0, channel.cassette_angle.value, 0.0)
+
+    arm = tank.channels[0].pairs[0]
+    frames = dict(arm.__niess_children__())
+    assert frames['detector_angle'].angles() == (0.0, arm.analyzer_theta.value, 0.0)
+    assert frames['analyzer_point'].angles() == (0.0, 0.0, 90.0)
+
+
+def test_a_frame_may_be_measured_from_a_sibling(tank):
+    """An arm's second frame is measured from the analyzer, not from the arm.
+
+    A detector sits at twice the Bragg angle, and the analyzer is what defines it.
+    """
+    frames = dict(tank.channels[0].pairs[0].__niess_children__())
+    assert frames['analyzer_point'].relative_to is None
+    assert frames['detector_angle'].relative_to == 'analyzer'
+
+
+def test_what_sits_in_which_frame(tank):
+    """Declared once, so no target has to restate the chain."""
+    from niess.walk import visits
+    from niess.instrument import Instrument, Mount
+
+    instrument = Instrument(name='t', parts=(Mount(name='tank', content=tank),))
+    seen = {v.id: v.frame for v in visits(instrument)}
+    assert seen['tank/channels[0]/radial_filter_collimator'] == 'tank/channels[0]/cassette'
+    assert seen['tank/channels[0]/pairs[0]/analyzer'] == \
+        'tank/channels[0]/pairs[0]/analyzer_point'
+    assert seen['tank/channels[0]/pairs[0]/detector'] == \
+        'tank/channels[0]/pairs[0]/detector_angle'

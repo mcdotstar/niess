@@ -53,7 +53,7 @@ def seen(bifrost):
 def test_the_instrument_is_one_object(bifrost):
     from niess.tree import leaves
     assert [label for label, _ in bifrost.__niess_children__()] == ['primary', 'tank']
-    assert len(leaves(bifrost)) == 672  # 158 primary + 514 tank
+    assert len(leaves(bifrost)) == 771  # 158 primary + 613 tank
 
 
 def test_the_whole_instrument_has_one_connected_flow(bifrost):
@@ -141,7 +141,12 @@ def test_each_piece_hangs_where_its_mount_says(seen):
     """The primary is in global coordinates; the tank is described about the sample."""
     assert seen['primary/closing/jaw_1'].frame is None
     assert seen['tank/monitor'].frame == 'sample_origin'
-    assert seen['tank/channels[2]/pairs[0]/analyzer'].frame == 'sample_origin'
+    # inside the tank a declared frame takes over: the cassette, then the arm's own
+    assert seen['tank/channels[2]/cassette'].frame == 'sample_origin'
+    assert seen['tank/channels[2]/radial_filter_collimator'].frame == \
+        'tank/channels[2]/cassette'
+    assert seen['tank/channels[2]/pairs[0]/analyzer'].frame == \
+        'tank/channels[2]/pairs[0]/analyzer_point'
 
 
 def test_the_origin_is_a_property_of_the_instrument(bifrost):

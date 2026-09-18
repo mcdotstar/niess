@@ -182,6 +182,49 @@ class Arm(Base):
             print(f'Detector under-illuminated: the detector width {det_hor} should be less than the analyzer width {ana_hor}')
         return det_hor, ana_ver
 
+    def __niess_children__(self):
+        """Two frames and the two things measured from them.
+
+        The second frame is measured from the analyzer rather than from the arm, which
+        is why it is declared after it: a detector sits at twice the Bragg angle, and
+        the analyzer is what defines that angle.
+        """
+        from ..components.frame import Frame
+        from scipp import scalar, vector
+        point = Frame(
+            name='analyzer_point',
+            position=vector([0., 0., 1.]) * self.sample_analyzer_distance,
+            # a quarter turn about the beam: McStas' monochromator scatters in its own
+            # horizontal plane and BIFROST's analyzers scatter vertically
+            rotation=vector([0., 0., 1.]) * scalar(90.0, unit='degree'),
+            extra={'frame': 'analyzer-point'}, owner_key='arm')
+        turned = Frame(name='detector_angle', relative_to='analyzer',
+                       rotation=vector([0., 1., 0.]) * self.analyzer_theta,
+                       extra={'frame': 'detector-angle'}, owner_key='arm')
+        return (('analyzer_point', point), ('analyzer', self.analyzer),
+                ('detector_angle', turned), ('detector', self.detector))
+
+    def __niess_child_frame__(self, visit, label, default):
+        if label == 'analyzer':
+            return f'{visit.id}/analyzer_point'
+        if label == 'detector':
+            return f'{visit.id}/detector_angle'
+        return default
+
+    def __mccode_enter__(self, visit):
+        """The per-particle state this arm's analyzer and detector are gated on."""
+        from .channel import Channel
+        context = visit.context
+        channel = visit.ancestor(Channel)
+        when = f'{1 + channel.index} == secondary_cassette'
+        analyzer_when = f'0 == secondary_scattered && {when}'
+        detector_when = f'{when} && {1 + visit.index}==analyzer'
+        context.whens[f'{visit.id}/analyzer_point'] = analyzer_when
+        context.whens[f'{visit.id}/analyzer'] = analyzer_when
+        context.whens[f'{visit.id}/detector_angle'] = detector_when
+        context.whens[f'{visit.id}/detector'] = detector_when
+        return None
+
     def to_mccode(self, assembler: Assembler, ref: Instance, name: str,
                   analyzer_when: str = None, analyzer_extend: str = None,
                   detector_when: str = None, detector_extend: str = None, **kwargs):

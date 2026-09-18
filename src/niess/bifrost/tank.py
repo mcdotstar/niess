@@ -265,6 +265,43 @@ class Tank(Base):
         from scipp import concat
         return [concat(q, dim='channel') for q in zip(*[c.rtp_parameters(sample) for c in self.channels])]
 
+    def __mccode_enter__(self, visit):
+        """The radial slits, before the monitor and the channels the walk then emits.
+
+        The slits are how a neutron leaving the sample gets tagged with the channel it
+        entered: the EXTEND turns the slit index into ``secondary_cassette``, which
+        every channel's components are then gated on. That tagging is per-particle state
+        in a Monte Carlo trace, so it is McStas's business and appears nowhere else.
+        """
+        from ..mccode import (add_niess_metadata, ensure_registry,
+                              ensure_runtime_line, ensure_user_var)
+        assembler = visit.context.assembler
+        ensure_registry(assembler, "mcdotstar/mcstas-slit-radial@main")
+        ensure_user_var(assembler, 'int', 'secondary_cassette',
+                        'Secondary spectrometer analyzer cassette index')
+        # what makes the slits scannable: a calibration run sweeps a narrow slit across
+        # the analyzers, which is an angle at a radius
+        ensure_runtime_line(assembler, 'slitAngle/"degree" = 0.0')
+        ensure_runtime_line(assembler, f'slitDistance/"m" = {self.slit_radius.value}')
+
+        positions = self.slit_angles
+        declared = 'slits_positions'
+        assembler.declare_array('double', declared, positions, source=__file__, line=0)
+        slits = assembler.component('slits', 'Slit_radial_multi',
+                                    at=((0, 0, 0), visit.frame))
+        add_niess_metadata(slits, self, source_name='slits',
+                           role='physical-component')
+        slits.set_parameters(slit_width=self.slit_width, offset='slitAngle*DEG2RAD',
+                             number=len(positions), radius='slitDistance', height=0.2,
+                             positions=declared)
+        # `slit` is >=0 iff scattered
+        slits.EXTEND('secondary_cassette = (SCATTERED) ? 1 + slit : -1;')
+
+        # the monitor's slit was added last, so it is the last index
+        visit.context.whens[f'{visit.id}/monitor'] = \
+            f'secondary_cassette == {len(positions)}'
+        return slits
+
     def to_mccode(
             self,
             assembler: Assembler,
