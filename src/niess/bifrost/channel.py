@@ -5,7 +5,6 @@ from niess.components import RadialFilterCollimator
 
 
 class Channel(Base):
-    from networkx import DiGraph
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
     from scipp import Variable
@@ -13,6 +12,19 @@ class Channel(Base):
 
     radial_filter_collimator: RadialFilterCollimator
     pairs: tuple[Arm, Arm, Arm, Arm, Arm]
+
+    def __niess_label__(self, label: str) -> str:
+        """A channel names everything inside it: ``channel_3_radial_filter_collimator``,
+        ``channel_3_1_monochromator``. This replaces the in-place mutation of the
+        filter's own name that emission used to do.
+        """
+        from ..tree import label_index
+        index = label_index(label)
+        if index is None:
+            raise ValueError(
+                f'a Channel is identified by its position; got the label {label!r}'
+            )
+        return f'channel_{index + 1}'
 
     @property
     def cassette_angle(self) -> Variable:
@@ -199,9 +211,16 @@ class Channel(Base):
         for uv in ('int secondary_scattered;', 'int analyzer;', 'int flag;'):
             assembler.ensure_user_var(uv)
 
-        # The filter name does not, thus far, include the channel name:
-        self.radial_filter_collimator.name = f'{name}_radial_filter_collimator'
-        rfc = self.radial_filter_collimator.to_mccode(assembler, cassette, cassette)
+        # The filter is calibrated as 'radial_filter_collimator' and emitted as
+        # 'channel_3_radial_filter_collimator', because instance names have to be unique
+        # across an instrument. Emit a renamed copy rather than renaming the filter:
+        # assigning to it left the tree holding the emitted name afterwards, so a tank
+        # that had been built once no longer serialised to what it was calibrated with,
+        # and anything deriving the name from the tree got it twice over.
+        from msgspec.structs import replace
+        filtered = replace(self.radial_filter_collimator,
+                           name=f'{name}_radial_filter_collimator')
+        rfc = filtered.to_mccode(assembler, cassette, cassette)
         rfc.WHEN(when)
 
         for arm_index, arm in enumerate(self.pairs):
@@ -220,13 +239,6 @@ class Channel(Base):
                 with assembler.included(f"{assembler.name}_{arm_name}") as child:
                     arm.to_mccode(child, cassette, **to_mc, **kwargs)
 
-    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
-        radial_collimator_filter = f'{name}_radial_filter_collimator'
-        if upstream is not None:
-            graph.add_edge(upstream, radial_collimator_filter)
-        cassette = f'{name}_arm'
-        graph.add_edge(radial_collimator_filter, cassette)
-        return [arm.add_to_graph(cassette, f"{name}_{1 + arm_index}", graph) for arm_index, arm in enumerate(self.pairs)]
 
     def efu_calibration(self, channel_number: int):
         """The EFU calibration needs a unique 'group' number for each triplet

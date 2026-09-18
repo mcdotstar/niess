@@ -44,7 +44,6 @@ def _elastic_monitor_from_params(params):
 
 class Tank(Base):
     from scipp import Variable
-    from networkx import DiGraph
     from .channel import Channel
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
@@ -104,6 +103,21 @@ class Tank(Base):
                 'slits an explicit width instead'
             )
         return min(b - a for a, b in zip(angles, angles[1:]))
+
+    @property
+    def slit_radius(self):
+        """How far from the sample the radial slits sit.
+
+        The default for the drivable ``slitDistance``, not a fixed dimension: the slits
+        exist to be scanned, and this is only where they start. 0.4 m is the value the
+        instrument was previously compiled and run with.
+
+        It clears everything further out, which is what it has to do: the radial
+        collimators begin at 0.5 m, the elastic monitor is at 0.8 m and the nearest
+        analyzer at 1.19 m.
+        """
+        from scipp import scalar
+        return scalar(0.4, unit='m')
 
     @property
     def slit_width(self) -> float:
@@ -259,9 +273,20 @@ class Tank(Base):
             flat: bool = True,
             **kwargs
     ):
-        from ..mccode import add_niess_metadata, ensure_user_var, ensure_registry
+        from ..mccode import (add_niess_metadata, ensure_registry, ensure_runtime_line,
+                              ensure_user_var)
         ensure_registry(assembler, "mcdotstar/mcstas-slit-radial@main") # for slits
         ensure_user_var(assembler, 'int', 'secondary_cassette', 'Secondary spectrometer analyzer cassette index')
+
+        # The emitted Slit_radial_multi drives its position from these two, and nothing
+        # declared them -- the instrument named slitAngle and slitDistance and never
+        # said what they were, so the generated C had two undefined identifiers in it.
+        # They are what makes the slits scannable: a calibration run sweeps a narrow
+        # slit across the analyzers, which is angle, at some radius.
+        ensure_runtime_line(assembler, 'slitAngle/"degree" = 0.0')
+        ensure_runtime_line(
+            assembler, f'slitDistance/"m" = {self.slit_radius.value}'
+        )
 
         positions = self.slit_angles
         cov_x = self.slit_width
@@ -292,13 +317,29 @@ class Tank(Base):
             when = f"{1 + index} == secondary_cassette"
             channel.to_mccode(assembler, sample, name=name, when=when, settings=settings, flat=flat, **kwargs)
 
-    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
-        graph.add_node('slits')
-        if upstream is not None:
-            graph.add_edge(upstream, 'slits')
-        cs = [channel.add_to_graph('slits', f"channel_{1 + index}", graph) for index, channel in enumerate(self.channels)]
-        mn = self.monitor.add_to_graph(upstream, self.monitor.name, graph)
-        return [*cs, mn]
+    def __niess_flow__(self, graph, path):
+        """Ten paths leave the sample: nine channels and the elastic monitor.
+
+        This is the case McCode cannot state. Its instrument is a list, so the only
+        flow it can express is declaration order, and a neutron leaving the sample here
+        takes exactly one of ten branches. The radial slits are what choose -- the
+        emitted Slit_radial_multi tags the neutron with a channel, or with the monitor's
+        own slit, and everything downstream is gated on that tag. NeXus can say this,
+        through each group's `inputs` and `outputs`, which is why it is worth knowing.
+
+        The fan-out point is this node itself, standing in for the slit bank until the
+        slits become an object of their own.
+        """
+        from ..tree import node_id
+        here = node_id(path)
+        graph.add_node(here, kind=type(self).__name__)
+        exits: tuple[str, ...] = ()
+        for label, child in self.__niess_children__():
+            entries, child_exits = child.__niess_flow__(graph, path + (label,))
+            for entry in entries:
+                graph.add_edge(here, entry)
+            exits = exits + child_exits
+        return (here,), exits
 
     def efu_calibration(self):
         """Build the serializable representation of the EFU calibration data needed

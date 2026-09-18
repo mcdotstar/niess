@@ -7,6 +7,13 @@ class Analyzer(Base):
 
     blades: tuple[Crystal, ...]  # 7-9 blades
 
+    def __niess_flow__(self, graph, path):
+        """One node. Seven to nine blades, but a neutron meets one analyzer and McStas emits one
+        Monochromator_Rowland. The blades stay walkable; flow does not run through them.
+        """
+        from ..tree import leaf_flow
+        return leaf_flow(self, graph, path)
+
     @classmethod
     def from_dict(cls, data):
         from ..components import Crystal

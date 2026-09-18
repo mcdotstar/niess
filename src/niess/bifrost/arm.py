@@ -3,7 +3,6 @@ from __future__ import annotations
 from niess.components.component import Base
 
 class Arm(Base):
-    from networkx import DiGraph
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
     from .analyzer import Analyzer
@@ -23,6 +22,18 @@ class Arm(Base):
     # scattering angle a different way (acos of a dot product, unsigned, in radians).
     # Deliberately not unified: these are the quantities the emitted instrument is built
     # from, and this is a move, not a rewrite.
+
+    def __niess_label__(self, label: str) -> str:
+        """An arm contributes only its number, so an analyzer inside channel 3's first arm
+        is ``channel_3_1``-prefixed.
+        """
+        from ..tree import label_index
+        index = label_index(label)
+        if index is None:
+            raise ValueError(
+                f'a Arm is identified by its position; got the label {label!r}'
+            )
+        return str(index + 1)
 
     @property
     def sample_analyzer_vector(self) -> Variable:
@@ -208,21 +219,6 @@ class Arm(Base):
                                 component=kwargs.get('detector_component', None),
                                 parameters=kwargs.get('detector_parameters', None))
 
-    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
-        point = f'{name}_analyzer_point'  # component name of the location of the analyzer
-        mono = f'{name}_monochromator'  # component name of the analyzer itself
-        orient = f'{name}_detector_angle'  # component name of the oriented arm pointing at the detector
-        triplet = f'{name}_triplet'  # component name of the detector itself
-
-        graph.add_node(point)
-        if upstream is not None:
-            graph.add_edge(upstream, point)
-        self.analyzer.add_to_graph(point, mono, graph)
-        graph.add_node(orient)
-        graph.add_edge(mono, orient)
-        self.detector.add_to_graph(orient, triplet, graph)
-
-        return [triplet]
 
     def efu_calibration(self, group: int = -1):
         return self.detector.efu_calibration(group=group)

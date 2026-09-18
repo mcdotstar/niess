@@ -144,31 +144,51 @@ def instrument_structure(instrument) -> dict:
     }
 
 
-def instrument_graph(instrument) -> list[list[str]]:
-    """Particle-flow edges, sorted so the freeze does not pin iteration order."""
-    graph = instrument.build_flow_graph()
-    return sorted([source, target] for source, target in graph.edges())
+def _graph_data(graph) -> dict:
+    """Nodes and edges, sorted so the freeze does not pin iteration order.
 
-
-def niess_tank_graph() -> list[list[str]]:
-    """``Tank.add_to_graph``'s own view of the secondary spectrometer.
-
-    Frozen because the walk rewrite deletes the six hand-written ``add_to_graph``
-    overrides and re-derives them from one child protocol; this is what the derived
-    graph has to reproduce.
-
-    Only the tank. ``Section.to_graph`` raises ``AttributeError`` on any section
-    carrying a ``_flat`` field -- it iterates ``__struct_fields__`` rather than
-    ``parts()``, so it reaches the bool -- which means the primary's niess-side graph
-    has never been built. Fixing that is part of the rewrite, not of this baseline.
+    Nodes as well as edges: freezing edges alone loses any node that has none, and the
+    tank has one -- the elastic monitor is attached to `upstream`, which is None at the
+    top level, so it ends up isolated. The first version of this baseline recorded 199
+    nodes for a 200-node graph and said nothing about it.
     """
-    from networkx import DiGraph
-    from niess.bifrost import Tank
-    from niess.bifrost.parameters import tank_parameters
+    return {
+        'nodes': sorted(graph.nodes()),
+        'edges': sorted([source, target] for source, target in graph.edges()),
+    }
 
-    graph = DiGraph()
-    Tank.from_calibration(tank_parameters()).add_to_graph(None, 'tank', graph)
-    return sorted([source, target] for source, target in graph.edges())
+
+def instrument_graph(instrument) -> dict:
+    """The particle flow through an emitted instrument."""
+    return _graph_data(instrument.build_flow_graph())
+
+
+def niess_flow_graphs() -> dict:
+    """niess's own view of the particle flow, for each instrument it can describe.
+
+    Distinct from the frozen mccode graphs above, and not a duplicate of them: McCode
+    describes an instrument as a list, so the only flow it can express is declaration
+    order. The BIFROST tank branches -- ten paths leave the sample, nine channels and
+    the elastic monitor -- and NeXus needs to say so through each group's `inputs` and
+    `outputs`. That is the thing McStas cannot hold, which is the whole reason for
+    keeping a niess-side graph.
+
+    All three are frozen. Until the child protocol landed only the tank's could be
+    built at all: Section.add_to_graph iterated __struct_fields__ rather than parts(),
+    so it reached the `_flat` bool and raised on every section that carries one, which
+    is both Primary classes.
+    """
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+    from niess.teaching import Primary as Teaching
+
+    return {
+        'teaching': _graph_data(Teaching.from_calibration().to_graph()),
+        'bifrost_primary': _graph_data(
+            Primary.from_calibration(primary_parameters()).to_graph()),
+        'bifrost_tank': _graph_data(
+            Tank.from_calibration(tank_parameters()).to_graph()),
+    }
 
 
 def niess_objects() -> dict[str, str]:
@@ -209,7 +229,7 @@ def graph_path(name: str) -> Path:
     return DATA / f'{name}.graph.json.gz'
 
 
-NIESS_TANK_GRAPH = DATA / 'niess_tank.graph.json.gz'
+NIESS_FLOW_GRAPHS = DATA / 'niess_flow.graph.json.gz'
 NIESS_OBJECTS = DATA / 'niess_objects.json.gz'
 
 
@@ -232,7 +252,7 @@ def mint() -> None:
         _write(structure_path(name), _dump(instrument_structure(instrument)))
         _write(graph_path(name), _dump(instrument_graph(instrument)))
         print(f'minted {name}')
-    _write(NIESS_TANK_GRAPH, _dump(niess_tank_graph()))
+    _write(NIESS_FLOW_GRAPHS, _dump(niess_flow_graphs()))
     _write(NIESS_OBJECTS, _dump(niess_objects()))
     print('minted niess object model')
 

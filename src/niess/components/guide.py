@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Union
 from mccode_antlr.assembler import Assembler
 from mccode_antlr.instr import Instance
-from networkx import DiGraph
 from scipp import Variable
 from .component import Base, Component
 
@@ -101,13 +100,6 @@ class SegmentedGuide(Base):
     name: str
     segments: list
 
-    def add_to_graph(self, upstream: str | None, name: str, graph: DiGraph):
-        last = upstream
-        for x in self.segments:
-            names = x.add_to_graph(last, x.name, graph)
-            if len(names) == 1:
-                last = names[0]
-        return [last]
 
 class StraightGuides(SegmentedGuide):
     segments: list[StraightGuide]
@@ -269,6 +261,15 @@ class PartialEllipse(Base):
 class EllipticGuide(Guide):
     horizontal: PartialEllipse
     vertical:  PartialEllipse
+
+    def __niess_children__(self):
+        """None: `horizontal` and `vertical` describe this guide's cross-section.
+
+        PartialEllipse is a Base, so the default rule would report them as two child
+        components -- and a BIFROST primary would walk 187 leaves where it emits 158
+        components. They are the shape of this guide, not things inside it.
+        """
+        return ()
 
     @classmethod
     def from_calibration(cls, cal: dict):
