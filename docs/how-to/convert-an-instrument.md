@@ -88,10 +88,17 @@ an f-string, which is how the same name used to get written in two places and dr
 
 ## Converting an instrument niess did not build
 
-The tree-reading targets need a tree. For a `.instr` file there isn't one, and the
-older instrument-reading entry points remain for that, each under `via_instr` in its own
-package: `niess.nexus.via_instr.to_nexus_structure`,
-`niess.brep.via_instr.instrument_to_assembly`, `niess.tof.via_instr.to_tof_model` and
-`niess.chopcalc.narrow_source_wavelengths` all take an assembled instrument and recover
-what they can from it. See [Translate a McStas `.instr`](translate-an-instr.md) for
-turning one into a niess submodule, which is the better answer where it is available.
+You cannot, and that is deliberate. Every target reads the tree, and a `.instr` file has
+none.
+
+There used to be a second route per target, recovering what it could from an assembled
+instrument — placement resolved back out of the emitted text, run-time values recovered
+by constant-folding DECLARE blocks, a detector's arc and triplet read off a generated
+`WHEN` clause with a regular expression. It worked, and it meant every target carried two
+implementations of itself forever, one of which could only ever be a reconstruction.
+
+Reading a `.instr` is still supported and still useful: `niess.io.mccode.load_instr`
+parses one so its placements can be inspected, which is what
+[Translate a McStas `.instr`](translate-an-instr.md) does to check a niess submodule
+against the hand-written file it replaces. That is the migration story, and it survives.
+Converting one is not.

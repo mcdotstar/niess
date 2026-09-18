@@ -1,12 +1,25 @@
 # moreniius parity
 
-`niess.nexus.via_instr` replaces [`moreniius`](https://github.com/g5t/moreniius), which
-converted McCode instruments to ESS NeXus Structure JSON through a `nexusformat` object
-model. This page records what happened to every part of it, so nothing was lost silently.
+!!! warning "Historical"
 
-The module paths below are all relative to `niess/nexus/via_instr/`. That subpackage is
-where the instrument-reading route now lives: `niess.nexus` itself reads the niess object
-tree, which is a rewrite rather than a port and so has nothing to do with this audit.
+    The code this page audits has since been **removed**. niess converted McCode
+    instruments to NeXus by reading the emitted instrument back; it converts niess
+    instruments by reading the object tree, and once every target did that, the
+    instrument-reading route was two thousand lines of reconstructing what the tree
+    states. It went with the McStas demotion.
+
+    This page is kept as the record of the port, because the port is why the NeXus
+    output looks the way it does, and because the classification of differences below
+    is still the argument for each of them. **The module paths named here no longer
+    exist.** Nothing in niess reads a `.instr` to convert it — `niess.io.mccode.load_instr`
+    still parses one so its placements can be inspected, which is a different thing.
+
+niess replaced [`moreniius`](https://github.com/g5t/moreniius), which converted McCode
+instruments to ESS NeXus Structure JSON through a `nexusformat` object model. This page
+records what happened to every part of it, so nothing was lost silently.
+
+The module paths below were relative to `niess/nexus/via_instr/`, the subpackage that
+held the instrument-reading route.
 
 The regression baseline that pins the two against each other, and the classification of
 every remaining difference, is documented in
@@ -23,7 +36,7 @@ separate, human step.
 
 ## Ported
 
-| moreniius | niess.nexus.via_instr | Notes |
+| moreniius | where it went (since removed) | Notes |
 | --- | --- | --- |
 | `mccode/orientation.py` — `NXPart`, `NXParts`, `NXOrient` | `orientation.py` | Same algebra, emitting transformation dicts instead of `NXfield`s |
 | `mccode/instr.py` — `make_transformations`, `resolve_target`, `build_graph`, `inputs`/`outputs`, `guess_origin`, `to_nx` | `instrument.py::NexusContext` | `guess_origin` → `_find_origin`; `to_nx` → the `mcstas` dataset |

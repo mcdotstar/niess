@@ -47,12 +47,13 @@ def test_to_mccode_adds_niess_metadata():
     assert payload['role'] == 'physical-component'
 
 
-def test_straight_guide_brep_override():
+def test_a_guide_is_drawn_around_its_own_substrate():
     importorskip('build123d')
     import scipp as sc
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.brep.via_instr import instrument_to_assembly
+    from niess.brep import to_assembly
+    from niess.instrument import Instrument, Mount
     from niess.components import StraightGuide
     from niess.provenance import add_niess_metadata
 
@@ -69,13 +70,11 @@ def test_straight_guide_brep_override():
         bottom=1.0,
         width=sc.scalar(width, unit='m'),
         height=sc.scalar(height, unit='m'),
+        substrate=sc.scalar(substrate, unit='m'),
     )
 
-    assembler = Assembler('guide_test', flavor=Flavor.MCSTAS)
-    mccode_guide = guide.to_mccode(assembler, insert_provenance_metadata=True)
-    add_niess_metadata(mccode_guide, guide, extra={'substrate': substrate})
-
-    assembly = instrument_to_assembly(assembler.instrument)
+    assembly = to_assembly(Instrument(
+        name='guide_test', parts=(Mount(name='g1', content=guide),)))
 
     child = _assembly_child(assembly)
     size = child.bounding_box().size
@@ -84,12 +83,13 @@ def test_straight_guide_brep_override():
     assert size.Z == approx(3.0)
 
 
-def test_slit_brep_override_uses_metadata_dimensions():
+def test_a_slit_is_drawn_at_its_own_opening():
     importorskip('build123d')
     import scipp as sc
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.brep.via_instr import instrument_to_assembly
+    from niess.brep import to_assembly
+    from niess.instrument import Instrument, Mount
     from niess.components import Slit
 
     slit = Slit(
@@ -100,9 +100,8 @@ def test_slit_brep_override_uses_metadata_dimensions():
         height=sc.scalar(0.03, unit='m'),
     )
 
-    assembler = Assembler('slit_test', flavor=Flavor.MCSTAS)
-    slit.to_mccode(assembler, insert_provenance_metadata=True)
-    assembly = instrument_to_assembly(assembler.instrument)
+    assembly = to_assembly(Instrument(
+        name='slit_test', parts=(Mount(name='slit1', content=slit),)))
 
     child = _assembly_child(assembly)
     size = child.bounding_box().size
@@ -111,12 +110,13 @@ def test_slit_brep_override_uses_metadata_dimensions():
     assert size.Z > 0.0
 
 
-def test_filter_brep_override():
+def test_a_filter_is_drawn_at_its_own_size():
     importorskip('build123d')
     import scipp as sc
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.brep.via_instr import instrument_to_assembly
+    from niess.brep import to_assembly
+    from niess.instrument import Instrument, Mount
     from niess.components import NCrystalFilter
 
     filt = NCrystalFilter(
@@ -130,9 +130,8 @@ def test_filter_brep_override():
         temperature=sc.scalar(300.0, unit='K'),
     )
 
-    assembler = Assembler('filter_test', flavor=Flavor.MCSTAS)
-    filt.to_mccode(assembler, insert_provenance_metadata=True)
-    assembly = instrument_to_assembly(assembler.instrument)
+    assembly = to_assembly(Instrument(
+        name='filter_test', parts=(Mount(name='f1', content=filt),)))
 
     child = _assembly_child(assembly)
     size = child.bounding_box().size

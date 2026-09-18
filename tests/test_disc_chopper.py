@@ -152,15 +152,8 @@ def test_a_disc_writes_its_openings_to_nexus_in_the_mark_frame():
     beam-relative edges from `theta_0`, while a multi-opening one wrote mark-relative
     ones. Both go through the same translator now.
     """
-    from niess.nexus.via_instr import to_nexus_structure
     disc = DiscChopper.from_calibration(calibration(beam_angle=scalar(180.0, unit='deg')))
-    assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
-    assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
-    disc.to_mccode(assembler, at='origin', rotate='origin')
-
-    body = next(c for c in to_nexus_structure(assembler.instrument,
-                                              origin='origin')['children'][0]['children'][0]['children']
-                if c.get('name') == 'chopper')
+    body = nexus_body(disc)
     found = {(ch.get('config') or {}).get('name'): (ch.get('config') or {}).get('values')
              for ch in body['children']}
     assert found['slit_edges'] == [95.0, 265.0]
@@ -173,15 +166,9 @@ def test_a_disc_writes_its_openings_to_nexus_in_the_mark_frame():
 
 def nexus_slit_edges_of(edges):
     """The `slit_edges` a disc with these `windows` writes into NeXus."""
-    from niess.nexus.via_instr import to_nexus_structure
     disc = DiscChopper.from_calibration(calibration(
         windows=array(values=edges, dims=['edges'], unit='deg')))
-    assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
-    assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
-    disc.to_mccode(assembler, at='origin', rotate='origin')
-    body = next(c for c in to_nexus_structure(assembler.instrument,
-                                              origin='origin')['children'][0]['children'][0]['children']
-                if c.get('name') == 'chopper')
+    body = nexus_body(disc)
     return next((ch.get('config') or {}).get('values') for ch in body['children']
                 if (ch.get('config') or {}).get('name') == 'slit_edges')
 
@@ -229,20 +216,22 @@ def test_pairs_survive_being_reordered():
 
 
 def test_openings_that_overlap_are_refused_rather_than_written():
-    """They cannot be put in the standard's order, and a disc cannot have them anyway."""
-    from niess.nexus.via_instr.translators import nexus_slit_edges
-    with pytest.raises(ValueError, match='overlap'):
-        nexus_slit_edges([0.0, 200.0, 100.0, 300.0])
+    """They cannot be put in the standard's order, and a disc cannot have them anyway.
+
+    The refusal now comes from the disc rather than from the writing: `slits()` will not
+    describe overlapping openings in the first place, so nothing downstream has to.
+    """
+    with pytest.raises(ValueError, match='strictly increase'):
+        nexus_slit_edges_of([0.0, 200.0, 100.0, 300.0])
 
 
 # -- the McStas frame twist stays in McStas ------------------------------------
 
 def nexus_body(disc, name='chopper'):
-    from niess.nexus.via_instr import to_nexus_structure
-    assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
-    assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
-    disc.to_mccode(assembler)
-    structure = to_nexus_structure(assembler.instrument, origin='origin')
+    from niess.instrument import Instrument, Mount
+    from niess.nexus import to_nexus_structure
+    structure = to_nexus_structure(Instrument(
+        name='chopped', parts=(Mount(name='chopper', content=disc),)))
     return next(c for c in structure['children'][0]['children'][0]['children']
                 if c.get('name') == name)
 
@@ -295,7 +284,6 @@ def test_nexus_puts_the_disc_on_its_spindle():
     expects to be. An NXdisk_chopper is centred on the disc, so the file records the
     spindle -- the point the calibration actually gave.
     """
-    from niess.nexus.via_instr import to_nexus_structure
     disc = DiscChopper.from_calibration(calibration(beam_angle=scalar(180.0, unit='deg')))
     assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
     assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
@@ -305,41 +293,19 @@ def test_nexus_puts_the_disc_on_its_spindle():
     assert [float(str(v)) for v in instance.at_relative[0]] == \
         pytest.approx([0.0, -DELTA_Y, 5.0], abs=1e-12)
 
-    body = next(c for c in to_nexus_structure(assembler.instrument,
-                                              origin='origin')['children'][0]['children'][0]['children']
-                if c.get('name') == 'chopper')
+    body = nexus_body(disc)
     placed = {(t.get('config') or {}).get('name'): (t.get('config') or {}).get('values')
               for ch in body['children'] if ch.get('name') == 'transformations'
               for t in ch['children']}
-    assert [placed.get(f'chopper_t0_{k}', 0.0) for k in 'xyz'] == \
-        pytest.approx([0.0, 0.0, 5.0], abs=1e-12)
+    # NeXus gets the spindle: 5 m along the beam, and none of McStas' 0.32 m drop
+    assert placed['translation'] == pytest.approx(5.0, abs=1e-12)
+    direction = next(a['values'] for ch in body['children']
+                     if ch.get('name') == 'transformations'
+                     for t in ch['children'] if t.get('config', {}).get('name') == 'translation'
+                     for a in t['attributes'] if a['name'] == 'vector')
+    assert direction == pytest.approx([0.0, 0.0, 1.0], abs=1e-12)
 
 
-def test_the_spindle_is_recovered_against_a_rotated_reference():
-    """Where a naive subtraction would go wrong.
-
-    The displacement is added to the position in whatever frame the component was placed
-    against, so it has to come back out of the same quantity -- not out of a resolved
-    absolute position, which a rotated reference has already turned.
-    """
-    from niess.nexus.via_instr import to_nexus_structure
-    tilt = rotations_from_rotvecs(vector(value=[0.0, 37.0, 0.0], unit='deg'))
-    disc = DiscChopper.from_calibration(calibration(
-        orientation=tilt, beam_angle=scalar(180.0, unit='deg')))
-    assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
-    assembler.component('ref', 'Arm', at=((1., 2., 3.), 'ABSOLUTE'),
-                        rotate=((0., 20., 0.), 'ABSOLUTE'))
-    disc.to_mccode(assembler, at='ref', rotate='ref')
-
-    body = next(c for c in to_nexus_structure(assembler.instrument,
-                                              origin='ref')['children'][0]['children'][0]['children']
-                if c.get('name') == 'chopper')
-    placed = {(t.get('config') or {}).get('name'): (t.get('config') or {}).get('values')
-              for ch in body['children'] if ch.get('name') == 'transformations'
-              for t in ch['children']}
-    # the spindle, in the reference's frame, exactly as the calibration gave it
-    assert [placed.get(f'chopper_t0_{k}', 0.0) for k in 'xyz'] == \
-        pytest.approx([0.0, 0.0, 5.0], abs=1e-12)
 
 
 def test_nexus_records_the_discs_own_orientation():
@@ -364,43 +330,8 @@ def test_nexus_records_the_discs_own_orientation():
     assert found['slit_edges'] == [65.0, 85.0]
 
 
-def test_a_turned_disc_matches_a_component_placed_where_it_really_is():
-    """The strongest form of the check: same rotation chain as an untwisted stand-in."""
-    from niess.nexus.via_instr import to_nexus_structure
-    from niess.spatial import mccode_ordered_angles
-    tilt = rotations_from_rotvecs(vector(value=[0.0, -12.5, 0.0], unit='deg'))
-    disc = DiscChopper.from_calibration(calibration(
-        orientation=tilt, beam_angle=scalar(180.0, unit='deg')))
-
-    assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
-    assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
-    disc.to_mccode(assembler)
-    # a stand-in at the same point, carrying the disc's physical orientation
-    assembler.component(
-        'reference', 'Arm',
-        at=(tuple((disc.position + disc.beam_offset()).to(unit='m').value), 'ABSOLUTE'),
-        rotate=(tuple(mccode_ordered_angles(tilt)), 'ABSOLUTE'))
-
-    structure = to_nexus_structure(assembler.instrument, origin='origin')
-    kids = {c.get('name'): c for c in structure['children'][0]['children'][0]['children']}
-    assert nexus_rotations(kids['chopper']) == nexus_rotations(kids['reference'])
-    assert nexus_rotations(kids['chopper']) != []      # or the comparison is vacuous
 
 
-def test_every_opening_of_a_split_disc_is_untwisted():
-    """Each instance carries the same turn, so each has to have it taken back out."""
-    disc = DiscChopper.from_calibration(calibration(
-        beam_angle=scalar(180.0, unit='deg'),
-        windows=array(values=[95.0, 115.0, 245.0, 265.0], dims=['edges'], unit='deg')))
-    from niess.nexus.via_instr import to_nexus_structure
-    assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
-    assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
-    instances = disc.to_mccode(assembler)
-    assert len(instances) == 2
-    structure = to_nexus_structure(assembler.instrument, origin='origin')
-    body = next(c for c in structure['children'][0]['children'][0]['children']
-                if c.get('name') == 'chopper')
-    assert nexus_rotations(body) == []
 
 
 # -- the angles are the only description --------------------------------------

@@ -81,13 +81,6 @@ the object is a constant in the file, which is right only if it really is one.
 
 Build children with `dataset`, `group` and `stream`, all importable from `niess.nexus`.
 
-!!! note "The other route"
-
-    `niess.nexus.via_instr` converts an assembled McStas instrument rather than a tree,
-    and its translators take a `Translation` — `t.parameter(...)`, `t.provenance`,
-    `t.siblings_in_group()` — because all it has is emitted components. Registering on
-    that route means `niess.nexus.via_instr.registry.DEFAULT_NEXUS_REGISTRY`.
-
 `component_body` also takes a `name`, which overrides the group's name — by default the
 McStas instance's. Use it where that name is an artefact of how the instrument was
 built: a composite split across several instances should appear under the name of the

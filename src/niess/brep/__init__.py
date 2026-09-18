@@ -6,10 +6,8 @@
     save_step(instrument, 'instrument.step')
 
 Reads the tree: a component's position and orientation are on the component, as scipp
-Variables, and composing them with the frame it hangs from is arithmetic. Drawing an
-instrument niess did *not* build means reading an emitted one instead, which is
-`niess.brep.via_instr` and is not imported here -- it is the older route, kept for files
-niess did not write.
+Variables, and composing them with the frame it hangs from is arithmetic. There is no
+other route -- niess draws niess instruments.
 
 Importing this module registers the shape builders, which is what `to_assembly` resolves
 against.

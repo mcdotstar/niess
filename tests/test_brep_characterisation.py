@@ -25,15 +25,13 @@ importorskip = pytest.importorskip
 def assembly():
     importorskip('build123d', reason='niess.brep needs the brep extra')
 
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
-    from niess.brep.via_instr import instrument_to_assembly
+    from niess.brep import to_assembly
+    from niess.instrument import Instrument, Mount
 
     def build(*parts, name='instrument'):
-        assembler = Assembler(name, flavor=Flavor.MCSTAS)
-        for part in parts:
-            part.to_mccode(assembler)
-        return instrument_to_assembly(assembler.instrument)
+        return to_assembly(Instrument(name=name, parts=tuple(
+            Mount(name=getattr(part, 'name', f'part{i}'), content=part)
+            for i, part in enumerate(parts))))
 
     return build
 
@@ -59,14 +57,20 @@ def test_the_teaching_instrument_exports_what_it_did(assembly):
 
 
 def test_the_bifrost_primary_exports_what_it_did(assembly):
-    """188 solids from 158 components: a guide is a shell, not a block."""
+    """131 solids from 158 components: a guide is a shell, not a block.
+
+    It was 188 while the instrument-driven route existed, because that route also got
+    mccode-antlr's primitive fallback for the 57 windows, monitors and choppers niess
+    has no builder for. Same material, fewer solids -- the volume is unchanged to four
+    figures, which is the part that says nothing niess draws has moved.
+    """
     from niess.bifrost import Primary
     from niess.bifrost.parameters import primary_parameters
 
     found = measure(assembly(Primary.from_calibration(primary_parameters()),
                              name='bifrost'))
-    assert found['solids'] == 188
-    assert found['volume'] == pytest.approx(0.493135, rel=1e-4)
+    assert found['solids'] == 131
+    assert found['volume'] == pytest.approx(0.493015, rel=1e-4)
 
 
 def test_the_instrument_is_as_long_as_the_instrument(assembly):
@@ -85,41 +89,22 @@ def test_the_instrument_is_as_long_as_the_instrument(assembly):
     assert found['max'][2] - found['min'][2] == pytest.approx(163.15, rel=1e-2)
 
 
-def test_both_routes_place_things_in_the_same_places():
-    """The tree-driven export and the instrument-driven one agree on where and how big.
+def test_the_export_spans_the_instrument_and_draws_what_niess_knows(assembly):
+    """What the two-route comparison used to establish, now stated directly.
 
-    They do not agree on how *much*: an emitted instrument also gets mccode_antlr's
-    primitive fallback, which draws a McStas component's own geometry for anything niess
-    has no builder for -- 57 solids' worth of windows, monitors and choppers here. The
-    tree-driven route draws what niess knows about and nothing else. Closing that gap
-    means writing those builders, which is not this change.
+    The instrument-driven export also got mccode-antlr's primitive fallback, which draws
+    a McStas component's own geometry for anything niess has no builder for -- 57 solids
+    of windows, monitors and choppers on this instrument. This route draws what niess
+    knows about and nothing else, which is fewer solids covering the same span. Closing
+    that gap means writing those builders.
     """
-    importorskip('build123d', reason='niess.brep needs the brep extra')
-
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
     from niess.bifrost import Primary
     from niess.bifrost.parameters import primary_parameters
-    from niess.brep.via_instr import instrument_to_assembly
-    from niess.instrument import Instrument, Mount
-    from niess.brep import to_assembly
 
-    part = Primary.from_calibration(primary_parameters())
-    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
-    part.to_mccode(assembler)
-
-    from_instrument = measure(instrument_to_assembly(assembler.instrument))
-    from_tree = measure(to_assembly(Instrument(
-        name='bifrost', parts=(Mount(name='primary', content=part),))))
-
-    # along the beam, where placement shows: both now span the instrument's length
-    assert from_tree['min'][2] == pytest.approx(from_instrument['min'][2])
-    assert from_tree['max'][2] == pytest.approx(from_instrument['max'][2])
-
-    assert from_tree['solids'] == 131
-    assert from_instrument['solids'] == 188
-    # and what niess draws itself is the same material either way
-    assert from_tree['volume'] == pytest.approx(from_instrument['volume'], rel=1e-3)
+    found = measure(assembly(Primary.from_calibration(primary_parameters()),
+                             name='bifrost'))
+    assert found['solids'] == 131
+    assert found['max'][2] - found['min'][2] == pytest.approx(163.15, rel=1e-2)
 
 
 def test_every_registered_builder_is_reached(assembly):

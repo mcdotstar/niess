@@ -1,12 +1,10 @@
 """Solid geometry, built from the tree.
 
-`via_instr` hands the same shape builders to `mccode_antlr`'s renderer, which walks an
-emitted instrument and places each shape in the global frame. That placement has never
-worked: it is computed inside a `try` whose `except Exception: pass` discarded a
-`TypeError` raised for every component, so every solid was exported at the origin and a
-162 m instrument came out 4.4 m long. The fix belongs upstream and is written, but a
-released mccode-antlr will not have it, and niess should not ship a CAD export that
-produces a heap of parts either way.
+There used to be a second route, handing the same shape builders to `mccode_antlr`'s
+renderer to walk an emitted instrument. Its placement never worked: it was computed
+inside a `try` whose `except Exception: pass` discarded a `TypeError` raised for every
+component, so every solid was exported at the origin and a 162 m instrument came out
+4.4 m long.
 
 Building from the tree needs none of it. A component's position and orientation are on
 the component, as scipp Variables; a frame is a declared node; and composing the two is
@@ -75,21 +73,15 @@ class BRepContext(Context):
 
 @dataclass
 class Subject:
-    """What a shape builder is given, whichever route it was reached by.
+    """What a shape builder is given.
 
-    The builders were always written against the McCode parameters a component reports,
-    so that is what they still take. ``obj`` is the niess object when there is one --
-    reading a dimension off it beats reading the four edges it emits as -- and ``None``
-    when the shape is being built from an emitted instance instead.
+    The builders were written against the McCode parameters a component reports, so that
+    is what they still take, alongside the object itself -- reading a dimension off it
+    beats reading the four edges it emits as.
     """
     name: str
     params: dict
     obj: Any = None
-    #: Provenance extras, when the shape is being built from an emitted instance. That
-    #: is a documented extension point -- tagging an instance with a `substrate` or a
-    #: `width` is how an instrument says something the McCode parameters do not -- and
-    #: reading the object says the same thing more directly.
-    extra: dict = field(default_factory=dict)
 
 
 def mccode_parameters(obj) -> dict[str, float]:

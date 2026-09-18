@@ -1,13 +1,13 @@
 """The chopper train, read off the tree instead of off an emitted instrument.
 
-`niess.chopcalc.via_instr` reads the components McStas was given, recovering which disc
+`niess.chopcalc` used to have a second route that read the components McStas was given,
+recovering which disc
 is which, where a multi-opening one came apart, and which knob sets its speed. Reading
 the tree, a disc is a disc. These check the two agree, because the emitted C has to be
 the same either way -- `emit.py` is untouched and takes whichever train it is handed.
 """
 import pytest
 
-from niess.chopcalc.via_instr import build_train
 from niess.chopcalc import train_from_instrument
 from niess.instrument import Instrument, Mount
 
@@ -34,37 +34,26 @@ def bifrost_primary():
     return lambda: Primary.from_calibration(primary_parameters())
 
 
-def test_the_two_routes_find_the_same_choppers(bifrost_primary):
-    """The acceptance test: same discs, same knobs, same windows, same path lengths.
+def test_the_train_of_bifrost_is_what_it_is(bifrost_primary):
+    """What the two routes used to be compared against each other for.
 
-    Every field is C text, so this is an exact comparison of what reaches the generated
-    instrument -- not of two numbers that happen to round the same way.
+    The instrument-reading route is gone, so there is nothing left to compare with --
+    these are the values the comparison agreed on, written down. Six discs in beam
+    order, and a band written through the source's own two knobs rather than as numbers
+    the instrument would then contradict.
     """
-    from_instrument = build_train(assembled(bifrost_primary()).instrument)
-    from_tree = train_from_instrument(Instrument(
+    train = train_from_instrument(Instrument(
         name='bifrost', parts=(Mount(name='primary', content=bifrost_primary()),)))
 
-    assert len(from_tree.choppers) == 6
-    assert from_tree.choppers == from_instrument.choppers
-
-
-def test_the_two_routes_narrow_the_same_band(bifrost_primary):
-    """Same lambda knobs, and the same latest emission time.
-
-    The expression differs and the value does not. Reading an instrument picks up
-    ESS_butterfly's own default of tmax_multiplier=3 and writes `3.0 * 0.002857`;
-    reading the tree finds no latest_emission_time set and falls back to niess' own
-    default, which is three ESS pulses -- the same 0.008571 s, honestly labelled.
-    """
-    from_instrument = build_train(assembled(bifrost_primary()).instrument).source
-    from_tree = train_from_instrument(Instrument(
-        name='bifrost', parts=(Mount(name='primary', content=bifrost_primary()),))).source
-
-    assert from_tree.lambda_min == from_instrument.lambda_min
-    assert from_tree.lambda_max == from_instrument.lambda_max
-    assert from_tree.name == from_instrument.name
-    assert eval(from_tree.latest_emission) == pytest.approx(
-        eval(from_instrument.latest_emission), rel=1e-4)
+    assert [c.name for c in train.choppers] == [
+        'pulse_shaping_chopper_1', 'pulse_shaping_chopper_2',
+        'frame_overlap_chopper_1', 'frame_overlap_chopper_2',
+        'bandwidth_chopper_1', 'bandwidth_chopper_2',
+    ]
+    assert train.source.name == 'source'
+    assert train.source.lambda_min == 'source_lambda_min'
+    assert train.source.lambda_max == 'source_lambda_max'
+    assert float(train.source.latest_emission) == pytest.approx(3.0 * 0.002857)
 
 
 def test_a_disc_is_a_disc(teaching):
@@ -107,26 +96,6 @@ def test_a_multi_opening_disc_keeps_all_its_windows():
     assert len(entry.windows) == 2, 'both openings, from the disc itself'
 
 
-def test_the_generated_c_is_the_same_either_way(bifrost_primary):
-    """emit.py is untouched, and takes whichever train it is handed."""
-    from niess.chopcalc import narrow_source_wavelengths
-
-    def narrowed(train):
-        assembler = assembled(bifrost_primary())
-        narrow_source_wavelengths(assembler, chopper_train=train)
-        text = str(assembler.instrument)
-        return text[text.index('DEFINE INSTRUMENT'):]
-
-    tree = train_from_instrument(Instrument(
-        name='bifrost', parts=(Mount(name='primary', content=bifrost_primary()),)))
-    from_tree = narrowed(tree).split('\n')
-    from_instrument = narrowed(None).split('\n')
-
-    differing = [(a, b) for a, b in zip(from_instrument, from_tree) if a != b]
-    assert len(from_tree) == len(from_instrument)
-    # only the latest-emission line, and only in how the same value is written
-    assert len(differing) == 1
-    assert 'chopcalc_latest' in differing[0][0]
 
 
 def test_a_chopper_in_a_mounted_frame_is_refused(bifrost_primary):

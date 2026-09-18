@@ -83,10 +83,8 @@ converts. The beam-path walk it measures distances along is shared with `niess.c
 — both use `niess.chopcalc.paths` — so a chopper's distance is the same number in the
 band calculation and in the diagram.
 
-An instrument niess did *not* build has none of that, only emitted components. Modelling
-one means `niess.tof.via_instr.to_tof_model`, which asks chopcalc for a train and parses
-the numbers back out of the C it emits. It takes an `Assembler` rather than an
-`Instrument`, and it is the older of the two routes.
+An instrument niess did *not* build has none of that, only emitted components, and
+modelling one is no longer supported: niess models niess instruments.
 
 The one thing that is not shared is the conversion into `tof`'s own description, because
 the two disagree about how a chopper is specified:

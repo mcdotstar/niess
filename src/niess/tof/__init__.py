@@ -20,9 +20,8 @@ the disc:
     setup                      # in a notebook: what it used, and what you may override
     setup.model.run().plot()
 
-Modelling an instrument niess did *not* build means reading an emitted one and parsing
-those numbers back out of the C, which is `niess.tof.via_instr` -- a different function
-taking an `Assembler` rather than an `Instrument`. It is not imported here.
+Modelling an instrument niess did *not* build meant reading an emitted one and parsing
+those numbers back out of the C. That route is gone: niess models niess instruments.
 
 Install with ``pip install 'niess[tof]'``.
 """

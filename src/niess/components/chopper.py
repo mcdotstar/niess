@@ -184,6 +184,46 @@ class DiscChopper(Chopper):
             beam_angle=beam_angle,
         )
 
+    def nexus_slit_edges(self) -> list[float]:
+        """This disc's slit edges as ``NXdisk_chopper`` asks for them.
+
+        The standard says: "Angle of each edge of every slit from the position of the
+        top-dead-center timestamp sensor, anticlockwise when facing away from the source. The
+        first edge must be the opening edge of a slit, thus the last edge may have an angle
+        greater than 360 degrees." So: positive, strictly increasing, opening edge first, and
+        only the *final* edge past 360 -- which happens exactly when the last slit crosses the
+        mark.
+
+        ``DiscChopper`` is deliberately looser, because a slit across the mark reads better as
+        ``[-85, 85]`` than as ``[275, 445]`` and one may be written a turn late. Getting from
+        there to here is not a shift of the whole list: the wrap belongs to *one* slit, and
+        adding 360 to every edge carries the slits that were already in range out past it --
+        ``[-10, 10, 60, 90]`` would become ``[350, 370, 420, 450]``, whose third edge is an
+        opening past 360. What is needed is to rotate which slit comes first.
+
+        So each slit's *opening* edge moves into ``[0, 360)`` carrying its width, and the
+        slits are ordered by it. The slit containing the mark is the only one that can wrap,
+        and openings that do not overlap force it to sort last, so "only the final edge
+        exceeds 360" falls out rather than being imposed.
+        """
+        edges = [angle for opening in self.slits() for angle in opening]
+        if not edges:
+            return []
+        # `%` on a negative float gives the positive residue in Python, which is what this
+        # wants -- not math.fmod, which keeps the sign of the operand.
+        slits = sorted((opening % 360.0, opening % 360.0 + (closing - opening))
+                       for opening, closing in zip(edges[::2], edges[1::2]))
+        ordered = [edge for slit in slits for edge in slit]
+
+        if any(b <= a for a, b in zip(ordered, ordered[1:])) \
+                or any(not 0.0 <= edge < 360.0 for edge in ordered[:-1]):
+            raise ValueError(
+                f'slit edges {edges} cannot be written as NXdisk_chopper wants them: '
+                f'{ordered} is not increasing with only its last edge past 360 degrees. '
+                f'Openings that overlap each other do this, and a disc cannot have them.'
+            )
+        return ordered
+
     def slits(self) -> list[tuple[float, float]]:
         """The ``(opening, closing)`` edge pair of each opening, in degrees from the mark.
 

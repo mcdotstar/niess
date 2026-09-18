@@ -11,13 +11,12 @@ Reads the tree: a component's position and orientation are on the component, a d
 Writing a translator needs the node constructors, which are re-exported here so that takes
 one import. They are shared with the other route, being format rather than route.
 
-Two things this module deliberately does not import:
+One thing this module deliberately does not import: `niess.nexus.bifrost`.
+Instrument-specific translators live in registries of their own, and generic NeXus has no
+business loading `niess.bifrost` to publish them.
 
-* `niess.nexus.bifrost` -- instrument-specific translators live in registries of their
-  own, and generic NeXus has no business loading `niess.bifrost` to publish them.
-* `niess.nexus.via_instr` -- converting an instrument niess did *not* build, by reading
-  the emitted McStas back. It is the older route and a different function; loading the
-  tree route used to drag all 1500 lines of it in.
+Converting an instrument niess did *not* build, by reading emitted McStas back, was a
+second route of some 1500 lines. It is gone: niess converts niess instruments.
 """
 from .nodes import (
     attribute,
