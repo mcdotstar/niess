@@ -275,7 +275,7 @@ def disc_chopper_translator(t):
 
     if t.provenance is None:
         return None
-    if t.provenance.role == 'nexus-group-member':
+    if t.provenance.role == 'disc-opening-member':
         # An opening folded into the primary instance above -- emit nothing at all
         return None
 
@@ -318,8 +318,8 @@ def disc_chopper_translator(t):
     # The disc's own delay, not this instance's: each emitted opening carries the shared
     # delay plus its own fixed offset, and that offset is already in ``slit_edges``.
     delay_parameter = extra.get('delay_parameter')
-    if delay_parameter is None and extra.get('nexus_group_id') is not None:
-        delay_parameter = f'{extra["nexus_group_id"]}delay'
+    if delay_parameter is None and extra.get('disc_group_id') is not None:
+        delay_parameter = f'{extra["disc_group_id"]}delay'
     if delay_parameter is not None:
         children.append(expression.parameter_node(
             'delay',
@@ -338,4 +338,4 @@ def disc_chopper_translator(t):
     # The group carries the disc's own name: "_slit_0" is an artefact of splitting it
     # across McStas components, and means nothing to a reader of the NeXus file.
     return component_body('NXdisk_chopper', children,
-                          name=t.provenance.extra.get('nexus_group_id'))
+                          name=t.provenance.extra.get('disc_group_id'))

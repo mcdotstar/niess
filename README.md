@@ -55,20 +55,18 @@ used to provide calibrated instrument information to `McStas` and `NeXusStructur
 instrument, ESS NeXus Structure JSON, or CAD geometry:
 
 ```python
-from mccode_antlr import Flavor
-from mccode_antlr.assembler import Assembler
 from niess.bifrost import Primary, Tank
 from niess.bifrost.parameters import primary_parameters, tank_parameters
-from niess.nexus import to_nexus_structure
-from niess.nexus.bifrost import BIFROST_REGISTRY
+from niess.instrument import Instrument, Mount
+from niess.targets.nexus import BIFROST_REGISTRY, to_nexus_structure
 
-assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
-Primary.from_calibration(primary_parameters()).to_mccode(assembler)
-Tank.from_calibration(tank_parameters()).to_mccode(assembler, 'sample_origin')
+bifrost = Instrument(name='bifrost', origin='sample_origin', parts=(
+    Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
+    Mount(name='tank', content=Tank.from_calibration(tank_parameters()),
+          relative_to='sample_origin'),
+))
 
-structure = to_nexus_structure(
-    assembler.instrument, origin='sample_origin', registry=BIFROST_REGISTRY,
-)
+structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
 ```
 
 Full documentation, including how to translate an existing McStas `.instr` into a

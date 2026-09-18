@@ -61,22 +61,34 @@ def main(outdir: Path) -> None:
             )
     # --8<-- [end:component]
 
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
+    from niess.components import Component, Section
+    from niess.instrument import Instrument, Mount
+    from niess.targets.mccode import to_mccode
     from scipp import scalar, vector
     from scipp.spatial import rotations_from_rotvecs
 
-    assembler = Assembler('gated', flavor=Flavor.MCSTAS)
-    assembler.component('origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
-    ChoppedMonitor.from_calibration({
-        'name': 'gate', 'position': vector([0, 0, 2.0], unit='m'),
-        'orientation': rotations_from_rotvecs(vector([0, 0, 0.0], unit='deg')),
-        'width': scalar(50.0, unit='mm'), 'height': scalar(50.0, unit='mm'),
-        'frequency': scalar(14.0, unit='Hz'),
-    }).to_mccode(assembler, at='origin', rotate='origin')
-    assembler.component('sample', 'Arm', at=((0, 0, 5), 'origin'))
+    upright = rotations_from_rotvecs(vector([0, 0, 0.0], unit='deg'))
 
-    instrument = assembler.instrument
+    class Gated(Section):
+        origin: Component
+        gate: ChoppedMonitor
+        sample: Component
+        _flat: bool = True
+
+    gated = Instrument(name='gated', origin='sample', parts=(Mount(name='beamline', content=Gated(
+        origin=Component(name='origin', position=vector([0, 0, 0.0], unit='m'),
+                         orientation=upright),
+        gate=ChoppedMonitor.from_calibration({
+            'name': 'gate', 'position': vector([0, 0, 2.0], unit='m'),
+            'orientation': upright,
+            'width': scalar(50.0, unit='mm'), 'height': scalar(50.0, unit='mm'),
+            'frequency': scalar(14.0, unit='Hz'),
+        }),
+        sample=Component(name='sample', position=vector([0, 0, 5.0], unit='m'),
+                         orientation=upright),
+    )),))
+
+    instrument = to_mccode(gated)
     text = str(instrument)
 
     # the run-time parameter reached DEFINE INSTRUMENT(...)

@@ -4,15 +4,15 @@ from pathlib import Path
 
 def main(outdir: Path) -> None:
     # --8<-- [start:build]
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
+    from niess.instrument import Instrument, Mount
     from niess.teaching import Primary
-    from niess.tof import to_tof_model
+    from niess.tof.tree import to_tof_model
 
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
+    teaching = Instrument(name='teaching', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration()),
+    ))
 
-    setup = to_tof_model(assembler, neutrons=20_000)
+    setup = to_tof_model(teaching, neutrons=20_000)
 
     # In a notebook, displaying `setup` renders the table below. Everything it used came
     # from the instrument, so nothing has to be supplied -- but the knobs are listed so

@@ -11,16 +11,18 @@ INSTR = Path(__file__).parent / 'teaching_hand_written.instr'
 
 def main(outdir: Path) -> None:
     # --8<-- [start:verify]
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
+    from niess.instrument import Instrument, Mount
     from niess.nexus import load_instr
+    from niess.targets.mccode import to_mccode
     from niess.teaching import Primary
 
+    # the hand-written file, read as it is -- there is no tree for it yet
     original = load_instr(INSTR)
 
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
-    translated = assembler.instrument
+    # and the submodule that is meant to replace it
+    translated = to_mccode(Instrument(
+        name='teaching', origin='sample_origin',
+        parts=(Mount(name='primary', content=Primary.from_calibration()),)))
 
     # resolve_orientations() gives each component's absolute placement
     before = original.resolve_orientations()

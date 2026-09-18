@@ -7,13 +7,14 @@ from pathlib import Path
 
 def main(outdir: Path) -> None:
     # --8<-- [start:assemble]
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
+    from niess.instrument import Instrument, Mount
+    from niess.targets.mccode import to_mccode
     from niess.teaching import Primary
 
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
-    instrument = assembler.instrument
+    teaching = Instrument(name='teaching', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration()),
+    ))
+    instrument = to_mccode(teaching)
     # --8<-- [end:assemble]
 
     # The calibration produced these McStas components, in beam order

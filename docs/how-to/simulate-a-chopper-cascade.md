@@ -15,7 +15,9 @@ pip install 'niess[tof]'
 
 ## Build a model
 
+```python
 --8<-- "tof_model.py:build"
+```
 
 ```
 TofSetup: 1 chopper(s), 2 detector(s)
@@ -44,7 +46,9 @@ The knobs are listed anyway, because knowing which ones exist is the point of as
 the report names *what read each one* — so a value that looks wrong can be traced to the
 component that used it. Turn one with:
 
+```python
 --8<-- "tof_model.py:override"
+```
 
 `with_values` rebuilds from the same instrument, so the report then marks `chopperspeed` as
 given rather than defaulted.

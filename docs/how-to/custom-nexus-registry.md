@@ -66,7 +66,7 @@ The translator receives a `Translation` and returns a component body. What
 | `t.defines(name)` | whether the component defines a parameter at all |
 | `t.provenance` | what niess recorded about the source object |
 | `t.instr` | the whole instrument, for translators that must look at siblings |
-| `t.siblings_in_group()` | the other instances sharing this one's `nexus_group_id` |
+| `t.siblings_in_group()` | the other instances sharing this one's `disc_group_id` |
 
 Prefer `parameter_node` for anything a user can drive at run time; it makes the
 literal-or-link decision for you. Use `parameter` only for values you need in Python.
@@ -99,27 +99,27 @@ A device built from several McStas components — a multi-opening chopper, a det
 bank — collapses using the *role* tier. When building the instrument, tag each instance:
 
 ```python
-add_niess_metadata(instance, self, role='nexus-group-primary',
-                   extra={'nexus_group_id': 'chopper_pack', 'nexus_group_index': 0})
+add_niess_metadata(instance, self, role='disc-opening-primary',
+                   extra={'disc_group_id': 'chopper_pack', 'disc_group_index': 0})
 ```
 
 giving one instance the `primary` role and the rest `member`. Then register both roles:
 
 ```python
-@MY_REGISTRY.register_role('nexus-group-member')
+@MY_REGISTRY.register_role('disc-opening-member')
 def suppress(t):
     return None            # emit nothing; this instance is folded into the primary
 
 
-@MY_REGISTRY.register_role('nexus-group-primary')
+@MY_REGISTRY.register_role('disc-opening-primary')
 def merged(t):
-    siblings = t.siblings_in_group()   # ordered by nexus_group_index, not by position
+    siblings = t.siblings_in_group()   # ordered by disc_group_index, not by position
     ...
     return component_body('NXdisk_chopper', children)
 ```
 
 Tag by explicit role rather than relying on declaration order — `siblings_in_group()`
-sorts by `nexus_group_index`, so the merged node is stable even if the instances move.
+sorts by `disc_group_index`, so the merged node is stable even if the instances move.
 
 Give the merged node the object's own name with `component_body(..., name=...)`, so the
 file describes the device rather than the components it was split across.

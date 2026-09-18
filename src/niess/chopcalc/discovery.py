@@ -292,7 +292,7 @@ def _check_group(group) -> None:
     Stale metadata could make the band too narrow, which is the failure that loses
     neutrons, so this raises rather than guessing.
     """
-    name = group[0][1].extra['nexus_group_id']
+    name = group[0][1].extra['disc_group_id']
     speeds = {str(_parameter(i, 'nu')) for i, _ in group}
     delays = {p.extra.get('delay_parameter') for _, p in group}
     if len(speeds) != 1:
@@ -361,8 +361,8 @@ def build_train(instrument, *, source=None, skip=(), path_lengths=None,
         # records its openings, and only a disc split across several components carries
         # a group id saying which instances have to be put back together.
         provenance = NiessProvenance.from_instance(instance)
-        if provenance is not None and provenance.extra.get('nexus_group_id') is not None:
-            groups.setdefault(provenance.extra['nexus_group_id'], []).append(
+        if provenance is not None and provenance.extra.get('disc_group_id') is not None:
+            groups.setdefault(provenance.extra['disc_group_id'], []).append(
                 (instance, provenance))
             continue
         if instance.group:
@@ -401,7 +401,7 @@ def build_train(instrument, *, source=None, skip=(), path_lengths=None,
 
     for name, group in groups.items():
         _check_group(group)
-        group.sort(key=lambda pair: pair[1].extra.get('nexus_group_index', 0))
+        group.sort(key=lambda pair: pair[1].extra.get('disc_group_index', 0))
         path = overrides.pop(name, None)
         if path is None:
             path = beam_path_length(graph, places, entry.name, group[0][0].name)

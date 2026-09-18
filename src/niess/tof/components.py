@@ -54,7 +54,7 @@ def disc_chopper_builder(conversion: Conversion):
     put them back together, so every instance but the one carrying the disc declines.
     """
     provenance = conversion.provenance
-    if provenance is not None and provenance.role == 'nexus-group-member':
+    if provenance is not None and provenance.role == 'disc-opening-member':
         return None
     if conversion.spec is None:
         return None
@@ -300,7 +300,7 @@ def to_tof_model(obj, *, source=None, values=None, neutrons: int = 1_000_000,
         provenance = NiessProvenance.from_instance(instance)
         spec = specs.get(instance.name)
         if spec is None and provenance is not None:
-            spec = specs.get(provenance.extra.get('nexus_group_id'))
+            spec = specs.get(provenance.extra.get('disc_group_id'))
         try:
             distance = origin + beam_path_length(graph, places, source_instance.name,
                                                  instance.name)

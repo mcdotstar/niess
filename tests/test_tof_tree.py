@@ -6,6 +6,7 @@ tof configures one specific machine and needs numbers, so it parses the text bac
 Reading the tree there is no text to parse.
 """
 import pytest
+import scipp as sc
 
 from niess.instrument import Instrument, Mount
 from niess.tof.tree import chopper_specs
@@ -94,3 +95,78 @@ def test_the_origin_belongs_to_the_model_not_the_instrument():
 def test_specs_come_out_in_beam_order():
     specs = chopper_specs(as_instrument(), origin=0.05)
     assert [s.distance for s in specs] == sorted(s.distance for s in specs)
+
+
+# -- values arrive with their own units -------------------------------------------
+
+def teaching_tree():
+    from niess.teaching import Primary
+    return Instrument(name='teaching', origin='sample_origin',
+                      parts=(Mount(name='primary', content=Primary.from_calibration()),))
+
+
+@pytest.mark.parametrize('given,expected', [
+    (7.0, 7.0),
+    (sc.scalar(7.0, unit='Hz'), 7.0),
+    (sc.scalar(0.007, unit='kHz'), 7.0),
+])
+def test_a_speed_is_converted_to_the_unit_the_disc_declares(given, expected):
+    """A calculator is entitled to hand back kHz; the disc declares its knob in Hz.
+
+    The instrument-reading route takes the unit from the DEFINE line. Reading the tree
+    there is no DEFINE line yet -- the disc is what writes it -- so the unit comes from
+    the disc, and the two agree by construction rather than by coincidence.
+    """
+    specs = chopper_specs(as_instrument(),
+                          values={'pulse_shaping_chopper_1speed': given}, origin=0.05)
+    assert specs[0].frequency == pytest.approx(expected)
+
+
+def test_a_delay_in_milliseconds_is_converted_to_seconds():
+    from niess.tof.mapping import delay_to_phase
+    specs = chopper_specs(as_instrument(),
+                          values={'pulse_shaping_chopper_1delay': sc.scalar(3.0, unit='ms')},
+                          origin=0.05)
+    assert specs[0].phase == pytest.approx(delay_to_phase(0.003, 14.0))
+
+
+def test_a_value_in_the_wrong_unit_is_refused_by_name():
+    with pytest.raises(ValueError, match="pulse_shaping_chopper_1speed is declared in 'Hz'"):
+        chopper_specs(as_instrument(),
+                      values={'pulse_shaping_chopper_1speed': sc.scalar(1.0, unit='m')},
+                      origin=0.05)
+
+
+def test_overriding_something_that_is_not_a_knob_is_refused():
+    """A misspelled knob would otherwise change nothing and say nothing."""
+    with pytest.raises(ValueError, match='are not knobs of'):
+        chopper_specs(as_instrument(), values={'not_a_knob': 1.0}, origin=0.05)
+
+
+# -- and the same through the whole model ----------------------------------------
+
+def test_the_whole_model_takes_values_with_units():
+    pytest.importorskip('tof')
+    from niess.tof.tree import to_tof_model
+    setup = to_tof_model(teaching_tree(), neutrons=1000).with_values(
+        chopperspeed=sc.scalar(0.07, unit='kHz'),
+        chopperdelay=sc.scalar(17.0, unit='ms'))
+    used = {use.name: use for use in setup.parameters}
+    assert setup.choppers[0].frequency == pytest.approx(70.0)
+    assert used['chopperspeed'].value == pytest.approx(70.0)
+    assert used['chopperdelay'].value == pytest.approx(0.017)
+    assert used['chopperdelay'].unit == 's'
+    assert all(used[name].overridden for name in ('chopperspeed', 'chopperdelay'))
+
+
+def test_a_wavelength_bound_is_converted_to_what_its_own_parameter_declares():
+    """The band is angstrom to `tof`, whatever the caller measured it in."""
+    pytest.importorskip('tof')
+    from niess.tof.tree import to_tof_model
+    setup = to_tof_model(teaching_tree(), neutrons=1000,
+                         values={'source_lambda_min': sc.scalar(0.2, unit='nm')})
+    used = {use.name: use for use in setup.parameters}
+    assert used['source_lambda_min'].value == pytest.approx(2.0)
+    assert used['source_lambda_min'].unit == 'angstrom'
+    assert used['source_lambda_min'].overridden
+    assert not used['source_lambda_max'].overridden
