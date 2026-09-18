@@ -86,7 +86,8 @@ class FrameMonitor(Component, kw_only=True):
         to ``{instrument}_beam_monitor``, taken from the name of the *root* assembler
         -- naming that assembler is how a different instrument gets a different topic.
         """
-        from niess.mccode import add_niess_metadata, ensure_registry, instrument_name
+        from niess.assembler import ensure_registry, instrument_name
+        from niess.provenance import add_niess_metadata
         ensure_registry(assembler, 'mcdotstar/mcstas-frame-tof-monitor@main')
 
         inst = super().to_mccode(assembler, at, rotate, insert_provenance_metadata=insert_provenance_metadata)

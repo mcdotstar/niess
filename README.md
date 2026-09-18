@@ -58,7 +58,8 @@ instrument, ESS NeXus Structure JSON, or CAD geometry:
 from niess.bifrost import Primary, Tank
 from niess.bifrost.parameters import primary_parameters, tank_parameters
 from niess.instrument import Instrument, Mount
-from niess.targets.nexus import BIFROST_REGISTRY, to_nexus_structure
+from niess.nexus import to_nexus_structure
+from niess.nexus.bifrost import BIFROST_REGISTRY
 
 bifrost = Instrument(name='bifrost', origin='sample_origin', parts=(
     Mount(name='primary', content=Primary.from_calibration(primary_parameters())),

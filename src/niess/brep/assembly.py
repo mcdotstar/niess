@@ -1,6 +1,6 @@
 """Solid geometry, built from the tree.
 
-`niess.brep` hands its shape builders to `mccode_antlr`'s renderer, which walks the
+`via_instr` hands the same shape builders to `mccode_antlr`'s renderer, which walks an
 emitted instrument and places each shape in the global frame. That placement has never
 worked: it is computed inside a `try` whose `except Exception: pass` discarded a
 `TypeError` raised for every component, so every solid was exported at the origin and a

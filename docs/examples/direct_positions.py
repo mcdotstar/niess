@@ -10,7 +10,7 @@ from pathlib import Path
 def main(outdir: Path) -> None:
     from niess.components.chopper import disc_beam_offset
     from niess.instrument import Instrument, Mount
-    from niess.targets.mccode import to_mccode
+    from niess.mccode import to_mccode
     from niess.teaching import Primary, teaching_parameters
 
     # --8<-- [start:direct]

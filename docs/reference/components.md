@@ -67,7 +67,9 @@ derives going the other way.
 McStas' `DiskChopper` describes `nslit` **identical, evenly spaced** openings and nothing
 else, so a disc whose openings are neither is emitted as one `DiskChopper` per opening —
 sharing one speed and delay, placed in a McStas `GROUP` so a neutron passes if it clears
-*any* opening, and tagged so `niess.nexus` rebuilds them as a single `NXdisk_chopper`. A
+*any* opening, and tagged so `niess.nexus.via_instr` rebuilds them as a single
+`NXdisk_chopper` — reading the tree there is nothing to rebuild, since the disc was never
+split. A
 disc with one opening is one component under its own name, which is what a disc chopper
 has always been. See
 [composites](../how-to/new-instrument-submodule.md#composites-when-one-object-is-several-components).
@@ -98,8 +100,8 @@ from the spindle onto the beam — and turned, by `zero_angle + beam_angle` abou
 disc to land on the right side. Both are properties of the target, not of the chopper.
 
 Both are recorded in the component's provenance, as `mccode_frame_offset` (metres) and
-`mccode_frame_rotation` (a rotation vector in degrees), and `niess.nexus` takes them back
-out. An `NXdisk_chopper` is therefore centred on the **spindle**, carrying the disc's own
+`mccode_frame_rotation` (a rotation vector in degrees), and `niess.nexus.via_instr` takes
+them back out. An `NXdisk_chopper` is therefore centred on the **spindle**, carrying the disc's own
 orientation — the placement the calibration gave — while McStas still gets the beam
 crossing it needs:
 

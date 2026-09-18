@@ -2,37 +2,35 @@
 
 Everything here comes off the emitted components. Nothing is re-derived from a niess
 calibration or from a parameter-naming convention, so an instrument niess did not build
-works the same way.
+works the same way -- which is the whole reason to keep it. What niess *did* build is
+read from the tree instead, by `niess.chopcalc.train`, where a disc's speed and windows
+are quantities on the disc rather than expressions to fold.
+
+The arithmetic both routes share is in `niess.chopcalc.paths`.
 """
 from __future__ import annotations
 
 import logging
-from math import acos, degrees, dist, fabs
+from math import degrees, fabs
 
 from ..dispatch import component_type_name, expr_float
 from ..provenance import NiessProvenance
 from .model import ChopperEntry, Exclusion, SourceEntry
+from .paths import (ChopcalcError, DEFAULT_LATEST_EMISSION, ESS_SOURCE_DURATION,
+                    _c_double, beam_path_length)
 
 logger = logging.getLogger(__name__)
 
 CHOPPER_COMPONENT_TYPE = 'DiskChopper'
+
 UNSUPPORTED_CHOPPER_TYPES = frozenset({
     'FermiChopper', 'FermiChopper_ILL', 'Vitess_ChopperFermi', 'Fermi_chop2a',
 })
-ESS_SOURCE_DURATION = 2.857e-3  # seconds; matches niess.components.source
-DEFAULT_LATEST_EMISSION = 3 * ESS_SOURCE_DURATION
-OFF_BEAM_TURN = 1.0  # degrees the beam may bend on arrival before it looks like a detour
-
-
-class ChopcalcError(RuntimeError):
-    """The band could not be worked out, and the reason is worth acting on."""
-
 
 def _parameter(instance, name):
     """A parameter's value expression, or None when the component has no such parameter."""
     parameter = instance.get_parameter(name)
     return None if parameter is None else parameter.value
-
 
 def _as_float(value, default=None):
     try:
@@ -40,22 +38,12 @@ def _as_float(value, default=None):
     except (TypeError, ValueError):
         return default
 
-
 def _identifier(value) -> str | None:
     """The name, when ``value`` is a bare symbol rather than a number or an expression."""
     if value is None:
         return None
     text = str(value).strip()
     return text if text.isidentifier() else None
-
-
-def _c_double(value: float) -> str:
-    """A float that still looks like a double once printed."""
-    text = f'{float(value):.12g}'
-    return text if any(c in text for c in '.e') else text + '.0'
-
-
-# -- the source ---------------------------------------------------------------
 
 def find_source(instrument, graph, name: str | None = None):
     """The component neutrons come from.
@@ -86,7 +74,6 @@ def find_source(instrument, graph, name: str | None = None):
             f'so the source is ambiguous; name it with source='
         )
     return instrument.get_component(roots[0])
-
 
 def source_entry(instrument, instance, latest_emission: float | None) -> SourceEntry:
     """Verify the source can be narrowed, and read what the narrowing needs."""
@@ -141,9 +128,6 @@ def source_entry(instrument, instance, latest_emission: float | None) -> SourceE
         latest_emission_note=note,
     )
 
-
-# -- geometry -----------------------------------------------------------------
-
 def positions(instrument) -> dict[str, tuple[float, float, float]]:
     """Every component's absolute position, reduced to numbers."""
     resolved = {}
@@ -156,71 +140,6 @@ def positions(instrument) -> dict[str, tuple[float, float, float]]:
         except (TypeError, ValueError, AttributeError):
             continue  # depends on a run-time parameter; the caller excludes it
     return resolved
-
-
-def beam_path_length(graph, places, source: str, chopper: str) -> float:
-    """How far a neutron travels from the source to the chopper, in metres.
-
-    Walked along the particle flow graph rather than measured straight, so a curved guide
-    is followed instead of chorded. A chopper's emitted position is already the point
-    where the beam crosses its disc -- that is what niess' ``offset`` converts to -- so
-    the endpoints need no correction.
-    """
-    from networkx import shortest_path
-
-    route = shortest_path(graph, source, chopper)
-    missing = [n for n in route if n not in places]
-    if missing:
-        raise ChopcalcError(
-            f'the beam path from {source!r} to {chopper!r} passes {missing[0]!r}, whose '
-            f'position depends on a run-time parameter and cannot be measured'
-        )
-    walked = sum(dist(places[u], places[v]) for u, v in zip(route, route[1:]))
-
-    turn = _arrival_turn(places, route)
-    if turn is not None and turn > OFF_BEAM_TURN:
-        logger.warning(
-            'niess.chopcalc: the beam turns %.2f degrees to arrive at %r, so its flight '
-            'path of %.4f m probably includes a detour. A DiskChopper AT must be where '
-            'the beam crosses the disc, not at the spindle -- check that the '
-            'calibration subtracts its offset. Pass path_lengths={%r: ...} to override.',
-            turn, chopper, walked, chopper,
-        )
-    return walked
-
-
-def _arrival_turn(places, route) -> float | None:
-    """How sharply the beam turns at the last step, in degrees.
-
-    A component that is not on the beam is reached by a detour, and a detour bends the
-    path. Guide curvature does not: it is spread along the guide segments, so every
-    BIFROST chopper measures 0.0000 degrees here while a disc placed at its spindle
-    rather than at the beam measures several.
-    """
-    # The last three *distinct* places, not the last three nodes: components sharing a
-    # position -- the openings of one multi-slit disc, or a reference frame sitting on
-    # the thing it places -- contribute segments of no length and no direction, and
-    # taking those as the arrival would silence the check rather than answer it.
-    distinct = []
-    for name in reversed(route):
-        place = places[name]
-        if not distinct or dist(place, distinct[-1]) > 0:
-            distinct.append(place)
-        if len(distinct) == 3:
-            break
-    if len(distinct) < 3:
-        return None
-    after, at, before = distinct
-    first = [b - a for a, b in zip(before, at)]
-    second = [b - a for a, b in zip(at, after)]
-    lengths = dist((0, 0, 0), first) * dist((0, 0, 0), second)
-    if lengths == 0:
-        return None
-    cosine = sum(x * y for x, y in zip(first, second)) / lengths
-    return degrees(acos(max(-1.0, min(1.0, cosine))))
-
-
-# -- the choppers -------------------------------------------------------------
 
 def _speed_expression(instance) -> str:
     """``nu``, or ``nu`` times ``nslit`` for equal, evenly spaced openings.
@@ -235,7 +154,6 @@ def _speed_expression(instance) -> str:
         return str(nu)
     return f'({nu}) * {_c_double(nslit)}'
 
-
 def _delay_expression(instance) -> str:
     """``delay``, unless a ``phase`` is set -- the branch DiskChopper itself takes."""
     delay = _parameter(instance, 'delay')
@@ -248,7 +166,6 @@ def _delay_expression(instance) -> str:
         return f'({phase}) / (360.0 * fabs({nu}))'
     # a run-time phase: mirror DiskChopper's own `if (phase)` so the two never disagree
     return f'(({phase}) != 0 ? ({phase}) / (360.0 * fabs({nu})) : ({delay}))'
-
 
 def _single_windows(instance) -> tuple[tuple[str, str], ...]:
     """The one opening of a plain ``DiskChopper``, centred on the path at its delay.
@@ -263,7 +180,6 @@ def _single_windows(instance) -> tuple[tuple[str, str], ...]:
         # a run-time width: halve it in C rather than refuse the chopper
         return ((f'-({theta}) / 2.0', f'({theta}) / 2.0'),)
     return ((_c_double(-literal / 2.0), _c_double(literal / 2.0)),)
-
 
 def _disc_windows(group) -> tuple[tuple[str, str], ...]:
     """Every opening of a multi-opening disc, in chopper-lib's frame.
@@ -284,7 +200,6 @@ def _disc_windows(group) -> tuple[tuple[str, str], ...]:
         opening, closing = provenance.extra['slit_edges']
         windows.append((_c_double(beam - closing), _c_double(beam - opening)))
     return tuple(windows)
-
 
 def _check_group(group) -> None:
     """A group whose metadata disagrees with its components cannot be trusted.
@@ -315,7 +230,6 @@ def _check_group(group) -> None:
                 f'its provenance says {edges[1] - edges[0]}; the instrument was edited '
                 f'after niess emitted it'
             )
-
 
 def build_train(instrument, *, source=None, skip=(), path_lengths=None,
                 latest_emission=None, graph=None):

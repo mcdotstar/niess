@@ -32,7 +32,7 @@ def instr():
 
 @pytest.fixture
 def context(instr):
-    from niess.nexus import NexusContext
+    from niess.nexus.via_instr import NexusContext
     return NexusContext(instr, origin_name='sample')
 
 
@@ -45,21 +45,21 @@ def test_declared_variables_recovered(context):
 def test_declare_initializer_folds(context):
     """A variable initialized in its DECLARE statement folds to that literal."""
     from mccode_antlr.common import Expr
-    from niess.nexus.expression import Literal
+    from niess.nexus.via_instr.expression import Literal
     assert context.resolve(Expr.parse('chopper_delay')) == Literal(0.015)
 
 
 def test_initialize_assignment_folds(context):
     """A DECLARE'd variable assigned in INITIALIZE folds to the assigned value."""
     from mccode_antlr.common import Expr
-    from niess.nexus.expression import Literal
+    from niess.nexus.via_instr.expression import Literal
     assert context.resolve(Expr.parse('chopper_nu')) == Literal(14.0)
 
 
 def test_uservars_excluded_from_folding():
     """USERVARS are per-particle, so they must not take part in instrument folding."""
     from mccode_antlr.loader import parse_mcstas_instr
-    from niess.nexus import NexusContext
+    from niess.nexus.via_instr import NexusContext
 
     with_uservars = INSTR.replace(
         'TRACE\n', 'USERVARS %{\ndouble per_particle_thing;\n%}\nTRACE\n'
@@ -71,7 +71,7 @@ def test_uservars_excluded_from_folding():
 
 def test_disk_chopper_parameters_are_literals(instr):
     """End to end: the NXdisk_chopper node holds numbers, not variable names."""
-    from niess.nexus import to_nexus_structure
+    from niess.nexus.via_instr import to_nexus_structure
     from niess.nexus.nodes import find_child
 
     structure = to_nexus_structure(instr, origin='sample')

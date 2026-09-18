@@ -1,6 +1,7 @@
 """NeXus built from the tree instead of from an emitted McStas instrument.
 
-`niess.nexus` converts an assembled instrument and recovers everything it needs from it:
+`niess.nexus.via_instr` converts an assembled instrument and recovers everything it needs
+from it:
 placement from resolve_orientations, run-time values by folding DECLARE blocks, a
 detector's arc and triplet by matching a regex against a generated WHEN clause. This
 reads the tree, where all of that is simply present.
@@ -9,8 +10,20 @@ import pytest
 
 from niess.instrument import Instrument, Mount
 from niess.nexus.nodes import find_child, get_attribute, node_name
-from niess.targets.nexus import to_nexus_structure
+from niess.nexus import to_nexus_structure
 
+
+
+def test_the_two_routes_are_two_functions():
+    """The guard on every comparison here: they must not have become the same one.
+
+    `niess.nexus.to_nexus_structure` reads the tree and `niess.nexus.via_instr`'s reads an
+    emitted instrument. Comparing a route against itself would pass while asserting
+    nothing, and the two have lived under the same name before.
+    """
+    from niess.nexus import to_nexus_structure as from_tree
+    from niess.nexus.via_instr import to_nexus_structure as from_instrument
+    assert from_tree is not from_instrument
 
 def instrument_group(structure):
     return structure['children'][0]['children'][0]
@@ -64,7 +77,7 @@ def test_the_same_components_get_the_same_nexus_classes(teaching):
     """Against the instrument-reading path, for the instrument both can do."""
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.nexus import to_nexus_structure as from_instrument
+    from niess.nexus.via_instr import to_nexus_structure as from_instrument
     from niess.teaching import Primary
 
     assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
@@ -84,7 +97,7 @@ def test_a_multi_opening_disc_is_one_disc(multi_opening):
     """It never came apart, so nothing has to put it back together.
 
     McStas cannot describe a disc whose openings are neither identical nor evenly
-    spaced, so it becomes one component per opening. `niess.nexus` reassembles it from
+    spaced, so it becomes one component per opening. `niess.nexus.via_instr` reassembles it from
     group tags written into METADATA on each of those components -- tags invented for
     this, and since read by three targets. Reading the tree, the disc is a disc.
     """
@@ -104,7 +117,7 @@ def test_it_agrees_with_what_the_reassembly_produces(multi_opening):
     """The values are the same; only the work needed to get them differs."""
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.nexus import to_nexus_structure as from_instrument
+    from niess.nexus.via_instr import to_nexus_structure as from_instrument
 
     assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
     multi_opening.to_mccode(assembler)
@@ -148,7 +161,7 @@ def test_a_thing_at_the_origin_needs_no_transformation(teaching):
 def test_a_class_may_carry_its_own_nexus_hook():
     """Both idioms work for every target; which reads better depends on the target."""
     from niess.dispatch import ClassHooks
-    from niess.targets.nexus import NiessNexusRegistry
+    from niess.nexus import NiessNexusRegistry
 
     class Odd:
         def __nexus_leaf__(self, visit):
@@ -159,7 +172,7 @@ def test_a_class_may_carry_its_own_nexus_hook():
 
 
 def test_registering_wins_over_the_class():
-    from niess.targets.nexus import NEXUS_REGISTRY, NiessNexusRegistry
+    from niess.nexus import NEXUS_REGISTRY, NiessNexusRegistry
     from niess.components.chopper import DiscChopper
 
     scoped = NiessNexusRegistry(parent=NEXUS_REGISTRY)
@@ -188,7 +201,7 @@ def classes(structure):
 
 
 def test_bifrost_converts(bifrost):
-    from niess.targets.nexus import BIFROST_REGISTRY
+    from niess.nexus.bifrost import BIFROST_REGISTRY
     counted = classes(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
     assert counted['NXcrystal'] == 45      # one per arm, not one per blade
     assert counted['NXdetector'] == 45     # one per arm, not one per tube
@@ -206,9 +219,9 @@ def test_reading_the_tree_classifies_more_than_reading_the_instrument(bifrost):
     """
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    from niess.nexus import to_nexus_structure as from_instrument
-    from niess.nexus.bifrost import BIFROST_REGISTRY as INSTRUMENT_REGISTRY
-    from niess.targets.nexus import BIFROST_REGISTRY
+    from niess.nexus.via_instr import to_nexus_structure as from_instrument
+    from niess.nexus.via_instr.bifrost import BIFROST_REGISTRY as INSTRUMENT_REGISTRY
+    from niess.nexus.bifrost import BIFROST_REGISTRY
     from niess.bifrost import Primary, Tank
     from niess.bifrost.parameters import primary_parameters, tank_parameters
 
@@ -232,7 +245,7 @@ def test_reading_the_tree_classifies_more_than_reading_the_instrument(bifrost):
 
 def test_arc_and_triplet_come_from_the_tree(bifrost):
     """Not from a regex over a generated WHEN clause."""
-    from niess.targets.nexus import BIFROST_REGISTRY, icd_pixel
+    from niess.nexus.bifrost import BIFROST_REGISTRY, icd_pixel
 
     structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
     detector = find_child(instrument_group(structure), 'channel_3_2_triplet')
@@ -249,7 +262,7 @@ def test_the_radial_slit_bank_is_an_aperture(bifrost):
     component reports which opening a neutron passed and everything downstream is gated
     on that -- rather than bookkeeping that happens to look like an aperture.
     """
-    from niess.targets.nexus import BIFROST_REGISTRY
+    from niess.nexus.bifrost import BIFROST_REGISTRY
 
     structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
     slits = find_child(instrument_group(structure), 'slits')
@@ -270,7 +283,7 @@ def test_the_frozen_structure_is_unchanged(bifrost):
 def test_a_knob_is_a_link_not_a_number(teaching):
     """A chopper's speed is not something the instrument has; it is something a run sets.
 
-    So the file says where to read it. `niess.nexus` decides this by folding a McCode
+    So the file says where to read it. `niess.nexus.via_instr` decides this by folding a McCode
     expression and seeing whether an instrument parameter survives; here the chopper
     names the knob it declared.
     """
@@ -353,7 +366,7 @@ def test_a_linked_log_can_carry_transformation_attributes(teaching):
     Nothing in niess builds a driven transformation yet -- a tank rotated by a4 will --
     so this checks the mechanism rather than a caller of it.
     """
-    from niess.targets.nexus import NexusContext
+    from niess.nexus import NexusContext
 
     context = NexusContext(instrument=teaching)
     node = context.linked_log('rotation', 'a4', attrs={

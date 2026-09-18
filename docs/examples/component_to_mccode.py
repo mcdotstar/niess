@@ -11,7 +11,7 @@ def main(outdir: Path) -> None:
     # --8<-- [start:component]
     from scipp import Variable
     from niess.components import Component
-    from niess.mccode import ensure_runtime_line, ensure_user_var
+    from niess.assembler import ensure_runtime_line, ensure_user_var
 
     class ChoppedMonitor(Component):
         """A monitor gated on a chopper window, with a run-time delay."""
@@ -63,7 +63,7 @@ def main(outdir: Path) -> None:
 
     from niess.components import Component, Section
     from niess.instrument import Instrument, Mount
-    from niess.targets.mccode import to_mccode
+    from niess.mccode import to_mccode
     from scipp import scalar, vector
     from scipp.spatial import rotations_from_rotvecs
 

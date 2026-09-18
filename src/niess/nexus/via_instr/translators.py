@@ -12,10 +12,10 @@ from __future__ import annotations
 import logging
 
 from .instrument import component_body
-from .nodes import dataset, group
-from .off import NXoff
+from ..nodes import dataset, group
+from ..off import NXoff
 from .registry import DEFAULT_NEXUS_REGISTRY
-from .streams import resolve_stream
+from ..streams import resolve_stream
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +271,7 @@ def disc_chopper_translator(t):
     disc with a single opening is one component and is simply itself.
     """
     from . import expression
-    from ..provenance import NiessProvenance
+    from ...provenance import NiessProvenance
 
     if t.provenance is None:
         return None

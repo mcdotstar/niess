@@ -111,7 +111,7 @@ class ESSource(Source):
             at: Instance | str | None = None, rotate: Instance | str | None = None,
             insert_provenance_metadata: bool = True,
     ):
-        from ..mccode import ensure_runtime_parameter
+        from ..assembler import ensure_runtime_parameter
         for field in self.fields():
             p = getattr(self, field)
             if isinstance(p, InstrumentParameter):

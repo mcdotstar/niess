@@ -74,7 +74,7 @@ class RadialSlitBank(Component):
         openings and has nothing to say about how a simulation records which one a
         neutron took.
         """
-        from ..mccode import ensure_registry, ensure_runtime_line, ensure_user_var
+        from ..assembler import ensure_registry, ensure_runtime_line, ensure_user_var
 
         ensure_registry(assembler, 'mcdotstar/mcstas-slit-radial@main')
         ensure_user_var(assembler, 'int', self.tag_name(),
@@ -100,7 +100,7 @@ class RadialSlitBank(Component):
 
     def __nexus_leaf__(self, visit):
         """A ring of openings, as an NXslit."""
-        from ..targets.nexus import component_body, emit
+        from ..nexus.structure import component_body, emit
         from ..nexus.nodes import dataset
 
         emit(visit, component_body('NXslit', [

@@ -49,7 +49,7 @@ class ChopperSpec:
         """The ``tof.Chopper`` itself."""
         import scipp as sc
 
-        from .components import _tof
+        from .setup import _tof
 
         tof = _tof()
         return tof.Chopper(

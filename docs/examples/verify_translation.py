@@ -12,8 +12,8 @@ INSTR = Path(__file__).parent / 'teaching_hand_written.instr'
 def main(outdir: Path) -> None:
     # --8<-- [start:verify]
     from niess.instrument import Instrument, Mount
-    from niess.nexus import load_instr
-    from niess.targets.mccode import to_mccode
+    from niess.io.mccode import load_instr
+    from niess.mccode import to_mccode
     from niess.teaching import Primary
 
     # the hand-written file, read as it is -- there is no tree for it yet

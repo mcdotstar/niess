@@ -12,7 +12,8 @@ from scipp import array, scalar, vector
 from scipp.spatial import rotations_from_rotvecs
 
 from niess.components import DiscChopper
-from niess.nexus import find_child, get_attribute, to_nexus_structure
+from niess.nexus import find_child, get_attribute
+from niess.nexus.via_instr import to_nexus_structure
 from niess.provenance import NiessProvenance
 
 # Angles from the top-dead-centre mark, positive counter-clockwise facing +z, as
@@ -333,8 +334,8 @@ def test_without_the_translator_the_mccode_view_survives(assembled):
     It sees what the McStas file literally describes: three separate discs. Grouping is
     an enrichment, not a prerequisite.
     """
-    from niess.nexus import NiessNexusRegistry
-    from niess.nexus.translators import diskchopper_translator
+    from niess.nexus.via_instr import NiessNexusRegistry
+    from niess.nexus.via_instr.translators import diskchopper_translator
 
     plain = NiessNexusRegistry()
     plain.register_component_type('DiskChopper')(diskchopper_translator)

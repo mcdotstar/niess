@@ -4,7 +4,7 @@
 
 
 def test_ideal_crystal():
-    from niess import IdealCrystal
+    from niess.components import IdealCrystal
     from scipp import scalar, array, vector, dot, norm, isclose
 
     pos = vector([0, 0, 0.], unit='m')
@@ -53,7 +53,7 @@ def extrema_check(crystal, basis: list, extents: list):
 
 def test_crystal():
     from itertools import permutations
-    from niess import Crystal
+    from niess.components import Crystal
     from scipp import scalar, vector
     from scipp.spatial import rotations_from_rotvecs
 
@@ -81,7 +81,7 @@ def test_crystal():
 
 def test_rotated_crystal():
     from itertools import permutations
-    from niess import Crystal
+    from niess.components import Crystal
     from scipp import scalar, vector, cos, sin
     from scipp.spatial import rotations_from_rotvecs
 

@@ -6,7 +6,7 @@ INSTR = Path(__file__).parent / 'teaching_hand_written.instr'
 
 def main(outdir: Path) -> None:
     # --8<-- [start:inventory]
-    from niess.nexus import load_instr
+    from niess.io.mccode import load_instr
 
     instrument = load_instr(INSTR)
 

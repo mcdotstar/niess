@@ -55,23 +55,38 @@ Register on your own registry, never on the shared default:
 --8<-- "custom_translator.py:registry"
 ```
 
-The translator receives a `Translation` and returns a component body. What
-`Translation` gives you:
+The translator's `leaf` receives a `Visit` — one node of the tree and everything about
+where it sits — and calls `emit` with a component body. What a `Visit` gives you:
 
 | | |
 | --- | --- |
-| `t.name`, `t.type_name` | the instance's name and McStas component type |
-| `t.parameter(name, default, dtype)` | a parameter's **value**, when you need to compute with it |
-| `t.parameter_node(name, source, dtype, attrs)` | a parameter as a **node** — a dataset if constant, a link if run-time |
-| `t.defines(name)` | whether the component defines a parameter at all |
-| `t.provenance` | what niess recorded about the source object |
-| `t.instr` | the whole instrument, for translators that must look at siblings |
-| `t.siblings_in_group()` | the other instances sharing this one's `disc_group_id` |
+| `visit.obj` | the niess object itself, with its fields as scipp quantities |
+| `visit.name` | the name it is emitted under, which its ancestors contribute to |
+| `visit.emit_name(suffix)` | a name for one of several things emitted at this node |
+| `visit.index` | its position, when it is one of a sequence |
+| `visit.ancestor(kind)` | the nearest enclosing visit of that class — a detector's arc and triplet are `visit.ancestor(Arm).index` and `visit.ancestor(Channel).index` |
+| `visit.frame` | what it is placed against |
+| `visit.context` | the conversion in progress; see below |
 
-Prefer `parameter_node` for anything a user can drive at run time; it makes the
-literal-or-link decision for you. Use `parameter` only for values you need in Python.
+and on `visit.context`:
+
+| | |
+| --- | --- |
+| `linked_log(name, parameter, attrs)` | a run-time parameter as a **link** to its NXlog |
+| `stream_group(selection, name)` | a monitor's or detector's data stream |
+| `depends_on(frame)` | the transformation path a frame resolves to |
+
+Prefer `linked_log` for anything a user can drive at run time; a value read straight off
+the object is a constant in the file, which is right only if it really is one.
 
 Build children with `dataset`, `group` and `stream`, all importable from `niess.nexus`.
+
+!!! note "The other route"
+
+    `niess.nexus.via_instr` converts an assembled McStas instrument rather than a tree,
+    and its translators take a `Translation` — `t.parameter(...)`, `t.provenance`,
+    `t.siblings_in_group()` — because all it has is emitted components. Registering on
+    that route means `niess.nexus.via_instr.registry.DEFAULT_NEXUS_REGISTRY`.
 
 `component_body` also takes a `name`, which overrides the group's name — by default the
 McStas instance's. Use it where that name is an artefact of how the instrument was

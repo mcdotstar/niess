@@ -57,7 +57,7 @@ class Jaw(Aperture):
             at: Instance | str | None = None, rotate: Instance | str | None = None,
             insert_provenance_metadata: bool = True,
     ):
-        from ..mccode import ensure_runtime_line as ensure
+        from ..assembler import ensure_runtime_line as ensure
         edges = self.edge_parameters()
         half = self.width.to(unit='m').value / 2
         ensure(assembler, f'{edges["left"]}/"m" = {-half}')
@@ -88,7 +88,7 @@ class Slit(Aperture):
             at: Instance | str | None = None, rotate: Instance | str | None = None,
             insert_provenance_metadata: bool = True,
     ):
-        from ..mccode import ensure_runtime_line as ensure
+        from ..assembler import ensure_runtime_line as ensure
         edges = self.edge_parameters()
         half = self.width.to(unit='m').value / 2
         ensure(assembler, f'{edges["left"]}/"m" = {-half}')

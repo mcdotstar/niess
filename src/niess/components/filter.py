@@ -94,7 +94,7 @@ class NCrystalFilter(Filter):
             insert_provenance_metadata: bool = True,
     ):
         """Overload to ensure the registry we need is present"""
-        from niess.mccode import ensure_registry
+        from niess.assembler import ensure_registry
         ensure_registry(assembler, 'mcdotstar/mcstas-radial-filter-collimator@main')
         comp = super().to_mccode(assembler, at, rotate, insert_provenance_metadata=insert_provenance_metadata)
         return comp
@@ -199,7 +199,7 @@ class RadialFilterCollimator(Filter):
             insert_provenance_metadata: bool = True,
     ):
         """Overload to ensure the registry we need is present"""
-        from niess.mccode import ensure_registry
+        from niess.assembler import ensure_registry
         ensure_registry(assembler, 'mcdotstar/mcstas-radial-filter-collimator@main')
         comp = super().to_mccode(assembler, at, rotate, insert_provenance_metadata=insert_provenance_metadata)
         return comp

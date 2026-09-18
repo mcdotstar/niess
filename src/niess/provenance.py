@@ -1,8 +1,34 @@
-from __future__ import annotations
-from typing import Any
-from dataclasses import dataclass
+"""What niess wrote a component from, recorded on the component it emitted.
 
-from .mccode import read_niess_metadata
+Every McStas instance niess emits carries a `niess_provenance` METADATA block naming the
+niess class and instance behind it. This module is both halves of that: writing it during
+emission, and reading it back when something that has only the emitted instrument needs to
+know what it came from.
+
+The namespace string in that block is literally this module's own name, and
+`niess_source_type` is what puts a class's `__module__` into the emitted file -- so the
+frozen `.instr` goldens in `tests/data/baseline` pin the import path of every component
+class. Moving `niess/components/guide.py` changes emitted text; moving this module changes
+the namespace every previously-written file is recognised by. Neither is a rename to make
+casually.
+
+Below `niess.dispatch`, which resolves a translator from what it reads here, and therefore
+below every target. Writing happens through `add_niess_metadata`, called from the
+components themselves.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from json import dumps, loads
+from typing import Any
+
+from mccode_antlr.instr import Instance
+
+
+NIESS_PROVENANCE_METADATA_NAMESPACE = 'niess.provenance'
+NIESS_PROVENANCE_METADATA_NAME = 'niess_provenance'
+NIESS_PROVENANCE_METADATA_MIMETYPE = 'application/json'
+NIESS_PROVENANCE_METADATA_SCHEMA_VERSION = 2
 
 #: Schema 1 spelled these for NeXus, which was never the only reader: chopcalc and tof
 #: dispatch on them too, and neither has anything to do with NeXus. Schema 2 says what
@@ -44,3 +70,84 @@ class NiessProvenance:
             role=_RENAMED_ROLES.get(role, role),
             extra=extra,
         )
+
+
+def niess_source_type(source: type | Any) -> str:
+    typ = source if isinstance(source, type) else type(source)
+    return f'{typ.__module__}.{typ.__qualname__}'
+
+
+def niess_metadata_payload(
+        *,
+        source_type: str,
+        source_name: str,
+        role: str = 'physical-component',
+        extra: dict[str, Any] | None = None,
+):
+    return {
+        'namespace': NIESS_PROVENANCE_METADATA_NAMESPACE,
+        'schema_version': NIESS_PROVENANCE_METADATA_SCHEMA_VERSION,
+        'source_type': source_type,
+        'source_name': source_name,
+        'role': role,
+        'extra': {} if extra is None else extra,
+    }
+
+
+def add_niess_metadata(
+        instance: Instance,
+        source: Any | None = None,
+        *,
+        source_type: str | None = None,
+        source_name: str | None = None,
+        role: str = 'physical-component',
+        extra: dict[str, Any] | None = None,
+):
+    from mccode_antlr.common import MetaData
+
+    if source is not None:
+        source_type = niess_source_type(source)
+        source_name = getattr(source, 'name', None) if source_name is None else source_name
+        # Recorded here rather than by each caller: a component whose emitted frame is
+        # turned relative to its own is the one thing an adapter reading the instrument
+        # back cannot work out for itself, and there are two emission paths that would
+        # each have to remember.
+        turn = getattr(source, '__mccode_frame_rotation__', None)
+        rotation = None if turn is None else turn()
+        if rotation is not None and any(abs(a) > 0 for a in rotation):
+            extra = dict(extra or {}) | {'mccode_frame_rotation': list(rotation)}
+        shift = getattr(source, '__mccode_offset__', None)
+        displacement = None if shift is None else [
+            float(v) for v in shift().to(unit='m').value
+        ]
+        if displacement is not None and any(abs(v) > 0 for v in displacement):
+            extra = dict(extra or {}) | {'mccode_frame_offset': displacement}
+
+    if source_type is None or source_name is None:
+        raise ValueError('Both source_type and source_name must be defined')
+
+    payload = niess_metadata_payload(
+        source_type=source_type,
+        source_name=source_name,
+        role=role,
+        extra=extra,
+    )
+    metadata = MetaData.from_instance_tokens(
+        instance.name,
+        NIESS_PROVENANCE_METADATA_MIMETYPE,
+        NIESS_PROVENANCE_METADATA_NAME,
+        dumps(payload, separators=(',', ':')),
+    )
+    instance.add_metadata(metadata)
+    return instance
+
+
+def read_niess_metadata(instance: Instance):
+    for metadata in reversed(instance.collect_metadata()):
+        if metadata.name != NIESS_PROVENANCE_METADATA_NAME:
+            continue
+        payload = loads(metadata.value)
+        if payload.get('namespace') != NIESS_PROVENANCE_METADATA_NAMESPACE:
+            continue
+        return payload
+    return None

@@ -16,7 +16,8 @@ from mccode_antlr import Flavor
 from mccode_antlr.assembler import Assembler
 from scipp.spatial import rotations_from_rotvecs
 
-from niess.tof import delay_to_phase, spec_from_windows, to_tof_model
+from niess.tof import delay_to_phase, spec_from_windows
+from niess.tof.via_instr import to_tof_model
 
 # Three openings, 20/40/20 degrees wide, centred 20/120/360 from the mark. Asymmetric on
 # purpose: mirrored about the beam these land nowhere near themselves, so a direction or
@@ -292,7 +293,7 @@ def test_bifrost_becomes_a_chopper_cascade_that_chops():
 
 def test_the_facility_profile_follows_the_instrument_name(monkeypatch):
     """`bifrost` has its own pulse profile; `teaching` does not, and falls back."""
-    from niess.tof.components import _facility_for
+    from niess.tof.setup import _facility_for
 
     class Fake:
         def __init__(self, name):

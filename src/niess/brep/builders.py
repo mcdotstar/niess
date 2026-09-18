@@ -1,21 +1,29 @@
+"""The shape each component is drawn as.
+
+One builder per component class, registered on `BREP_REGISTRY`, each taking a `Subject`
+-- a name, the object if there is one, and the McCode parameters it reports. How that
+subject was arrived at is not a builder's business: `niess.brep.assembly` walks the tree
+for it, `niess.brep.via_instr` reads it off an emitted instrument, and the drawing is the
+same either way. That is why these were always written against `__mccode__` parameters
+rather than against niess fields.
+"""
 from __future__ import annotations
 
 from math import sqrt
 
-from niess.components.component import Component
-from niess.components.aperture import Jaw, Slit
-from niess.components.filter import Attenuator, NCrystalFilter, RadialFilterCollimator
-from niess.components.guide import EllipticGuide, StraightGuide, TaperedGuide
-from niess.components.source import ESSource
-from ..targets.brep import BREP_REGISTRY, Subject
+from ..components.component import Component
+from ..components.aperture import Jaw, Slit
+from ..components.filter import Attenuator, NCrystalFilter, RadialFilterCollimator
+from ..components.guide import EllipticGuide, StraightGuide, TaperedGuide
+from ..components.source import ESSource
+from .assembly import BREP_REGISTRY, Subject
+
 
 _APERTURE_THICKNESS = 1e-4
-
 
 def _bd():
     import build123d as bd
     return bd
-
 
 def _param(params: dict[str, float], name: str, default: float | None = None):
     if name in params:
@@ -23,7 +31,6 @@ def _param(params: dict[str, float], name: str, default: float | None = None):
     if default is not None:
         return default
     raise KeyError(name)
-
 
 def _dimension(subject, name: str, default):
     """A value the object carries, or one an emitted instance was tagged with.
@@ -39,79 +46,13 @@ def _dimension(subject, name: str, default):
         return float(subject.extra[name])
     return default
 
-
-#: Wall thickness of a guide, in metres, where the guide does not say.
-#: Read from provenance metadata before, which nothing ever wrote -- so this default
-#: always applied. A `substrate` attribute on the guide now takes precedence, for
-#: whenever one is worth carrying.
 SUBSTRATE = 0.01
-#: How finely an elliptic guide's curve is stepped, in metres, on the same footing.
+
 RESOLUTION = 0.5
-
-
-def _provenance_value(
-        provenance: NiessProvenance | None,
-        key: str,
-        default: float | None = None,
-):
-    if provenance is not None and key in provenance.extra:
-        return float(provenance.extra[key])
-    if default is not None:
-        return default
-    raise KeyError(key)
-
 
 def _box(width: float, height: float, length: float):
     bd = _bd()
     return bd.Box(float(width), float(height), float(length))
-
-
-def _loft_rectangles(in_width: float, in_height: float, out_width: float, out_height: float, length: float):
-    bd = _bd()
-    half = length / 2
-    with bd.BuildPart() as build:
-        with bd.BuildSketch(bd.Plane(origin=(0, 0, -half))):
-            bd.Rectangle(in_width, in_height)
-        with bd.BuildSketch(bd.Plane(origin=(0, 0, half))):
-            bd.Rectangle(out_width, out_height)
-        bd.loft()
-    return build.part
-
-
-def _loft_ellipses(in_width: float, in_height: float, out_width: float, out_height: float, length: float):
-    bd = _bd()
-    half = length / 2
-    with bd.BuildPart() as build:
-        with bd.BuildSketch(bd.Plane(origin=(0, 0, -half))):
-            bd.Ellipse(in_width / 2, in_height / 2)
-        with bd.BuildSketch(bd.Plane(origin=(0, 0, half))):
-            bd.Ellipse(out_width / 2, out_height / 2)
-        bd.loft()
-    return build.part
-
-
-def _ellipse_span(major: float, minor: float, offset: float, z: float):
-    if major == 0:
-        return 0.0
-    reduced = 1.0 - ((offset + z) / major) ** 2
-    return 2.0 * minor * sqrt(max(0.0, reduced))
-
-
-class _SafeInstrumentDisplay:
-    def __init__(self, instr):
-        from mccode_antlr.display.component_display import ComponentDisplay
-
-        self._instr = instr
-        self._components = {}
-        for instance in instr.components:
-            try:
-                component_display = ComponentDisplay(instance.type)
-                if not component_display.is_empty():
-                    self._components[instance.name] = component_display
-            except Exception:
-                continue
-
-
 
 def _shell_from_polygons(vertices, faces):
     bd = _bd()
@@ -122,11 +63,9 @@ def _shell_from_polygons(vertices, faces):
     ]
     return bd.Shell(bd_faces)
 
-
 def _solid_from_polygons(vertices, faces):
     bd = _bd()
     return bd.Solid(_shell_from_polygons(vertices, faces))
-
 
 def _rectangular_prism(w1: float, h1: float, w2: float, h2: float, length: float):
     return _solid_from_polygons([
@@ -137,7 +76,6 @@ def _rectangular_prism(w1: float, h1: float, w2: float, h2: float, length: float
         [7, 6, 5, 4]
     ]
     )
-
 
 @BREP_REGISTRY.register(StraightGuide)
 def build_straight_guide(subject):
@@ -157,7 +95,6 @@ def build_straight_guide(subject):
     guide.color = bd.Color(0.5, 0, 0, alpha=0.5)
     return guide
 
-
 @BREP_REGISTRY.register(TaperedGuide)
 def build_tapered_guide(subject):
     params = subject.params
@@ -175,7 +112,6 @@ def build_tapered_guide(subject):
     guide.label = subject.name
     guide.color = bd.Color(0.75, 0, 0, alpha=0.5)
     return guide
-
 
 def _ellipse_parameters_from_widths(params: dict[str, float]):
     from numpy import sqrt
@@ -229,7 +165,6 @@ def _elliptic_guide_ellipse_parameters(params: dict[str, float]):
 
     return pars
 
-
 @BREP_REGISTRY.register(EllipticGuide)
 def build_elliptic_guide(subject):
     params = subject.params
@@ -274,7 +209,6 @@ def build_elliptic_guide(subject):
     x.color = bd.Color('red', alpha=0.5)
     return x
 
-
 @BREP_REGISTRY.register(Slit)
 @BREP_REGISTRY.register(Jaw)
 def build_aperture(subject):
@@ -294,13 +228,11 @@ def build_aperture(subject):
             height = params.get('ymax', 0.0) - params.get('ymin', 0.0)
     return _box(float(width), float(height), _APERTURE_THICKNESS)
 
-
 @BREP_REGISTRY.register(NCrystalFilter)
 @BREP_REGISTRY.register(Attenuator)
 def build_filter(subject):
     params = subject.params
     return _box(_param(params, 'xwidth'), _param(params, 'yheight'), _param(params, 'zdepth'))
-
 
 @BREP_REGISTRY.register(ESSource)
 def build_ess_source(subject):
@@ -309,7 +241,6 @@ def build_ess_source(subject):
     width = params.get('focus_xw', height)
     length = params.get('dist', height)
     return _box(float(width), float(height), float(length))
-
 
 @BREP_REGISTRY.register(RadialFilterCollimator)
 def build_radial_filter_collimator(subject):
@@ -357,51 +288,3 @@ def build_arm(subject):
     ex = bd.Plane(origin=(0,0,0), z_dir=(1,0,0)) * bd.extrude(bd.Circle(width / 2), length)
     ey = bd.Plane(origin=(0,0,0), z_dir=(0,1,0)) * bd.extrude(bd.Circle(width / 2), length)
     return bd.Compound(children=[ez, ex, ey], label=subject.name)
-
-
-def instrument_to_assembly(instr, params: dict[str, float] | None = None, registry=None):
-    """Build solid geometry from an *emitted* instrument.
-
-    Kept for an instrument niess did not build, and for reading one back. What niess
-    builds is better converted from the tree -- :func:`niess.targets.brep.to_assembly`
-    -- which knows where everything is without resolving expressions to find out, and
-    which is not subject to a released mccode-antlr silently exporting every solid at
-    the origin.
-
-    The shape builders are shared: they were always written against the McCode
-    parameters a component reports, so they take those from an emitted instance here
-    and from the object itself there.
-    """
-    from mccode_antlr.display.instrument_display import InstrumentDisplay
-    from mccode_antlr.display.render.brep import instrument_to_assembly as upstream
-    from ..dispatch import component_type_name, merged_params
-    from ..provenance import NiessProvenance
-    from ..targets.brep import Subject
-
-    instr_display = instr if isinstance(instr, InstrumentDisplay) else _SafeInstrumentDisplay(instr)
-    resolver = BREP_REGISTRY if registry is None else registry
-
-    from mccode_antlr.display.render.brep import BRepRegistry
-    shim = BRepRegistry()
-    for comp_type in {component_type_name(i) for i in instr_display._instr.components}:
-        @shim.register(comp_type)
-        def wrapper(instance, component_params, _resolver=resolver):
-            builder = _resolver.resolve_builder(instance)
-            if builder is None:
-                return None
-            provenance = NiessProvenance.from_instance(instance)
-            return builder(Subject(
-                name=instance.name, obj=None,
-                params=merged_params(instance, component_params),
-                extra={} if provenance is None else provenance.extra))
-
-    return upstream(instr_display, params=params, registry=shim)
-
-
-def save_step(assembly_or_instr, path, params: dict[str, float] | None = None, registry=None):
-    from mccode_antlr.display.render.brep import save_step as upstream
-
-    assembly = assembly_or_instr
-    if hasattr(assembly_or_instr, 'components') or hasattr(assembly_or_instr, '_instr'):
-        assembly = instrument_to_assembly(assembly_or_instr, params=params, registry=registry)
-    return upstream(assembly, path)

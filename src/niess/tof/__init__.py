@@ -1,41 +1,44 @@
-"""Set up a ``tof.Model`` from an instrument niess emitted.
+"""Fly neutrons through a chopper cascade, from a niess instrument.
 
 ``tof`` (from the scipp developers) is a lightweight straight-line Monte Carlo for chopper
-cascade diagrams. It needs the same description of a chopper train that ``niess.chopcalc``
-already extracts for chopper-lib, with one difference: chopcalc emits parameter *names*, so
-a band recomputes at run time, while ``tof`` configures one specific machine and needs
-numbers. So this evaluates them, and says afterwards which ones it used.
+cascade diagrams. It wants the same description of a chopper train `niess.chopcalc`
+extracts, with one difference: chopcalc emits parameter *names* so a band recomputes at
+run time, while ``tof`` configures one specific machine and needs numbers.
 
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
+Reading the tree, they already are numbers -- a disc's speed and delay are quantities on
+the disc:
+
+    from niess.instrument import Instrument, Mount
     from niess.teaching import Primary
-    import niess.tof
+    from niess.tof import to_tof_model
 
-    assembler = Assembler('teaching', flavor=Flavor.MCSTAS)
-    Primary.from_calibration().to_mccode(assembler)
+    teaching = Instrument(name='teaching', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration()),
+    ))
 
-    setup = niess.tof.to_tof_model(assembler)
+    setup = to_tof_model(teaching)
     setup                      # in a notebook: what it used, and what you may override
     setup.model.run().plot()
 
-Note that ``import tof`` inside this package is an absolute import and reaches the scipp
-package, not ``niess.tof``; every use goes through ``components._tof`` so it is never in
-doubt.
+Modelling an instrument niess did *not* build means reading an emitted one and parsing
+those numbers back out of the C, which is `niess.tof.via_instr` -- a different function
+taking an `Assembler` rather than an `Instrument`. It is not imported here.
+
+Install with ``pip install 'niess[tof]'``.
 """
 from __future__ import annotations
 
-from .components import TofSetup, to_tof_model
 from .mapping import ChopperSpec, delay_to_phase, spec_from_windows
-from .parameters import ParameterValues, Use
-from .registry import DEFAULT_TOF_REGISTRY, NiessTofRegistry
+from .model import chopper_specs, to_tof_model
+from .parameters import Use, as_declared
+from .setup import TofSetup
 
 __all__ = [
     'ChopperSpec',
-    'DEFAULT_TOF_REGISTRY',
-    'NiessTofRegistry',
-    'ParameterValues',
     'TofSetup',
     'Use',
+    'as_declared',
+    'chopper_specs',
     'delay_to_phase',
     'spec_from_windows',
     'to_tof_model',

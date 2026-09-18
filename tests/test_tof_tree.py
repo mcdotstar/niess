@@ -9,7 +9,7 @@ import pytest
 import scipp as sc
 
 from niess.instrument import Instrument, Mount
-from niess.tof.tree import chopper_specs
+from niess.tof import chopper_specs
 
 
 def bifrost_primary():
@@ -27,6 +27,9 @@ def as_instrument():
 def existing():
     """What the C-text route produces, for the same instrument.
 
+    Explicitly `via_instr`: `niess.tof.to_tof_model` is the tree route now, and comparing
+    a route against itself is a test that passes while asserting nothing.
+
     `niess.tof` imports without the scipp `tof` package and reaches it only when a model
     is actually built -- which is here, inside a fixture, rather than at the top of this
     module. So `importorskip` has to be here too: without it the ImportError surfaces as
@@ -38,11 +41,18 @@ def existing():
 
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
-    import niess.tof as tof
+    from niess.tof.via_instr import to_tof_model
 
     assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
     bifrost_primary().to_mccode(assembler)
-    return tof.to_tof_model(assembler)
+    return to_tof_model(assembler)
+
+
+def test_the_two_routes_are_two_functions():
+    """The guard on every comparison below: they must not have become the same one."""
+    from niess.tof import to_tof_model as from_tree
+    from niess.tof.via_instr import to_tof_model as from_instrument
+    assert from_tree is not from_instrument
 
 
 def test_the_two_routes_describe_the_same_choppers(existing):
@@ -147,7 +157,7 @@ def test_overriding_something_that_is_not_a_knob_is_refused():
 
 def test_the_whole_model_takes_values_with_units():
     pytest.importorskip('tof')
-    from niess.tof.tree import to_tof_model
+    from niess.tof import to_tof_model
     setup = to_tof_model(teaching_tree(), neutrons=1000).with_values(
         chopperspeed=sc.scalar(0.07, unit='kHz'),
         chopperdelay=sc.scalar(17.0, unit='ms'))
@@ -162,7 +172,7 @@ def test_the_whole_model_takes_values_with_units():
 def test_a_wavelength_bound_is_converted_to_what_its_own_parameter_declares():
     """The band is angstrom to `tof`, whatever the caller measured it in."""
     pytest.importorskip('tof')
-    from niess.tof.tree import to_tof_model
+    from niess.tof import to_tof_model
     setup = to_tof_model(teaching_tree(), neutrons=1000,
                          values={'source_lambda_min': sc.scalar(0.2, unit='nm')})
     used = {use.name: use for use in setup.parameters}

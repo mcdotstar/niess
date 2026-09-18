@@ -1,8 +1,12 @@
 # moreniius parity
 
-`niess.nexus` replaces [`moreniius`](https://github.com/g5t/moreniius), which converted
-McCode instruments to ESS NeXus Structure JSON through a `nexusformat` object model.
-This page records what happened to every part of it, so nothing was lost silently.
+`niess.nexus.via_instr` replaces [`moreniius`](https://github.com/g5t/moreniius), which
+converted McCode instruments to ESS NeXus Structure JSON through a `nexusformat` object
+model. This page records what happened to every part of it, so nothing was lost silently.
+
+The module paths below are all relative to `niess/nexus/via_instr/`. That subpackage is
+where the instrument-reading route now lives: `niess.nexus` itself reads the niess object
+tree, which is a rewrite rather than a port and so has nothing to do with this audit.
 
 The regression baseline that pins the two against each other, and the classification of
 every remaining difference, is documented in
@@ -19,7 +23,7 @@ separate, human step.
 
 ## Ported
 
-| moreniius | niess.nexus | Notes |
+| moreniius | niess.nexus.via_instr | Notes |
 | --- | --- | --- |
 | `mccode/orientation.py` — `NXPart`, `NXParts`, `NXOrient` | `orientation.py` | Same algebra, emitting transformation dicts instead of `NXfield`s |
 | `mccode/instr.py` — `make_transformations`, `resolve_target`, `build_graph`, `inputs`/`outputs`, `guess_origin`, `to_nx` | `instrument.py::NexusContext` | `guess_origin` → `_find_origin`; `to_nx` → the `mcstas` dataset |
@@ -34,7 +38,7 @@ separate, human step.
 | `writer.py::convert_types` | `nodes.py::convert_type` | Minus the `NXattr`/`NXfield` branches |
 | `writer.py::_to_absolute` | `nodes.py::to_absolute` + `absolutize_depends_on` | The recursive rewrite is now its own pass rather than part of serialization |
 | `nxoff.py` — `NXoff.from_wedge`, `sphere`, `to_nexus` | `off.py` | |
-| `nexus_structure.py` — `load_instr` | `loader.py` | Reading a file survives; see below for `convert` |
+| `nexus_structure.py` — `load_instr` | `io/mccode.py` | Reading a file survives; see below for `convert`. It is not a NeXus concern, so it lives with the other McCode readers rather than under `nexus/` |
 | `MorEniius.from_mccode` / `to_nexus_structure` | `to_nexus_structure(instr, ...)` | One function; there was never a reason for the two-stage object |
 
 ## Subsumed — the need disappeared with `nexusformat`

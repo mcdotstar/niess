@@ -269,7 +269,7 @@ pack_slit_2    role=disc-opening-member     group=pack index=2 edges=[350.0, 370
 Tag by explicit role rather than by position: an adapter reads the instrument as a flat
 list, and nothing guarantees the primary comes first.
 
-`niess.nexus` -- the instrument-reading converter -- ships the matching translator,
+`niess.nexus.via_instr` -- the instrument-reading converter -- ships the matching translator,
 registered against the component's *niess source type*. The primary instance rebuilds
 the disc from its siblings; the members return `None`, which means emit nothing. The
 rebuilt group takes the disc's own name, since `pack_slit_0` describes how the

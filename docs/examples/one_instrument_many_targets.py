@@ -25,14 +25,15 @@ def main(outdir: Path) -> None:
     # --8<-- [end:build]
 
     # --8<-- [start:mccode]
-    from niess.targets.mccode import to_mccode
+    from niess.mccode import to_mccode
 
     instrument = to_mccode(bifrost)          # an mccode_antlr Instr
     # --8<-- [end:mccode]
     assert len(instrument.components) == 358
 
     # --8<-- [start:nexus]
-    from niess.targets.nexus import BIFROST_REGISTRY, to_nexus_structure
+    from niess.nexus import to_nexus_structure
+    from niess.nexus.bifrost import BIFROST_REGISTRY
 
     structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
     # --8<-- [end:nexus]
@@ -41,7 +42,7 @@ def main(outdir: Path) -> None:
     assert len(groups) == 358
 
     # --8<-- [start:tof]
-    from niess.tof.tree import chopper_specs
+    from niess.tof import chopper_specs
 
     specs = chopper_specs(bifrost, origin=0.05)
     # --8<-- [end:tof]
