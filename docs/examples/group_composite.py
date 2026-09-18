@@ -83,7 +83,7 @@ def main(outdir: Path) -> None:
     assert find_child(pack, 'slit_edges')['config']['values'] == [
         10.0, 30.0, 100.0, 140.0, 350.0, 370.0,
     ]
-    assert find_child(pack, 'top_dead_center')['config']['values'] == 15.0
+    assert find_child(pack, 'zero_position')['config']['values'] == 15.0
     assert find_child(pack, 'beam_position')['config']['values'] == 90.0
 
     # --8<-- [start:tags]

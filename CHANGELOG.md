@@ -9,6 +9,39 @@ patch; everything removed is listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+### Added — `niess.components.Motor`, a driven axis that says where its numbers come from
+
+A `Motor` carries a name, a unit, a default, and the Kafka `source`/`topic` its values
+arrive on. `Motor.parameter()` gives the `InstrumentParameter` a run sets, and the NeXus
+target writes it as the `NXlog` an `NXpositioner` value or an `NXtransformations` entry
+needs — attributes for `depends_on`, `transformation_type` and `vector` on the group, and
+the stream module carrying the unit twice (`value_units` for the f144 contract, a `units`
+attribute for a reader resolving the chain).
+
+### Fixed — a dataset module the ESS file-writer can read
+
+Dataset modules were written with `type` where the ESS file-writer schema requires
+`dtype`. One key, every static dataset in every file.
+
+### Changed — BIFROST's radial slit bank is no longer written to NeXus
+
+It was a single `NXslit` reporting ten slits, with an angular width recorded in `x_gap`,
+which is a length. Splitting it would not have helped: ten `NXslit`s would report ten
+apertures that are not there, still in the wrong units, and a reduction would have to
+learn to ignore them. **An absent thing says nothing; ten fabricated ones say something
+false.**
+
+There is no ring of slits at BIFROST's sample. It is how a neutron leaving the sample gets
+tagged with the channel it entered — the emitted McStas component reports which opening it
+passed, and everything downstream is gated on that. `slitDistance` being drivable, with a
+default chosen to clear everything further out, is what a surface that is not there can
+afford to do, and no CAD builder draws it.
+
+It remains a niess object and McStas still emits it unchanged — the `.instr` goldens do
+not move — because the beam really does divide there, and the particle flow has to say so.
+The flow record now steps over unwritten nodes rather than naming only written ones, which
+is what kept nine channels and a monitor from being left with nothing feeding them.
+
 ### Removed — the instrument-reading routes
 
 Every target read the niess object tree *and* had a second implementation that read an

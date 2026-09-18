@@ -29,18 +29,20 @@ def instrument_group():
     ))
     structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
     entry = structure['children'][0]
-    return {node.get('name'): node for node in children_of(entry['children'][0])}
+    # groups only: a dataset keeps its name under `config`, so the instrument's own
+    # `name` would come back keyed None
+    return {node['name']: node for node in children_of(entry['children'][0])
+            if node.get('type') == 'group'}
 
 
 def test_a_component_records_what_feeds_it(instrument_group):
     sample = instrument_group['sample_origin']
     assert get_attribute(sample, 'inputs') == 'slit'
-    assert get_attribute(sample, 'outputs') == 'slits'
 
 
 def test_a_component_feeding_several_records_all_of_them(instrument_group):
-    """The branch the declaration order cannot express: ten paths leave the slits."""
-    outputs = get_attribute(instrument_group['slits'], 'outputs')
+    """The branch declaration order cannot express: ten paths leave the sample."""
+    outputs = get_attribute(instrument_group['sample_origin'], 'outputs')
     assert isinstance(outputs, list)
     assert len(outputs) == 10
     assert 'elastic_monitor' in outputs
@@ -49,7 +51,21 @@ def test_a_component_feeding_several_records_all_of_them(instrument_group):
 
 def test_one_name_is_written_as_a_name_not_a_list_of_one(instrument_group):
     """What the standard, and every reader of these files, expects."""
-    assert isinstance(get_attribute(instrument_group['slits'], 'inputs'), str)
+    assert isinstance(get_attribute(instrument_group['sample_origin'], 'inputs'), str)
+
+
+def test_the_chain_steps_over_what_was_not_written(instrument_group):
+    """The radial slit bank is in the flow and not in the file.
+
+    It is a simulation device rather than part of the instrument, so `niess.nexus` does
+    not write it -- but the beam really does divide there, and dropping it from the
+    record rather than stepping over it would leave nine channels and a monitor with
+    nothing feeding them. They take the sample instead.
+    """
+    assert 'slits' not in instrument_group
+    for name, node in instrument_group.items():
+        if 'radial_filter_collimator' in name:
+            assert get_attribute(node, 'inputs') == 'sample_origin'
 
 
 def test_a_composite_contributes_no_dangling_reference(instrument_group):

@@ -23,6 +23,7 @@ from typing import Any, Optional
 from scipp import Variable
 
 from .component import Base
+from .motor import Motor
 
 
 def _zero():
@@ -35,17 +36,23 @@ def _no_turn():
     return vector([0., 0., 0.], unit='degree')
 
 
-def _default_angle(angle) -> float:
+def _default_angle(angle: int|float|Motor) -> float:
     """A declared angle as a number: a knob contributes the value it is declared with."""
-    from ..dispatch import expr_float
+    if isinstance(angle, Motor):
+        return float(angle.default)
+    # `angles` and `mccode_angles` both take a bare InstrumentParameter as well as a
+    # Motor, so this has to: refusing it here made a frame that McStas and NeXus emit
+    # happily raise when CAD asked where to draw it.
     value = getattr(angle, 'value', angle)
-    try:
-        return float(value)
-    except (TypeError, ValueError):
+    if not isinstance(value, (int, float)):
+        from ..dispatch import expr_float
         try:
-            return expr_float(value)
+            return float(expr_float(value))
         except Exception:
-            return 0.0
+            raise ValueError(
+                f'{angle!r} is not an angle, a Motor or a parameter with a value'
+            ) from None
+    return float(value)
 
 
 class Frame(Base):
@@ -103,10 +110,12 @@ class Frame(Base):
         knows about them -- nothing else in the tree does.
         """
         from mccode_antlr.common import InstrumentParameter
+        from ..instrument import Motor
         declared = self.declared_angles()
         if declared is None:
             return ()
-        return tuple(a for a in declared if isinstance(a, InstrumentParameter))
+        angs = (a for a in declared if isinstance(a, (InstrumentParameter, Motor)))
+        return tuple(a.parameter() if isinstance(a, Motor) else a for a in angs)
 
     def angles(self) -> tuple:
         """The turn as McCode-ordered angles: extrinsic x, then y, then z, in degrees.
@@ -123,6 +132,8 @@ class Frame(Base):
         declared = self.declared_angles()
         if declared is not None:
             return declared
+        # if a 3-tuple of angles was provided instead of a scipp.Variable,
+        # this will have already returned that tuple
         values = [float(v) for v in self.rotation.to(unit='degree').value]
         turning = [i for i, v in enumerate(values) if v]
         if len(turning) <= 1:
@@ -132,8 +143,7 @@ class Frame(Base):
     def mccode_angles(self) -> tuple:
         """The angles as McStas wants them written: a number, or a knob's name."""
         from mccode_antlr.common import InstrumentParameter
-        return tuple(a.name if isinstance(a, InstrumentParameter) else a
-                     for a in self.angles())
+        return tuple(a.name if isinstance(a, (InstrumentParameter, Motor)) else a for a in self.angles())
 
     def orientation(self):
         """The turn as a scipp rotation, for anything that wants to compose it.

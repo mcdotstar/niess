@@ -39,7 +39,7 @@ def main(outdir: Path) -> None:
     # --8<-- [end:nexus]
     groups = [c for c in structure['children'][0]['children'][0]['children']
               if c.get('type') == 'group']
-    assert len(groups) == 358
+    assert len(groups) == 357
 
     # --8<-- [start:tof]
     from niess.tof import chopper_specs

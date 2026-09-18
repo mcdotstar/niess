@@ -99,7 +99,7 @@ def test_a_multi_opening_disc_is_one_disc(multi_opening):
     assert get_attribute(disc, 'NX_class') == 'NXdisk_chopper'
     assert value(disc, 'slits') == 3
     assert value(disc, 'slit_edges') == [10., 30., 100., 140., 350., 370.]
-    assert value(disc, 'top_dead_center') == 15.0
+    assert value(disc, 'zero_position') == 15.0
     assert value(disc, 'beam_position') == 90.0
 
 
@@ -174,8 +174,10 @@ def test_bifrost_converts(bifrost):
     assert counted['NXdetector'] == 45     # one per arm, not one per tube
     assert counted['NXguide'] == 119
     assert counted['NXdisk_chopper'] == 6
-    assert counted['NXslit'] == 1          # the radial slit bank
-    assert sum(counted.values()) == 358    # one group per emitted component
+    # no NXslit: the radial slit bank is a simulation device, not an aperture, and is
+    # deliberately not written -- see `test_the_radial_slit_bank_is_not_written`
+    assert 'NXslit' not in counted
+    assert sum(counted.values()) == 357    # one group per emitted component
 
 
 def test_the_tree_classifies_what_an_emitted_instrument_could_not(bifrost):
@@ -206,27 +208,99 @@ def test_arc_and_triplet_come_from_the_tree(bifrost):
     assert numbers[0][0] == icd_pixel(resolution, 1, 2, 0, 0)
 
 
-def test_the_radial_slit_bank_is_an_aperture(bifrost):
-    """It was emitted by Tank's McStas hook, so only McStas could see it.
+def test_the_radial_slit_bank_is_not_written(bifrost):
+    """It is how a neutron gets tagged with the channel it entered, not an aperture.
 
-    It is a real aperture that happens to be used for bookkeeping -- the emitted
-    component reports which opening a neutron passed and everything downstream is gated
-    on that -- rather than bookkeeping that happens to look like an aperture.
+    It was one `NXslit` reporting ten slits, with an angle in `x_gap`, which is a length.
+    Ten `NXslit`s would fix the count and not the units, and would put ten apertures in
+    the file that a reduction has to learn to ignore.
     """
     from niess.nexus.bifrost import BIFROST_REGISTRY
 
     structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
-    slits = find_child(instrument_group(structure), 'slits')
-    assert get_attribute(slits, 'NX_class') == 'NXslit'
-    assert len(value(slits, 'angles')) == 10       # nine channels and the monitor
-    # both knobs a calibration run sweeps are links, not numbers a run could contradict
-    assert get_attribute(find_child(slits, 'distance'), 'NX_class') == 'NXlog'
-    assert get_attribute(find_child(slits, 'offset'), 'NX_class') == 'NXlog'
+    assert find_child(instrument_group(structure), 'slits') is None
+
+def test_the_frozen_structure_changes_only_as_declared(bifrost):
+    """Not "is unchanged": the format is being brought into line with a static checker.
+
+    `NEXUS_MIGRATIONS` says what each deliberate change was, the frozen structure is
+    brought forward by them, and what is left has to match exactly. That proves more than
+    re-minting would -- re-minting says the golden moved, which is also what it says when
+    something breaks.
+    """
+    from .baseline import NEXUS_STRUCTURES, frozen_json, migrated, nexus_structures
+    assert nexus_structures() == migrated(frozen_json(NEXUS_STRUCTURES))
 
 
-def test_the_frozen_structure_is_unchanged(bifrost):
-    from .baseline import NEXUS_STRUCTURES, frozen_json, nexus_structures
-    assert nexus_structures() == frozen_json(NEXUS_STRUCTURES)
+def test_every_declared_migration_is_still_doing_something(bifrost):
+    """A rule that changes nothing has been absorbed by a re-mint and should go.
+
+    Otherwise the list becomes a pile nobody dares empty, and the next reader cannot tell
+    which entries still describe the gap between the file and the code.
+    """
+    from copy import deepcopy
+    from .baseline import (NEXUS_MIGRATIONS, NEXUS_STRUCTURES, _walk_nodes,
+                           frozen_json, migrated)
+
+    frozen = frozen_json(NEXUS_STRUCTURES)
+    for description, migrate in NEXUS_MIGRATIONS:
+        before = deepcopy(frozen)
+        for name in before:
+            for node in _walk_nodes(before[name]):
+                migrate(node)
+        assert before != frozen, f'migration does nothing: {description}'
+
+
+def test_every_log_says_where_its_values_come_from(bifrost):
+    """An NXlog with no source is a promise the file cannot keep.
+
+    Either it carries a stream that fills it -- `f144` for a value a run drives -- or it
+    links to datasets in a log something else fills. A group with neither is an empty
+    log that reads as though data were coming.
+    """
+    from .baseline import _walk_nodes, nexus_structures
+
+    for name, structure in nexus_structures().items():
+        for node in _walk_nodes(structure):
+            classes = [a for a in (node.get('attributes') or [])
+                       if a.get('name') == 'NX_class' and a.get('values') == 'NXlog']
+            if not classes:
+                continue
+            modules = {c.get('module') for c in (node.get('children') or [])}
+            assert modules, f'{name}: {node.get("name")} is an NXlog with no children'
+            assert modules <= {'f144', 'link'}, \
+                f'{name}: {node.get("name")} fills itself with {modules}'
+
+
+def test_a_disc_writes_the_field_name_the_format_asks_for(bifrost):
+    """`zero_position`, not `top_dead_center`.
+
+    A calibration may still be *given* `top_dead_center` -- that is an input alias for
+    `zero_angle` and `test_the_nexus_names_are_accepted` covers it. This is the written
+    field, and the two are deliberately allowed to differ.
+    """
+    from .baseline import _walk_nodes, nexus_structures
+
+    for name, structure in nexus_structures().items():
+        for node in _walk_nodes(structure):
+            config = node.get('config') or {}
+            assert config.get('name') != 'top_dead_center', \
+                f'{name}: a disc still writes top_dead_center'
+
+
+def test_no_dataset_still_carries_the_deprecated_key(bifrost):
+    """The rule itself, asserted on the output rather than on the diff.
+
+    This is what outlives the migration list: when the frozen file is re-minted the
+    entry above goes, and this stays saying what the format actually requires.
+    """
+    from .baseline import _walk_nodes, nexus_structures
+    for name, structure in nexus_structures().items():
+        for node in _walk_nodes(structure):
+            config = node.get('config')
+            if isinstance(config, dict) and node.get('module') == 'dataset':
+                assert 'dtype' in config, f'{name}: dataset without a dtype'
+                assert 'type' not in config, f'{name}: dataset still carrying type'
 
 
 # -- run-time values and streams ----------------------------------------------
@@ -285,31 +359,29 @@ def test_the_instrument_chooses_the_protocol():
     assert data['children'][0]['config']['topic'] == 'teaching_events'
 
 
-def test_a_linked_log_deep_links_rather_than_linking_the_group(teaching):
-    """Why it is a group of links and not one link to a group.
+def test_a_run_time_value_is_a_log_the_file_fills_itself(teaching):
+    """The group stays ours, and it now says where its values come from.
 
-    A `link` module pointing at the NXlog itself would give the file the value, but
-    nothing could be added to it. Mirroring each dataset instead leaves the group ours,
-    so it can carry attributes the original has no reason to have -- which it must when
-    it is part of an NXtransformations chain and needs a transformation_type and a
-    vector alongside the value.
+    It used to be an NXlog whose datasets were `link` modules mirroring an NXlog
+    published elsewhere in the file -- which only worked if something else had put one
+    there. A `Motor` knows its Kafka source and topic, so the log carries an `f144`
+    stream and is filled from the same place the run fills it.
+
+    What has not changed is why it is a group of ours rather than a link to someone
+    else's: it has to carry a `transformation_type` and a `vector` alongside the value
+    when it is part of an NXtransformations chain, and a link cannot.
     """
     structure = to_nexus_structure(teaching)
     speed = find_child(find_child(instrument_group(structure), 'chopper'),
                        'rotation_speed')
 
     assert get_attribute(speed, 'NX_class') == 'NXlog'
-    assert speed['type'] == 'group', 'a group of links, not a link to a group'
+    assert speed['type'] == 'group', 'a group of ours, not a link to one'
 
-    modules = {c['module'] for c in speed['children']}
-    assert modules == {'link'}
-    sources = {c['config']['source'] for c in speed['children']}
-    assert '/entry/parameters/chopperspeed/value' in sources
-    assert '/entry/parameters/chopperspeed/time' in sources
-
-    # and the group takes attributes of its own
-    assert get_attribute(speed, 'units') == 'Hz'
-
+    assert {c['module'] for c in speed['children']} == {'f144'}
+    config = speed['children'][0]['config']
+    assert config['source'] == 'chopperspeed'
+    assert config['topic']
 
 def test_a_linked_log_can_carry_transformation_attributes(teaching):
     """The case the deep links exist for.
