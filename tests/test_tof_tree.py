@@ -24,7 +24,17 @@ def as_instrument():
 
 @pytest.fixture(scope='module')
 def existing():
-    """What the C-text route produces, for the same instrument."""
+    """What the C-text route produces, for the same instrument.
+
+    `niess.tof` imports without the scipp `tof` package and reaches it only when a model
+    is actually built -- which is here, inside a fixture, rather than at the top of this
+    module. So `importorskip` has to be here too: without it the ImportError surfaces as
+    a fixture *error* in every test that asks for `existing`, and a checkout with no
+    extras does not run the suite green, which `tests/optional_dependencies.py` says it
+    must.
+    """
+    pytest.importorskip('tof', reason="the C-text comparison builds a tof.Model")
+
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
     import niess.tof as tof

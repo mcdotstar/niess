@@ -64,6 +64,18 @@ path = "src/niess/__about__.py"
 type = "virtual"
 path = ".venv"
 
+# `hatch test` -- which is what CI runs -- uses this environment. Without `features` it
+# installs the project's dependencies and pytest and nothing else, so `niess.tof` and
+# `niess.brep` were never exercised: their tests skipped, silently, on every run. The
+# suite is *able* to run green without the extras (see tests/optional_dependencies.py)
+# and that stays true for a bare checkout; CI is where they should actually be installed,
+# because a target nobody runs is a target nobody is testing.
+#
+# `examples` is deliberately not here. The notebooks and the executable docs belong to the
+# documentation job, which installs `[docs,test,examples]` and runs them there.
+[tool.hatch.envs.hatch-test]
+features = ["tof", "brep"]
+
 [tool.hatch.envs.docs]
 features = ["docs", "test"]
 
