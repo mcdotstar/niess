@@ -87,7 +87,7 @@ train = narrow_source_wavelengths(
 which adds to DECLARE
 
 ```c
-multi_chopper_parameters * bifrost_choppers = NULL;
+chopper_parameters * bifrost_choppers = NULL;
 int bifrost_choppers_count = 0;
 ```
 
@@ -99,8 +99,8 @@ The train is built on the heap whether or not anything else will read it, which 
 makes the handover a pointer assignment rather than a copy. It costs one allocation per
 disc, and it means there is one construction path and one release — the same few lines,
 emitted at the end of INITIALIZE when nobody else wants the train, and in FINALLY when
-somebody does. Each row's openings go back before the row array either way, since freeing
-the array alone would lose every window array with it.
+somebody does. Each row's slit edges go back before the row array either way, since freeing
+the array alone would lose every edge array with it.
 
 Pass `(double *) bifrost_choppers` to a component whose own parameter is declared that
 way, which is the usual shape for handing a struct array through McStas.
@@ -112,21 +112,33 @@ pointer and a count of zero, so you want the exception.
 
 ## Discs with several openings
 
-Every disc is described to chopper-lib by its **openings**, as a
-`multi_chopper_parameters` row pointing at an array of window angles: one window for a
-disc with a single opening, one per slit for a disc with several.
+Every disc is described to chopper-lib by its **slit edges**, as a `chopper_parameters`
+row pointing at a flat, increasing array of angles in degrees, two per opening — the same
+array the `CollectorDiskChopper` component and the NeXus `NXdisk_chopper` standard use.
 
-The angles are measured from the point of the disc that its `delay` refers to, and
-chopper-lib puts an edge at angle `a` on the beam at `delay + a / (360 * speed)`. niess
-measures a slit edge from the top-dead-centre mark and `{disc}delay` is when the disc's
-`beam_position` is on the beam, so an edge `e` is emitted at `beam_position - e`.
-Subtracting is the whole of the conversion: an opening counter-clockwise of the beam is
-reached by turning clockwise, so it sits at a negative angle.
+There is no conversion. The angles are the disc's own, measured from its top-dead-centre
+mark in the order `slits()` gives them, and where the beam crosses the disc travels
+alongside them as the row's `beam` field. chopper-lib 4.0.0 puts an edge at angle `a` on
+the beam at
 
-The `speed` keeps its sign, and chopper-lib uses it signed here — reversing a disc
-reflects its openings about the delay. That is invisible for a single opening centred on
-zero and matters for every other one, which is why `chopper-lib` 3.0.0 is the minimum and
-the generated C `#error`s against anything older.
+```
+t(a) = delay + (beam - a) / (360 * speed)
+```
+
+so `{disc}delay` is when `beam_position` is on the beam, exactly as niess means it.
+
+Up to chopper-lib 3.0.0 the row carried `beam_position - e` for each edge `e`, with the
+pair reversed, because the library had no field for the crossing and expected the caller
+to fold it in. A three-opening BIFROST disc went across as `(60, 80) (-50, -10)
+(-280, -260)` — negative, out of order, and unrecognisable as the disc the component was
+given. It now goes across as the disc's own edges.
+
+The `speed` keeps its sign, and chopper-lib uses it signed — reversing a disc reflects its
+openings about the delay. That is invisible for a single opening centred on the beam
+crossing and matters for every other one. `chopper-lib` 4.0.0 is the minimum and the
+generated C `#error`s against anything older, which matters because the sign of the angle
+term reversed with the rename: an older library given the new numbers would place every
+opening on the wrong side of `delay`.
 
 Before chopper-lib could take several openings, a multi-opening disc was approximated by
 its angular envelope — the span from its first opening's edge to its last — which admitted

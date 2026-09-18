@@ -98,7 +98,11 @@ def chopper_parameters(ref_p, ref_r):
     # formula the chopper uses to go the other way, negated.
     radius, height = 350 * mm, 60 * mm
     beam_angle = scalar(180.0, unit='deg')
-    spindle = -disc_beam_offset(radius, height, beam_angle=beam_angle)
+    spindle = -disc_beam_offset(
+        radius=radius,
+        height=height,
+        beam_angle=beam_angle
+    )
     parameters = {
         'name': 'chopper',
         'position': at + spindle,

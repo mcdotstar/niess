@@ -9,6 +9,61 @@ patch; everything removed is listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+### Changed — BIFROST's discs are chopper-lib `NXdisk_chopper` components
+
+A disc is now emitted as one `NXdisk_chopper` from
+[`mcstas-chopper-lib`](https://github.com/mcdotstar/mcstas-chopper-lib) rather than one
+McStas `DiskChopper` per opening, and its openings go into the instrument's `DECLARE` as
+an array the component and chopper-lib's band arithmetic both read. Each disc gains a
+`{disc}park_angle` run-time knob alongside `{disc}speed` and `{disc}delay`; nothing is
+removed. `NXDiskChopper` is the class, `DiscChopper` remains for the `DiskChopper` route.
+
+The beam crossing moves. `disc_beam_offset` now takes the aperture's *width* into account:
+the reach is the chord `sqrt(radius² - (width/2)²)`, not the radius, so the far corners of
+the aperture sit on the disc circumference instead of overhanging it. BIFROST's four
+30.4 mm discs move 0.330 mm and its two 60 mm bandwidth discs 1.288 mm. It is degenerate
+with the old rule at zero width. Everything after `radius` is keyword-only now, because
+inserting `width` ahead of `height` silently changed what a positional call meant.
+
+**chopper-lib 4.2.1 or newer is required**, raised from 4.1.0. `niess.chopcalc` calls
+`chopper_wavelength_limits`, which goes through the `range_set_sort` that until 4.2.1
+"gave different answers on different platforms, which is how a chopper train's admitted
+band came out 0.098 Å wide on Windows and 1.906 Å on Linux for the same discs". The struct
+layout has been stable since 4.0.0, so an older library links and runs — it just answers
+the question wrong, and differently per host. The emitted `#error` guard says so.
+
+### Fixed — every target sees a disc again
+
+`NXDiskChopper` was added as a *sibling* of `DiscChopper` rather than a subclass, and
+`niess.tof` and `niess.nexus` both selected discs with `isinstance(x, DiscChopper)`. An
+unregistered type falls through rather than failing, so both went quiet instead of loud:
+
+- `chopper_specs` returned `()`. A BIFROST `tof` model had no choppers at all, and the
+  instrument reported that it "declares `['source_lambda_max', 'source_lambda_min']`"
+  when it declares eighteen chopper knobs besides.
+- Every disc was written to NeXus as a bare reference frame carrying a description — no
+  `slits`, `slit_edges`, `rotation_speed`, `delay` or `radius`. BIFROST's file contained
+  **zero** `NXdisk_chopper` groups, which is what `mccode-plumber` looks for to wire a
+  chopper's PVs to the forwarder.
+
+The knobs, the openings and the controller now live on `Chopper`, so there is one of each:
+`speed_parameter`/`delay_parameter`/`park_parameter` all return an `InstrumentParameter`
+(one class returned a bare name, the other a parameter), and `DISC_CHOPPERS` names the two
+disc classes so no caller has to remember there are two.
+
+### Fixed — three defects the migration left behind
+
+- **A disc's edges are two per opening.** `NXDiskChopper` paired *consecutive* edges, so
+  the gap between two openings became an opening of its own: a three-slit disc reported
+  five slits and emitted ten edge values where six were given. Invisible until now because
+  the two pairings agree for a single opening, and every BIFROST disc has one.
+- **`niess.chopcalc` emitted invalid C** — `free(train[0].edges;`, with no closing paren.
+  Only instruments whose rows own their edges emit that line, so BIFROST, whose rows are
+  `DECLARE` arrays, never showed it. The emitted C is now checked for balanced delimiters.
+- **`pv_root` and `tdc_channel`** are back on a disc, having been dropped in the retyping.
+  Without them a file can only be written in simulated mode, so real-mode NeXus had
+  quietly become unavailable for all of BIFROST.
+
 ### Changed — a NeXus structure the ESS checker accepts
 
 The written file now passes the ESS structure checker, in either of two modes.

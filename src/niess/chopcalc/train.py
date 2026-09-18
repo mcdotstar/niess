@@ -18,7 +18,7 @@ from __future__ import annotations
 from .paths import (ChopcalcError, DEFAULT_LATEST_EMISSION, ESS_SOURCE_DURATION,
                     _c_double, beam_path_length, global_position)
 from .model import ChopperEntry, ChopperTrain, SourceEntry
-
+from ..components.chopper import DiscChopper, FermiChopper, NXDiskChopper
 
 
 def _source_entry(visit, latest_emission: float | None) -> SourceEntry:
@@ -56,20 +56,48 @@ def _source_entry(visit, latest_emission: float | None) -> SourceEntry:
                        latest_emission_note=note)
 
 
-def _windows(disc) -> tuple[tuple[str, str], ...]:
+def _speed(obj) -> str:
+    return obj.speed_parameter().name
+
+
+def _delay(obj) -> str:
+    return obj.delay_parameter().name
+
+
+def _beam(obj) -> str:
+    return _c_double(obj.beam_angle.to(unit='deg').value)
+
+
+def _aperture(obj) -> str:
+    from scipp import atan2, sqrt, scalar
+    radius = obj.radius.to(unit='m')
+    half_width = (obj.width / 2).to(unit=radius.unit) if obj.width is not None else scalar(0., unit='m')
+    height = obj.height.to(unit=radius.unit) if obj.height is not None else radius
+    aperture = 2 * atan2(y=half_width, x=sqrt(radius**2 - half_width**2)-height)
+    return _c_double(aperture.to(unit='deg').value)
+
+
+def _edge_count(disc) -> int:
+    if isinstance(disc, DiscChopper):
+        return len(disc.nexus_slit_edges())
+    if isinstance(disc, NXDiskChopper):
+        return len(disc.edge_array_values())
+    raise ValueError(f'count unknown for {disc}')
+
+
+def _edges(disc) -> tuple[str, ...] | str:
     """Every opening, in chopper-lib's frame.
 
-    chopper-lib measures from the disc's zero-angle point and puts the edge at angle
-    ``a`` on the beam at ``delay + a / (360 * speed)``. A niess slit edge is measured
-    from the top-dead-centre mark and ``{disc}delay`` is when ``beam_angle`` is on the
-    beam -- so ``beam_angle`` is chopper-lib's zero point and an edge ``e`` sits at
-    ``beam_angle - e``. The pair reverses because an opening counter-clockwise of the
-    beam is reached by turning the other way.
+    There is nothing to convert. chopper-lib 4.0.0 measures from the same top-dead-centre
+    mark the disc's ``slits()`` do, and takes ``beam_angle`` as a field of its own rather
+    than expecting the caller to fold it in -- so the openings go across as written, in
+    the order the component and the NeXus standard write them.
     """
-    beam = float(disc.beam_angle.to(unit='deg').value)
-    return tuple((_c_double(beam - closing), _c_double(beam - opening))
-                 for opening, closing in disc.slits())
-
+    if isinstance(disc, DiscChopper):
+        return tuple(_c_double(edge) for edge in disc.nexus_slit_edges())
+    if isinstance(disc, NXDiskChopper):
+        return disc.edge_array_identifier()
+    raise ValueError(f"windows parameters unknown for {disc}")
 
 def train_from_instrument(instrument, latest_emission: float | None = None,
                           skip=(), path_lengths=None) -> ChopperTrain:
@@ -78,7 +106,7 @@ def train_from_instrument(instrument, latest_emission: float | None = None,
     ``skip`` names discs to leave out; ``path_lengths`` overrides how far a neutron
     travels to reach one, for a disc whose route the flow graph cannot measure.
     """
-    from ..components.chopper import DiscChopper, FermiChopper
+
     from ..components.source import Source
     from ..walk import visits
 
@@ -102,7 +130,7 @@ def train_from_instrument(instrument, latest_emission: float | None = None,
     excluded, rows = [], []
     for visit in seen:
         disc = visit.obj
-        if isinstance(disc, FermiChopper) or not isinstance(disc, DiscChopper):
+        if isinstance(disc, FermiChopper) or not isinstance(disc, (DiscChopper, NXDiskChopper)):
             continue
         if visit.name in skip:
             continue
@@ -111,12 +139,13 @@ def train_from_instrument(instrument, latest_emission: float | None = None,
             path = beam_path_length(graph, places, source.id, visit.id)
         rows.append(ChopperEntry(
             name=visit.name,
-            speed=disc.speed_parameter(),
-            # every opening turns with the disc, so they share its delay; where each one
-            # sits relative to that is what the windows say
-            delay=disc.delay_parameter(),
-            windows=_windows(disc),
+            speed=_speed(disc),
+            delay=_delay(disc),
+            beam=_beam(disc),
+            edge_count=_edge_count(disc),
+            edges=_edges(disc),
             path=_c_double(path),
+            aperture=_aperture(disc),
         ))
 
     if overrides:

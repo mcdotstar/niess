@@ -163,8 +163,7 @@ def unit_dict(ref_p, ref_r, number, length):
     return straight_unit_dict(ref_p, ref_r, params)
 
 
-def straight_guide_parameters(guide_pos, guide_rot, chopper_height) -> tuple[dict, Variable, Variable]:
-    from scipp import array, vector
+def straight_guide_parameters(guide_pos, guide_rot, chopper_width, chopper_height) -> tuple[dict, Variable, Variable]:
     from .guide_tools import guide_partial_dict, device_partial_dict, entering_partial_dict
     table = guide_table()
     beam = {'width': 60 * mm, 'height': 90 * mm}
@@ -177,16 +176,13 @@ def straight_guide_parameters(guide_pos, guide_rot, chopper_height) -> tuple[dic
     d, ref_p, ref_r = guide_partial_dict(ref_p, ref_r, table, 29, 43, unit_dict)
     p.update(d)
 
-    radius = 350 * mm
     chopper = {
         'radius': 350 * mm,
+        'width': chopper_width,
         'height': chopper_height,
         'angle': scalar(161.0, unit='deg'),
         'frequency': scalar(14.0, unit='Hz'),
         'delay': scalar(0., unit='s'),
-        # The disc hangs above the beam, so the beam crosses at the bottom of it:
-        # half a turn from the zero mark, which sits on +y. That is enough to place
-        # it -- the gap centre is on the beam and the spindle follows.
         'beam_angle': scalar(180., unit='deg'),
     }
 

@@ -64,10 +64,11 @@ def test_a_disc_is_a_disc(teaching):
     assert entry.name == 'chopper'
     assert entry.speed == 'chopperspeed'
     assert entry.delay == 'chopperdelay'
-    assert entry.windows == (('-85.0', '85.0'),)
+    assert entry.beam == '180.0'
+    assert entry.edges == ('95.0', '265.0')
 
 
-def test_a_multi_opening_disc_keeps_all_its_windows():
+def test_a_multi_opening_disc_keeps_all_its_openings():
     """Which the other route recovers by grouping components on a metadata tag."""
     from scipp import array, scalar, vector
     from scipp.spatial import rotations_from_rotvecs
@@ -93,7 +94,8 @@ def test_a_multi_opening_disc_keeps_all_its_windows():
     train = train_from_instrument(Instrument(
         name='chopped', parts=(Mount(name='s', content=Chopped(source=source, pack=disc)),)))
     entry, = train.choppers
-    assert len(entry.windows) == 2, 'both openings, from the disc itself'
+    assert entry.edges == ('10.0', '30.0', '100.0', '140.0'), \
+        'both openings, from the disc itself, in the disc\'s own order'
 
 
 

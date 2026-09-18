@@ -129,22 +129,24 @@ def test_the_band_is_narrowed_through_the_sources_own_parameters(teaching):
 def test_a_chopper_is_named_not_valued(teaching):
     """The row references run-time parameters, so the band recomputes without a rebuild."""
     narrow(teaching)
-    assert 'chopcalc_choppers[0] = (multi_chopper_parameters){chopperspeed, ' \
-           'chopperdelay, 1,' in str(teaching.instrument)
+    assert 'chopcalc_choppers[0] = (chopper_parameters){chopperspeed, ' \
+           'chopperdelay, 180.0, 2,' in str(teaching.instrument)
 
 
-def test_a_single_opening_disc_is_one_window_either_side_of_zero(teaching):
-    """A DiskChopper opening is centred on the path at its delay, so its window is too.
+def test_a_single_opening_disc_is_one_opening_either_side_of_the_mark(teaching):
+    """A DiskChopper opening is centred on the path at its delay, so its edges are too.
 
-    chopper-lib's own ``single_to_multi_chopper`` builds exactly this pair out of a width,
-    which is what makes the multi-opening calculation give a plain disc the answer the
-    single-opening one used to give it.
+    This disc crosses the beam at 180 degrees from its mark, and its single 170 degree
+    opening is centred there -- so the edges that go across are 95 and 265, the disc's
+    own, and it is ``beam`` that says they straddle the path. Before 4.0.0 the same disc
+    went across as the pair (-85, 85), which is that subtraction already done.
     """
     train = narrow(teaching)
     chopper = next(c for c in train.choppers if c.name == 'chopper')
-    assert chopper.windows == (('-85.0', '85.0'),)   # theta_0 = 170 degrees
-    assert 'chopcalc_choppers[0].windows[0] = (chopper_window){-85.0, 85.0};' \
-           in str(teaching.instrument)
+    assert chopper.beam == '180.0'
+    assert chopper.edges == ('95.0', '265.0')   # theta_0 = 170 degrees, about the beam
+    assert 'chopcalc_choppers[0].edges[0] = 95.0;' in str(teaching.instrument)
+    assert 'chopcalc_choppers[0].edges[1] = 265.0;' in str(teaching.instrument)
 
 
 def test_every_chopper_is_found_however_deeply_it_is_nested(bifrost):
@@ -195,16 +197,18 @@ def test_the_latest_emission_time_comes_from_the_source_itself(teaching):
 
 
 def test_the_include_is_guarded_against_an_older_chopper_lib(teaching):
-    """Neither meaning change altered a struct's size, so only a guard catches them.
+    """No meaning change so far altered a struct's size, so only a guard catches them.
 
     2.0.0 turned the second field from a phase in degrees into a delay in seconds; 3.0.0
-    started placing a window angle with the signed speed. An older library compiles either
-    one cleanly and computes a different band.
+    started placing an angle with the signed speed; 4.0.0 reversed the sign of the angle
+    term and moved the beam crossing into a field. An older library compiles the first
+    three cleanly and computes a different band, and 4.0.0's own rename does not help a
+    caller that fills the structure positionally.
     """
     narrow(teaching)
     text = str(teaching.instrument)
     assert '%include "chopper-lib"' in text
-    assert 'CHOPPER_LIB_VERSION < 30000' in text
+    assert 'CHOPPER_LIB_VERSION < 40201' in text
     assert '#error' in text
 
 
@@ -220,7 +224,7 @@ def test_calling_it_twice_does_not_narrow_twice(teaching, caplog):
         assert narrow(teaching) is None
     assert 'already been narrowed' in caplog.text
     assert str(teaching.instrument).count(
-        'multi_chopper_parameters * chopcalc_choppers') == 1
+        'chopper_parameters * chopcalc_choppers') == 1
 
 
 # -- publishing the train for a component to read -----------------------------
@@ -238,13 +242,52 @@ def test_the_train_can_be_published_for_a_component_to_read(teaching):
     assert train.export.count == 'train_count'
 
     text = str(teaching.instrument)
-    assert 'multi_chopper_parameters * train = NULL;' in text
+    assert 'chopper_parameters * train = NULL;' in text
     assert 'int train_count = 0;' in text
     # the train is built on the heap either way, so handing it over is an assignment
     assert 'train = chopcalc_choppers;' in text
     assert 'train_count = 1;' in text
     assert 'free(train);' in text
     assert 'train = NULL;' in text
+
+
+def _unbalanced(text: str) -> str | None:
+    """The first delimiter in `text` that is closed wrongly or never closed."""
+    pairs = {')': '(', ']': '[', '}': '{'}
+    stack = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        code = line.split('/*')[0]
+        for char in code:
+            if char in '([{':
+                stack.append((char, line_number, line.strip()))
+            elif char in pairs:
+                if not stack or stack[-1][0] != pairs[char]:
+                    return f'line {line_number}: unexpected {char!r} in {line.strip()!r}'
+                stack.pop()
+    if stack:
+        char, line_number, line = stack[0]
+        return f'line {line_number}: {char!r} never closed in {line!r}'
+    return None
+
+
+@pytest.mark.parametrize('export', [None, 'train'], ids=['kept', 'published'])
+def test_the_emitted_c_has_balanced_delimiters(export):
+    """Nothing else here reads the emitted C as C.
+
+    Every other assertion in this file looks for a substring, which cannot see a missing
+    bracket. `_release` shipped `free(train[0].edges;` -- valid Python, invalid C -- and
+    the suite stayed green, because the instrument is never compiled here and BIFROST,
+    whose rows hold DECLARE arrays, emits no free line to be wrong.
+
+    This is a balance check, not a compiler: it catches a delimiter that is never closed
+    and nothing subtler. Compiling for real needs chopper-lib's headers and the McStas
+    runtime, which is a different kind of test than this file is.
+    """
+    from niess.teaching import Primary
+    built = _built('teaching', Primary.from_calibration())
+    narrow(built, export_choppers=export, strict=True) if export else narrow(built)
+    text = str(built.instrument)
+    assert _unbalanced(text) is None, _unbalanced(text)
 
 
 def test_publishing_moves_the_release_rather_than_copying_the_train(teaching):
@@ -268,11 +311,13 @@ def test_publishing_moves_the_release_rather_than_copying_the_train(teaching):
     assert kept.count(release) == 1
     assert published.count(release) == 0
     assert published.count('free(train);') == 1
-    # each row's openings go back before the row array, or they would leak with it
-    assert 'free(chopcalc_choppers[chopcalc_i].windows);' in kept
-    assert 'free(train[chopcalc_i].windows);' in published
+    # each row's edges go back before the row array, or they would leak with it --
+    # per row, not in a loop, because a row whose edges are a DECLARE array was never
+    # allocated and must not be freed
+    assert 'free(chopcalc_choppers[0].edges);' in kept
+    assert 'free(train[0].edges);' in published
     # and nothing is copied to get there
-    assert 'windows[chopcalc_w]' not in published
+    assert 'edges[chopcalc_w]' not in published
 
 
 def test_the_count_can_be_named(teaching):
@@ -288,7 +333,7 @@ def test_nothing_is_published_unless_it_is_asked_for(teaching):
     assert train.export is None
     text = str(teaching.instrument)
     # the train itself is still a heap local; what is absent is file-scope storage for it
-    assert 'multi_chopper_parameters * chopcalc_choppers' in text
+    assert 'chopper_parameters * chopcalc_choppers' in text
     assert '= NULL;\nint ' not in text
     assert 'FINALLY' not in text
 
@@ -313,7 +358,7 @@ def test_a_name_that_would_not_compile_is_refused(teaching, names, complaint):
 # -- what the generated C does when it fails ---------------------------------
 
 def test_a_train_that_passes_nothing_leaves_the_band_alone(teaching):
-    """multi_chopper_wavelength_limits leaves its outputs untouched on zero.
+    """chopper_wavelength_limits leaves its outputs untouched on zero.
 
     Putting the band back makes that a property of this instrument rather than of
     whichever library version was resolved -- and keeps a degenerate band away from
@@ -369,11 +414,11 @@ def test_it_must_be_given_the_top_level_assembler(teaching):
 # -- multi-slit discs --------------------------------------------------------
 
 def test_a_multi_slit_disc_becomes_one_row_per_opening(caplog):
-    """A disc is one chopper with several windows, not several choppers.
+    """A disc is one chopper with several openings, not several choppers.
 
     chopper-lib *intersects* the rows it is given, so a row per opening would demand a
     neutron clear every opening at once -- a band too narrow, the one failure that loses
-    neutrons. One row carrying every window is the union the disc really is.
+    neutrons. One row carrying every opening is the union the disc really is.
     """
     assembler = multi_slit([10.0, 30.0, 40.0, 60.0])
     with caplog.at_level(logging.WARNING):
@@ -381,27 +426,28 @@ def test_a_multi_slit_disc_becomes_one_row_per_opening(caplog):
     assert len(train.choppers) == 1
     disc = train.choppers[0]
     assert disc.name == 'pack'
-    assert len(disc.windows) == 2
-    # every opening shares the disc's own delay; the windows say where each one sits
+    assert len(disc.edges) == 4   # two openings
+    # every opening shares the disc's own delay; the edges say where each one sits
     assert disc.delay == 'packdelay'
 
 
-def test_an_opening_is_measured_from_the_beam_against_the_turn(caplog):
-    """chopper-lib puts an edge at angle ``a`` on the beam at ``delay + a/(360*speed)``.
+def test_the_openings_go_across_as_the_disc_writes_them(caplog):
+    """chopper-lib 4.0.0 puts an edge at ``a`` on the beam at ``delay + (beam - a)/(360*speed)``.
 
-    niess measures a slit edge from the top-dead-centre mark and ``packdelay`` is when the
-    disc's ``beam_position`` is on the beam, so ``beam_position`` is chopper-lib's zero
-    angle and an edge ``e`` sits at ``beam_position - e``. Subtracting is the whole of it:
-    an opening counter-clockwise of the beam is reached by turning clockwise, so it lies
-    at a negative angle -- and the pair reverses, the edge that opens last coming first.
+    Because only ``beam - a`` appears, the beam crossing is a field rather than something
+    the caller folds into every angle. Up to 3.0.0 this disc went across as
+    ``(('60.0','80.0'), ('30.0','50.0'))`` -- negative once the openings ran past the
+    beam, out of order, and unrecognisable as the disc the component was given. Now the
+    edges are the disc's own, in the disc's own order, with the crossing beside them.
     """
     assembler = multi_slit([10.0, 30.0, 40.0, 60.0])   # beam_position is 90 degrees
     with caplog.at_level(logging.WARNING):
         train = narrow(assembler)
-    assert train.choppers[0].windows == (('60.0', '80.0'), ('30.0', '50.0'))
+    assert train.choppers[0].edges == ('10.0', '30.0', '40.0', '60.0')
+    assert train.choppers[0].beam == '90.0'
 
 
-def test_the_windows_open_when_the_emitted_diskchoppers_open(caplog):
+def test_the_openings_open_when_the_emitted_diskchoppers_open(caplog):
     """The two descriptions of one disc have to agree, whichever way it turns.
 
     ``DiscChopper`` emits a GROUP of ``DiskChopper`` instances, each with a delay
@@ -413,7 +459,7 @@ def test_the_windows_open_when_the_emitted_diskchoppers_open(caplog):
     beam = 90.0
     assembler = multi_slit(edges)
     with caplog.at_level(logging.WARNING):
-        windows = narrow(assembler).choppers[0].windows
+        described_disc = narrow(assembler).choppers[0]
 
     for speed in (14.0, -14.0, 196.0):
         for delay in (0.0, 0.017):
@@ -431,11 +477,14 @@ def test_the_windows_open_when_the_emitted_diskchoppers_open(caplog):
                 half = (closing - opening) / 2 / 360.0 / abs(speed)
                 emitted.append((centre - half, centre + half))
 
-            # what chopper-lib sees: an angle, placed with the signed speed
+            # what chopper-lib sees: an angle, placed against the signed speed and
+            # measured from the beam crossing it carries alongside them
             described = []
-            for low, high in windows:
-                a = delay + float(low) / 360.0 / speed
-                b = delay + float(high) / 360.0 / speed
+            crossing = float(described_disc.beam)
+            angles = [float(e) for e in described_disc.edges]
+            for low, high in zip(angles[::2], angles[1::2]):
+                a = delay + (crossing - low) / 360.0 / speed
+                b = delay + (crossing - high) / 360.0 / speed
                 described.append((min(a, b), max(a, b)))
 
             for (want_c, want_h), (got_c, got_h) in zip(centred(emitted), centred(described)):
@@ -455,7 +504,7 @@ def test_a_disc_whose_openings_span_a_revolution_still_constrains(caplog):
         train = narrow(assembler)
     assert train is not None
     assert len(train.choppers) == 1
-    assert len(train.choppers[0].windows) == 3
+    assert len(train.choppers[0].edges) == 6   # three openings
     assert not train.excluded
     assert 'full revolution' not in caplog.text
 
@@ -473,4 +522,4 @@ def test_the_caller_is_told_what_was_used_and_what_was_not(caplog):
     train = narrow(assembler)
     assert train.source.name == 'source'
     assert train.choppers[0].name == 'pack'
-    assert len(train.choppers[0].windows) == 2
+    assert len(train.choppers[0].edges) == 4   # two openings

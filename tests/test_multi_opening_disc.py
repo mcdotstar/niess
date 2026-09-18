@@ -185,6 +185,28 @@ def test_edges_need_not_be_positive(edges, ids):
     assert DiscChopper.from_calibration(cal).slits() == [(edges[0], edges[1])]
 
 
+def test_the_nexus_disc_pairs_its_edges_the_same_way():
+    """Two edges per opening, not one per gap.
+
+    `NXDiskChopper` paired consecutive edges -- `zip(edges[:-1], edges[1:])` -- which
+    reads the gap *between* two openings as an opening of its own. Three slits came out
+    as five, and the disc passed nearly everything. Nothing caught it because the two
+    pairings agree for a single opening, and every BIFROST disc has one.
+
+    Both classes now read their openings from one `Chopper.slits`, which is the real
+    fix -- there is no second implementation left to pair them differently. Asserted
+    across both anyway: agreeing is the requirement, and a future disc class that
+    reintroduces its own pairing should fail here.
+    """
+    from niess.components import NXDiskChopper
+    cal = calibration(width=scalar(0.03, unit='m'), delay=scalar(0.0, unit='s'))
+    disc, nexus_disc = (c.from_calibration(dict(cal))
+                        for c in (DiscChopper, NXDiskChopper))
+    assert nexus_disc.slits() == disc.slits()
+    assert len(nexus_disc.slits()) == 3
+    assert nexus_disc.edge_array_values() == list(EDGES)
+
+
 def test_openings_may_just_touch():
     """A last edge exactly 360 beyond the first closes where the first opens."""
     cal = calibration(windows=array(values=[10.0, 30.0, 350.0, 370.0],

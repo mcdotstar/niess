@@ -36,7 +36,7 @@ def chopper_specs(instrument, values: dict | None = None, origin: float = 0.0,
     ``source.distance`` to have the two agree.
     """
     from ..chopcalc.train import train_from_instrument
-    from ..components.chopper import DiscChopper
+    from ..components.chopper import DISC_CHOPPERS
     from ..walk import visits
 
     values = dict(values or {})
@@ -47,7 +47,7 @@ def chopper_specs(instrument, values: dict | None = None, origin: float = 0.0,
     specs = []
     for visit in visits(instrument):
         disc = visit.obj
-        if not isinstance(disc, DiscChopper) or visit.name not in paths:
+        if not isinstance(disc, DISC_CHOPPERS) or visit.name not in paths:
             continue
         speed = _setting(disc, 'speed', values)
         delay = _setting(disc, 'delay', values)
@@ -68,8 +68,8 @@ def _knob(disc, which: str):
     whichever route read the instrument.
     """
     if which == 'speed':
-        return disc.speed_parameter(), float(disc.speed.to(unit='Hz').value), 'Hz'
-    return disc.delay_parameter(), float(disc.delay.to(unit='s').value), 's'
+        return disc.speed_parameter().name, float(disc.speed.to(unit='Hz').value), 'Hz'
+    return disc.delay_parameter().name, float(disc.delay.to(unit='s').value), 's'
 
 
 def _setting(disc, which: str, values: dict) -> float:
@@ -101,7 +101,7 @@ def _knobs(instrument) -> dict[str, str | None]:
     converted into the unit that wants it -- and lets a name that is not one of them be
     said out loud, rather than silently changing nothing.
     """
-    from ..components.chopper import DiscChopper
+    from ..components.chopper import DISC_CHOPPERS
     from ..components.source import Source
     from ..walk import visits
 
@@ -109,7 +109,7 @@ def _knobs(instrument) -> dict[str, str | None]:
     for parameter in getattr(instrument, 'parameters', ()):
         known[parameter.name] = (parameter.unit or '').strip().strip('"') or None
     for visit in visits(instrument):
-        if isinstance(visit.obj, DiscChopper):
+        if isinstance(visit.obj, DISC_CHOPPERS):
             for which in ('speed', 'delay'):
                 name, _, unit = _knob(visit.obj, which)
                 known[name] = unit
@@ -158,7 +158,7 @@ def to_tof_model(instrument, *, source=None, values: dict | None = None,
     """
     import scipp as sc
 
-    from ..components.chopper import DiscChopper
+    from ..components.chopper import DISC_CHOPPERS
     from ..components.monitors import FrameMonitor
     from ..components.source import Source
     from ..walk import visits
@@ -212,7 +212,7 @@ def to_tof_model(instrument, *, source=None, values: dict | None = None,
     components, detectors = [], []
     for visit in seen:
         name = visit.name
-        if isinstance(visit.obj, DiscChopper) and name in by_name:
+        if isinstance(visit.obj, DISC_CHOPPERS) and name in by_name:
             components.append(_as_tof_chopper(tof, by_name[name]))
         elif isinstance(visit.obj, (FrameMonitor,)) and name in train:
             components.append(tof.Detector(distance=sc.scalar(origin + train[name],
@@ -227,7 +227,7 @@ def to_tof_model(instrument, *, source=None, values: dict | None = None,
 
     used = list(band_used)
     for visit in seen:
-        if not isinstance(visit.obj, DiscChopper) or visit.name not in by_name:
+        if not isinstance(visit.obj, DISC_CHOPPERS) or visit.name not in by_name:
             continue
         for which in ('speed', 'delay'):
             knob, default, unit = _knob(visit.obj, which)

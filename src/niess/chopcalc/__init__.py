@@ -118,7 +118,7 @@ def narrow_source_wavelengths(
                        'narrow_source_wavelengths twice would apply two bands', strict)
 
     try:
-        export = _export_names(instrument, export_choppers, export_chopper_count)
+        export = _export_names(instrument, export_choppers, export_chopper_count, chopper_train)
     except ChopcalcError as error:
         return _refuse(str(error), strict)
     chopper_train = dataclasses.replace(chopper_train, export=export)
@@ -149,7 +149,7 @@ def narrow_source_wavelengths(
     return chopper_train
 
 
-def _export_names(instrument, choppers: str | None, count: str | None) -> Export | None:
+def _export_names(instrument, choppers: str | None, count: str | None, train: ChopperTrain) -> Export | None:
     """Check the names a caller wants the train published under.
 
     They become file-scope C, so a name that is not an identifier, or is already taken by
@@ -184,7 +184,8 @@ def _export_names(instrument, choppers: str | None, count: str | None) -> Export
             f'export_choppers and export_chopper_count are both {choppers!r}; they are '
             f'two different variables'
         )
-    return Export(choppers=choppers, count=count)
+    values = tuple(i for i, c in enumerate(train.choppers) if isinstance(c.edges, tuple))
+    return Export(choppers=choppers, count=count, values=values)
 
 
 def _refuse(message: str, strict: bool) -> None:

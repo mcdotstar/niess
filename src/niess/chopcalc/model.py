@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ChopperEntry:
-    """One row of the generated ``multi_chopper_parameters`` array."""
+    """One row of the generated ``chopper_parameters`` array."""
 
     name: str
     """The instance name, or the disc's group id when several openings share a disc."""
@@ -20,14 +20,23 @@ class ChopperEntry:
     """Hz. The sign sets the direction of rotation, and is preserved."""
     delay: str
     """Seconds, when the disc's zero-angle point is on the path."""
-    windows: tuple[tuple[str, str], ...]
-    """Each opening as a ``(minimum, maximum)`` angle in degrees from the zero-angle
-    point. chopper-lib puts an edge at angle ``a`` on the beam at
-    ``delay + a / (360 * speed)``, so these are signed and the sign of ``speed`` decides
-    which edge of a pair is reached first. A plain ``DiskChopper`` has one window,
-    symmetric about zero -- which is what makes its row mean what it always meant."""
+    beam: str
+    """The beam angle, in degrees."""
+    edge_count: int
+    """The number of edges, in case they are already inserted as a stack array."""
+    edges: tuple[str, ...] | str
+    """The ordered even-length list of opening edges, starting with an opening edge
+    and spanning no more than 360.0 degrees, measured relative from the zero-angle point.
+    chopper-lib puts any angle `edge` on the zero-angle point at
+        ``delay + edge / (360 * speed)``
+    so these are signed ant the sign of ``speed`` decided with edge of a pair is reached
+    first. The provided input may be a single string, in which case it is expected
+    to be the identifier name of a stack array already inserted in DECLARE."""
     path: str
     """Metres travelled from the source, along the beam."""
+    aperture: str
+    """The *angular* size of the chopper opening, used in setting the inverse-velocity
+    emission-time mask"""
     note: str | None = None
     """Anything worth saying about this row in the generated comment."""
 
@@ -70,6 +79,8 @@ class Export:
     parameter is declared ``double *``."""
     count: str
     """An ``int`` in DECLARE, holding how many rows ``choppers`` points at."""
+    values: tuple[int, ...]
+    """The indexes of the allocated edge arrays"""
 
 
 @dataclass(frozen=True)

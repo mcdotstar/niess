@@ -27,9 +27,10 @@ def main(outdir: Path) -> None:
     print(f'narrowing {train.source.lambda_min}/{train.source.lambda_max} '
           f'of {train.source.name!r}')
     for chopper in train.choppers:
-        openings = ', '.join(f'{low} to {high}' for low, high in chopper.windows)
+        edges = chopper.edges
+        openings = ', '.join(f'{low} to {high}' for low, high in zip(edges[::2], edges[1::2]))
         print(f'  {chopper.name:10s} {chopper.path:>8.8s} m from the source, '
-              f'opening at {openings} deg')
+              f'opening at {openings} deg, beam crossing at {chopper.beam} deg')
     # --8<-- [end:narrow]
 
     # The band is computed at run time, so the row names parameters rather than numbers:
@@ -45,11 +46,11 @@ def main(outdir: Path) -> None:
     text = str(assembler.instrument)
     # the library, and the guard that stops an older one being used silently
     assert '%include "chopper-lib"' in text
-    assert 'CHOPPER_LIB_VERSION < 30000' in text
+    assert 'CHOPPER_LIB_VERSION < 40201' in text
     # the narrowing writes through the source's own parameters
     assert '&source_lambda_min, &source_lambda_max' in text
     # and it is in the instrument's INITIALIZE, which runs before every component's
-    assert 'multi_chopper_wavelength_limits' in text
+    assert 'chopper_wavelength_limits' in text
 
     (outdir / 'teaching_narrowed.instr').write_text(text)
 

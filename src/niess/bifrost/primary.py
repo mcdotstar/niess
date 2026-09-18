@@ -8,8 +8,8 @@ windows, etc.; but they all come together into the primary spectrometer.
 """
 from ..components import (
     Section, Component,
-    Jaw, Slit, Filter, Attenuator, DiscChopper,
-    EllipticGuide, StraightGuide, StraightGuides, TaperedGuides,
+    Jaw, Slit, Filter, Attenuator, NXDiskChopper,
+    EllipticGuide, StraightGuide, StraightGuides,
     FissionChamber, BeamCurrentMonitor, GEM2D, ESSource
 )
 from ..utilities import calibration
@@ -38,14 +38,14 @@ class Curved(Section):
     curved_entrance_window: Filter
     unit_4_curved: StraightGuides
     unit_4_exit_window: Filter
-    frame_overlap_chopper_1: DiscChopper
+    frame_overlap_chopper_1: NXDiskChopper
     unit_5_entry_window: Filter
     unit_5_curved: StraightGuides
     unit_6_curved: StraightGuides
     unit_7_curved: StraightGuides
     unit_8_curved: StraightGuides
     unit_8_exit_window: Filter
-    frame_overlap_chopper_2: DiscChopper
+    frame_overlap_chopper_2: NXDiskChopper
     unit_9_entry_window: Filter
     unit_9_curved: StraightGuides
     unit_10_curved: StraightGuides
@@ -100,8 +100,8 @@ class Straight(Section):
     unit_41_straight: StraightGuide
     unit_42_straight: StraightGuide
     unit_43_straight: StraightGuide
-    bandwidth_chopper_1: DiscChopper
-    bandwidth_chopper_2: DiscChopper
+    bandwidth_chopper_1: NXDiskChopper
+    bandwidth_chopper_2: NXDiskChopper
     unit_43_exit_window: Filter
     bandwidth_monitor: BeamCurrentMonitor
     attenuator_1: Attenuator
@@ -170,8 +170,8 @@ class Primary(Section):
     source: ESSource
     compressor: Compressor
     # pulse shaping choppers (not in a named section ...)
-    pulse_shaping_chopper_1: DiscChopper
-    pulse_shaping_chopper_2: DiscChopper
+    pulse_shaping_chopper_1: NXDiskChopper
+    pulse_shaping_chopper_2: NXDiskChopper
     # Guide sections
     curved: Curved
     expanding: Expanding

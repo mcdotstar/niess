@@ -1,41 +1,58 @@
 import msgspec
-from scipp import Variable
+from scipp import Variable, scalar, array, vector
+from scipp.spatial import rotations_from_rotvecs
 from .component import Component
 from mccode_antlr.instr import Instance
 from mccode_antlr.assembler import Assembler
+from mccode_antlr.common import InstrumentParameter
 
 
 def _zero_degrees() -> Variable:
-    from scipp import scalar
     return scalar(0.0, unit='deg')
 
 
-def disc_beam_offset(radius: Variable, height: Variable | None = None,
+def disc_beam_offset(radius: Variable,
+                     *,
+                     width: Variable | None = None,
+                     height: Variable | None = None,
                      zero_angle: Variable | None = None,
                      beam_angle: Variable | None = None) -> Variable:
     """Spindle to beam crossing, for a disc of this size with the beam at this angle.
 
-    The length is ``radius - height/2``, McStas' rule for centring the beam in a slit's
-    radial extent, with ``height`` standing in as ``radius`` when it is unset. The
-    direction is ``zero_angle + beam_angle`` counter-clockwise about +z from the local +y
-    axis, so the default of zero puts the beam at the top of the disc.
+    The spindle must be offset from the beam for the chopper to have any use.
+    The original McStas approach calculates the offset to ensure that the top of the
+    beam aperture is at the circumference of the disc. An improved calculation ensures
+    that the far corners of the aperture are on the disc circumference, and is
+    degenerate with the old approach in the case where the width is 0 (or unknown)
 
-    Shared with the calibration code, which has the opposite problem: it knows where the
-    beam runs and has to place the spindle. Having one formula rather than two is the
-    point -- the two disagreeing is what put every BIFROST disc on the wrong side of the
-    beam in the first place.
+    The distance from spindle to beam position is the disk reach minus half the
+    aperture height. The reach is the third side of the triangle with hypotenuse equal
+    to the disc radius and one side equal to half of hte aperture width.
+        sqrt(radius^2 - (width/2)^2) - height/2
+
+    The direction is ``zero_angle + beam_angle`` counter-clockwise about +z from
+    the local +y-axis, so the default of zero puts the beam at the top of the disc.
+
+    Everything after ``radius`` is keyword-only. ``width`` was inserted ahead of
+    ``height`` when the chord calculation arrived, so a caller passing two positional
+    arguments went on working and silently meant something else -- the height became the
+    width and the height defaulted to the reach, halving the offset. There is no reading
+    of a bare second argument that is safe, so there is no bare second argument.
     """
-    from scipp import vector
-    from scipp.spatial import rotations_from_rotvecs
+    from scipp import sqrt
     turn = _zero_degrees() if zero_angle is None else zero_angle
     if beam_angle is not None:
         turn = turn + beam_angle
-    radial = radius / 2 if height is None else radius - height / 2
-    rotation = rotations_from_rotvecs(
-        vector(value=[0., 0., turn.to(unit='deg').value], unit='deg'))
-    # metres regardless of what the calibration measured the disc in, since this is added
-    # to a position and handed to McCode
-    return (radial * (rotation * vector([0., 1., 0.]))).to(unit='m')
+    half_width = width / 2.0 if width is not None else scalar(0., unit=radius.unit)
+    if half_width > radius:
+        raise ValueError(f"Aperture width {2*half_width} too wide for disk with {radius=}")
+    reach = sqrt(radius ** 2 - half_width.to(unit=radius.unit)**2)
+    height = reach if height is None else height
+    if height > reach:
+        raise ValueError(f"Aperture width {2*half_width} and height {height} too large for disk with {radius=}")
+    radial = (reach - height.to(unit=reach.unit) / 2.0) * vector([0, 1.0, 0])
+    rotation = rotations_from_rotvecs(vector([0, 0, 1.]) * turn)
+    return (rotation * radial).to(unit='m')
 
 
 class Chopper(Component):
@@ -47,152 +64,65 @@ class Chopper(Component):
     width: Variable  # the path width
     height: Variable  # the path height
 
+    #: The knob suffix a parked disc's angle is set by. `NXdisk_chopper` names the field
+    #: `park_angle` and declares a parameter for it; the McStas `DiskChopper` route
+    #: predates that and spells it `park`. Both reach a forwarder as a PV name, so
+    #: neither can be quietly renamed here.
+    _park_suffix = 'park'
 
-class DiscChopper(Chopper):
-    """Ideally infinitely thin material with rotation vector parallel to the path.
+    def _parameter(self, suffix: str, value: Variable) -> InstrumentParameter:
+        """One run-time knob of this chopper, named for it and carrying its unit."""
+        unit = f'/"{value.unit}"' if value.unit is not None else ''
+        return InstrumentParameter.parse(f'{self.name}{suffix}{unit}={value.value}')
 
-    One disc, however many openings it has. McStas' ``DiskChopper`` describes ``nslit``
-    *identical, evenly spaced* openings and nothing else, so a disc whose openings are
-    neither is emitted as a ``GROUP`` of ``DiskChopper`` instances at the same place, one
-    per opening -- the alternative that component's own documentation points at. A disc
-    with a single opening is emitted as a single component, exactly as before.
+    def speed_parameter(self) -> InstrumentParameter:
+        """The run-time knob this disc's rotation speed is set by.
 
-    Geometry follows ``NXdisk_chopper``, so the calibration is the same description a
-    NeXus file will carry:
-
-    ``zero_angle``
-        Where the disc's reference mark sits, as an angle from the local **+y** axis.
-        (``top_dead_center`` in ``NXdisk_chopper``, and accepted under that name too.)
-    ``beam_angle``
-        Where the beam crosses the disc, as an angle from the reference mark. 180 for a
-        disc that hangs above the beam. (``beam_position`` in ``NXdisk_chopper``.)
-    ``windows`` (``slit_edges``)
-        The angular edges of the openings, **measured from the reference mark**: an even
-        number of increasing values, two per opening. Giving ``angle`` instead is
-        shorthand for one opening centred on the beam, ``beam_angle`` +- ``angle``/2.
-
-    Every angle is positive counter-clockwise viewed facing **+z**, i.e. looking
-    downstream. An opening that straddles the reference mark at zero delay is written
-    as a final edge beyond 360 degrees -- ``[350, 370]`` rather than ``[350, 10]`` --
-    so the pairs stay ordered and each width is simply the difference.
-
-    ``delay`` is when the *disc's* zero-angle point is on the beam. Each opening is
-    reached a fixed angle later, which becomes a fixed time only once the speed is known,
-    so that part is left to the generated C.
-    """
-    # `radius` is the outer dimension of the disc.
-    # Where the beam crosses the disc, as two angles about +z, positive counter-clockwise
-    # viewed facing +z (looking downstream), measured from the local +y axis. Zero for
-    # both means the beam crosses at the top of the disc, which is the arrangement McStas'
-    # own DiskChopper assumes, so a disc that takes the defaults emits no extra rotation.
-    # A chopper hanging above the beam -- the usual one -- has beam_angle = 180.
-    zero_angle: Variable = msgspec.field(default_factory=_zero_degrees)
-    """From local +y to the disc's zero mark, which slit angles are measured from."""
-    beam_angle: Variable = msgspec.field(default_factory=_zero_degrees)
-    """From the zero mark to where the beam crosses the disc."""
-
-    #: The EPICS chopper controller this disc really is, when somebody has wired one up.
-    #: Every ESS chopper log hangs off it -- ``{pv_root}:Spd_R``, ``:TotDly``, and the
-    #: top-dead-centre channel ``{pv_root}:{tdc_channel}``.
-    pv_root: str | None = None
-    #: The TDC channel suffix, which is per-chopper rather than fixed: BIFROST's six
-    #: discs use ``00-TS-I`` through ``03-TS-I``. Only meaningful with ``pv_root``.
-    tdc_channel: str = '00-TS-I'
-
-    @property
-    def speed(self):
-        from scipp import dot, vector
-        from ..spatial import __is_vector__
-        if not __is_vector__(self.velocity):
-            return self.velocity.to(unit='Hz')
-        # TODO verify the sense of this wrt the McStas definition
-        return dot(vector(value=[0, 0, 1.]), self.velocity).to(unit='Hz')
-
-    def beam_offset(self) -> Variable:
-        """Spindle to beam crossing, as the emitted ``AT`` needs it.
-
-        Worked out here rather than stored, because the length of this vector is not a
-        property of the chopper: it is ``radius - height/2``, McStas' rule for centring
-        the beam in a slit's radial extent, with ``height`` standing in as ``radius``
-        when it is unset. Keeping it as a field recorded a McCode implementation detail
-        as though it were geometry, and went stale the moment ``radius`` or ``height``
-        was edited.
+        Named here rather than spelled out at each use: it appears in the emitted
+        component's parameters, in the generated C that offsets each opening, and in the
+        NXlog a NeXus file links to for the value. Three places is enough for them to
+        drift.
         """
-        return disc_beam_offset(self.radius, self.height,
-                                self.zero_angle, self.beam_angle)
+        return self._parameter('speed', self.speed)
 
-    def __mccode_offset__(self) -> Variable:
-        return self.beam_offset()
+    def delay_parameter(self) -> InstrumentParameter:
+        """The run-time knob saying when this disc's reference opening is at the beam."""
+        return self._parameter('delay', self.delay.to(unit='s'))
 
-    def __mccode_orientation__(self) -> Variable:
-        """Turn the disc so the beam crosses it where the angles say.
+    def park_parameter(self) -> InstrumentParameter:
+        """The run-time knob saying where a parked disc is standing.
 
-        McStas' ``DiskChopper`` always puts the beam at the *top* of its disc -- its
-        ``delta_y = radius - yheight/2`` sets the spindle below the component origin, and
-        it measures opening angles as ``atan2(x, y + delta_y)``, which is zero on the
-        beam. A real disc has the beam wherever ``zero_angle + beam_angle`` puts it, so
-        the whole component turns about its own z by that much to match. The default of
-        zero leaves the emitted rotation exactly as it was.
+        A disc that is not turning still blocks or passes the beam, depending on whether
+        an opening happens to be in front of it -- which McStas' own ``DiskChopper``
+        cannot express, because a zero frequency there becomes ``omega = 1e-15`` and the
+        disc falls permanently open rather than stopping somewhere.
+
+        A chopper that does not model where it parks reports zero rather than refusing:
+        the knob still needs a name, because a NeXus file links a `park_angle` log to it
+        either way.
         """
-        from scipp import vector
-        from scipp.spatial import rotations_from_rotvecs
-        turn = (self.zero_angle + self.beam_angle).to(unit='deg')
-        return self.orientation * rotations_from_rotvecs(
-            vector(value=[0., 0., turn.value], unit='deg'))
+        # An explicit None check, not `or`: the truth value of a scipp variable with a
+        # unit is undefined, so `park_angle or default` raises for a disc that has one.
+        parked = getattr(self, 'park_angle', None)
+        if parked is None:
+            parked = _zero_degrees()
+        return self._parameter(self._park_suffix, parked.to(unit='deg'))
 
-    @classmethod
-    def from_calibration(cls, cal: dict):
-        from scipp import scalar, array, vector
-        name = cal['name']
-        position = cal['position']
-        orientation = cal['orientation']
-        velocity = cal.get('velocity', cal.get('frequency'))
-        if velocity is None:
-            raise ValueError('velocity (or frequency) cannot be None')
-        delay = cal.get('delay', scalar(0.0, unit='s'))
-        radius = cal['radius']
-        # `top_dead_center` and `beam_position` are the NXdisk_chopper field names, which
-        # these started out carrying; accept them without writing back to the caller's
-        # dictionary, which calibrations reuse across builds.
-        zero_angle = cal.get('zero_angle', cal.get('top_dead_center', _zero_degrees()))
-        beam_angle = cal.get('beam_angle', cal.get('beam_position', _zero_degrees()))
-        # A single `angle` is one opening centred on the beam. Its edges are still
-        # measured from the zero mark, like every other window, so the beam angle is
-        # where they are centred -- which is what makes a one-opening disc and a
-        # many-opening one the same description.
-        #
-        # Derived rather than written back: calibrations are reused across builds, and a
-        # build that edits the dictionary it was handed changes what the next one reads.
-        windows = cal.get('windows')
-        if windows is None:
-            half = cal['angle'].to(unit='deg') / 2 * array(values=[-1, 1], dims=['edges'])
-            windows = beam_angle.to(unit='deg') + half
-        width = cal.get('width') # None is actually acceptable
-        height = cal.get('height')  # None is acceptable, then slit extends to center
-        if 'offset' in cal:
-            raise ValueError(
-                f"{name}: a disc chopper is placed by where the beam crosses it, not by "
-                f"how far that is from the spindle. Say zero_angle and beam_angle -- "
-                f"beam_angle=180 deg for a disc hanging above the beam -- and the vector "
-                f"follows from them, the radius and the slit height. Ignoring an offset "
-                f"that was meant to be used would move the disc off the beam, where it "
-                f"absorbs every neutron without saying so."
-            )
-        return cls(
-            name=name,
-            position=position,
-            orientation=orientation,
-            velocity=velocity,
-            delay=delay,
-            radius=radius,
-            windows=windows,
-            width=width,
-            height=height,
-            zero_angle=zero_angle,
-            beam_angle=beam_angle,
-            pv_root=cal.get('pv_root'),
-            tdc_channel=cal.get('tdc_channel', '00-TS-I'),
-        )
+    def __niess_pv_root__(self, key: str) -> str | None:
+        """The chopper controller driving this disc, if one is declared.
+
+        ``key`` is ignored: unlike an aperture, whose edges are separately driven axes,
+        a disc has one controller and every one of its eight logs hangs off it.
+        """
+        return self.pv_root
+
+    def group_name(self) -> str:
+        """The McStas GROUP the emitted openings share, when there is more than one.
+
+        Instance names are unique within an instrument, so deriving the group from this
+        disc's name makes it unique too.
+        """
+        return f'{self.name}_group'
 
     def nexus_slit_edges(self) -> list[float]:
         """This disc's slit edges as ``NXdisk_chopper`` asks for them.
@@ -261,6 +191,156 @@ class DiscChopper(Chopper):
             )
         return [(edges[i], edges[i + 1]) for i in range(0, len(edges), 2)]
 
+
+
+class DiscChopper(Chopper):
+    """Ideally infinitely thin material with rotation vector parallel to the path.
+
+    One disc, however many openings it has. McStas' ``DiskChopper`` describes ``nslit``
+    *identical, evenly spaced* openings and nothing else, so a disc whose openings are
+    neither is emitted as a ``GROUP`` of ``DiskChopper`` instances at the same place, one
+    per opening -- the alternative that component's own documentation points at. A disc
+    with a single opening is emitted as a single component, exactly as before.
+
+    Geometry follows ``NXdisk_chopper``, so the calibration is the same description a
+    NeXus file will carry:
+
+    ``zero_angle``
+        Where the disc's reference mark sits, as an angle from the local **+y** axis.
+        (``top_dead_center`` in ``NXdisk_chopper``, and accepted under that name too.)
+    ``beam_angle``
+        Where the beam crosses the disc, as an angle from the reference mark. 180 for a
+        disc that hangs above the beam. (``beam_position`` in ``NXdisk_chopper``.)
+    ``windows`` (``slit_edges``)
+        The angular edges of the openings, **measured from the reference mark**: an even
+        number of increasing values, two per opening. Giving ``angle`` instead is
+        shorthand for one opening centred on the beam, ``beam_angle`` +- ``angle``/2.
+
+    Every angle is positive counter-clockwise viewed facing **+z**, i.e. looking
+    downstream. An opening that straddles the reference mark at zero delay is written
+    as a final edge beyond 360 degrees -- ``[350, 370]`` rather than ``[350, 10]`` --
+    so the pairs stay ordered and each width is simply the difference.
+
+    ``delay`` is when the *disc's* zero-angle point is on the beam. Each opening is
+    reached a fixed angle later, which becomes a fixed time only once the speed is known,
+    so that part is left to the generated C.
+    """
+    # `radius` is the outer dimension of the disc.
+    # Where the beam crosses the disc, as two angles about +z, positive counter-clockwise
+    # viewed facing +z (looking downstream), measured from the local +y axis. Zero for
+    # both means the beam crosses at the top of the disc, which is the arrangement McStas'
+    # own DiskChopper assumes, so a disc that takes the defaults emits no extra rotation.
+    # A chopper hanging above the beam -- the usual one -- has beam_angle = 180.
+    zero_angle: Variable = msgspec.field(default_factory=_zero_degrees)
+    """From local +y to the disc's zero mark, which slit angles are measured from."""
+    beam_angle: Variable = msgspec.field(default_factory=_zero_degrees)
+    """From the zero mark to where the beam crosses the disc."""
+
+    #: The EPICS chopper controller this disc really is, when somebody has wired one up.
+    #: Every ESS chopper log hangs off it -- ``{pv_root}:Spd_R``, ``:TotDly``, and the
+    #: top-dead-centre channel ``{pv_root}:{tdc_channel}``.
+    pv_root: str | None = None
+    #: The TDC channel suffix, which is per-chopper rather than fixed: BIFROST's six
+    #: discs use ``00-TS-I`` through ``03-TS-I``. Only meaningful with ``pv_root``.
+    tdc_channel: str = '00-TS-I'
+
+    @property
+    def speed(self):
+        from scipp import dot
+        from ..spatial import __is_vector__
+        if not __is_vector__(self.velocity):
+            return self.velocity.to(unit='Hz')
+        # TODO verify the sense of this wrt the McStas definition
+        return dot(vector(value=[0, 0, 1.]), self.velocity).to(unit='Hz')
+
+    def beam_offset(self) -> Variable:
+        """Spindle to beam crossing, as the emitted ``AT`` needs it.
+
+        Worked out here rather than stored, because the length of this vector is not a
+        property of the chopper: it is ``radius - height/2``, McStas' rule for centring
+        the beam in a slit's radial extent, with ``height`` standing in as ``radius``
+        when it is unset. Keeping it as a field recorded a McCode implementation detail
+        as though it were geometry, and went stale the moment ``radius`` or ``height``
+        was edited.
+        """
+        return disc_beam_offset(
+            radius=self.radius,
+            # no width=self.width, because DiskChopper only uses the simple calculation
+            height=self.height,
+            zero_angle=self.zero_angle,
+            beam_angle= self.beam_angle
+        )
+
+    def __mccode_offset__(self) -> Variable:
+        return self.beam_offset()
+
+    def __mccode_orientation__(self) -> Variable:
+        """Turn the disc so the beam crosses it where the angles say.
+
+        McStas' ``DiskChopper`` always puts the beam at the *top* of its disc -- its
+        ``delta_y = radius - yheight/2`` sets the spindle below the component origin, and
+        it measures opening angles as ``atan2(x, y + delta_y)``, which is zero on the
+        beam. A real disc has the beam wherever ``zero_angle + beam_angle`` puts it, so
+        the whole component turns about its own z by that much to match. The default of
+        zero leaves the emitted rotation exactly as it was.
+        """
+        turn = (self.zero_angle + self.beam_angle).to(unit='deg')
+        return self.orientation * rotations_from_rotvecs(
+            vector(value=[0., 0., turn.value], unit='deg'))
+
+    @classmethod
+    def from_calibration(cls, cal: dict):
+        name = cal['name']
+        position = cal['position']
+        orientation = cal['orientation']
+        velocity = cal.get('velocity', cal.get('frequency'))
+        if velocity is None:
+            raise ValueError('velocity (or frequency) cannot be None')
+        delay = cal.get('delay', scalar(0.0, unit='s'))
+        radius = cal['radius']
+        # `top_dead_center` and `beam_position` are the NXdisk_chopper field names, which
+        # these started out carrying; accept them without writing back to the caller's
+        # dictionary, which calibrations reuse across builds.
+        zero_angle = cal.get('zero_angle', cal.get('top_dead_center', _zero_degrees()))
+        beam_angle = cal.get('beam_angle', cal.get('beam_position', _zero_degrees()))
+        # A single `angle` is one opening centred on the beam. Its edges are still
+        # measured from the zero mark, like every other window, so the beam angle is
+        # where they are centred -- which is what makes a one-opening disc and a
+        # many-opening one the same description.
+        #
+        # Derived rather than written back: calibrations are reused across builds, and a
+        # build that edits the dictionary it was handed changes what the next one reads.
+        windows = cal.get('windows')
+        if windows is None:
+            half = cal['angle'].to(unit='deg') / 2 * array(values=[-1, 1], dims=['edges'])
+            windows = beam_angle.to(unit='deg') + half
+        width = cal.get('width') # None is actually acceptable
+        height = cal.get('height')  # None is acceptable, then slit extends to center
+        if 'offset' in cal:
+            raise ValueError(
+                f"{name}: a disc chopper is placed by where the beam crosses it, not by "
+                f"how far that is from the spindle. Say zero_angle and beam_angle -- "
+                f"beam_angle=180 deg for a disc hanging above the beam -- and the vector "
+                f"follows from them, the radius and the slit height. Ignoring an offset "
+                f"that was meant to be used would move the disc off the beam, where it "
+                f"absorbs every neutron without saying so."
+            )
+        return cls(
+            name=name,
+            position=position,
+            orientation=orientation,
+            velocity=velocity,
+            delay=delay,
+            radius=radius,
+            windows=windows,
+            width=width,
+            height=height,
+            zero_angle=zero_angle,
+            beam_angle=beam_angle,
+            pv_root=cal.get('pv_root'),
+            tdc_channel=cal.get('tdc_channel', '00-TS-I'),
+        )
+
     def __mccode__(self) -> tuple[str, dict]:
         """The disc's parameters, taking its first opening.
 
@@ -274,9 +354,9 @@ class DiscChopper(Chopper):
             'theta_0': closing - opening,
             'nslit': 1,
             'radius': self.radius.to(unit='m').value,
-            'nu': self.speed_parameter(),
+            'nu': self.speed_parameter().name,
             # Not `phase`: a non-zero one makes DiskChopper ignore `delay` and warn.
-            'delay': self.delay_parameter(),
+            'delay': self.delay_parameter().name,
         }
         # Only add width or height if provided:
         if self.width is not None:
@@ -284,46 +364,6 @@ class DiscChopper(Chopper):
         if self.height is not None:
             params['yheight'] = self.height.to(unit='m').value
         return 'DiskChopper', params
-
-    def speed_parameter(self) -> str:
-        """The run-time knob this disc's rotation speed is set by.
-
-        Named here rather than spelled out at each use: it appears in the emitted
-        component's parameters, in the generated C that offsets each opening, and in the
-        NXlog a NeXus file links to for the value. Three places is enough for them to
-        drift.
-        """
-        return f'{self.name}speed'
-
-    def delay_parameter(self) -> str:
-        """The run-time knob saying when this disc's reference opening is at the beam."""
-        return f'{self.name}delay'
-
-    def park_parameter(self) -> str:
-        """The run-time knob saying where a parked disc is standing.
-
-        A disc that is not turning still blocks or passes the beam, depending on whether
-        an opening happens to be in front of it -- which McStas' own ``DiskChopper``
-        cannot express, because a zero frequency there becomes ``omega = 1e-15`` and the
-        disc falls permanently open rather than stopping somewhere.
-        """
-        return f'{self.name}park'
-
-    def __niess_pv_root__(self, key: str) -> str | None:
-        """The chopper controller driving this disc, if one is declared.
-
-        ``key`` is ignored: unlike an aperture, whose edges are separately driven axes,
-        a disc has one controller and every one of its eight logs hangs off it.
-        """
-        return self.pv_root
-
-    def group_name(self) -> str:
-        """The McStas GROUP the emitted openings share, when there is more than one.
-
-        Instance names are unique within an instrument, so deriving the group from this
-        disc's name makes it unique too.
-        """
-        return f'{self.name}_group'
 
     def _counter_clockwise_turn(self, opening: float, closing: float) -> float:
         """How far counter-clockwise this opening is from the beam, in degrees.
@@ -371,12 +411,12 @@ class DiscChopper(Chopper):
         """
         turn = self._counter_clockwise_turn(opening, closing)
         if turn == 0:
-            return self.delay_parameter()
+            return self.delay_parameter().name
 
-        speed = self.speed_parameter()
+        speed = self.speed_parameter().name
         assembler.declare(f'double {name}_delay;')
         assembler.initialize(
-            f'{name}_delay = {self.delay_parameter()} + '
+            f'{name}_delay = {self.delay_parameter().name} + '
             f'({speed} < 0 ? {360.0 - turn} : {turn}) / (360.0 * fabs({speed}));'
         )
         return f'{name}_delay'
@@ -396,7 +436,7 @@ class DiscChopper(Chopper):
             'beam_position': self.beam_angle.to(unit='deg').value,
             # The disc's own timing, so a translator rebuilding the disc can link it
             # without re-deriving the parameter naming convention.
-            'delay_parameter': self.delay_parameter(),
+            'delay_parameter': self.delay_parameter().name,
         }
         if several:
             extra['disc_group_id'] = self.name
@@ -424,10 +464,10 @@ class DiscChopper(Chopper):
         from ..spatial import mccode_ordered_angles
 
         ensure_runtime_line(
-            assembler, f'{self.speed_parameter()}/"Hz" = {self.speed.value}')
+            assembler, f'{self.speed_parameter().name}/"Hz" = {self.speed.value}')
         ensure_runtime_line(
             assembler,
-            f'{self.delay_parameter()}/"s" = {self.delay.to(unit="s").value}'
+            f'{self.delay_parameter().name}/"s" = {self.delay.to(unit="s").value}'
         )
 
         position = self.position + self.__mccode_offset__()
@@ -468,6 +508,152 @@ class DiscChopper(Chopper):
                 )
             instances.append(instance)
         return instances if several else instances[0]
+
+
+class NXDiskChopper(Chopper):
+    """The replacement for DiscChopper which emits a single McStas NXdisk_chopper
+
+    Geometry following the NeXus NXdisk_chopper specification:
+    - all angles measured with respect to the disk top-dead-center pickup point
+      with positive angles increasing counter-clockwise when seen from the source
+      position (z forward, y vertical, x to the left)
+    - window edges defined in a monotonically increasing list, starting with
+      an opening edge, and spanning less than 360 degrees. Note: NeXus is stricter here,
+      requiring the values to be strictly positive.
+    - a beam angle is the position where the disk and beam path intersect
+
+    Additionally, this component knows the position of its top-dead-center pickup
+    with respect to its local coordinate system. This value is not needed by the Nexus
+    specification because it can be deduced when the beam path is defined by other
+    components, e.g., a preceeding or following guide.
+    This deduction is not simple in the McStas world, so NXdisk_chopper.comp accepts
+    `zero_angle` to place the top-dead-center pickup relative to the local y-axis.
+
+    """
+    # Non-NeXus helper variable for McStas: the position of the pickup w
+    zero_angle: Variable = msgspec.field(default_factory=_zero_degrees)
+    """Angle from +y to the zero-mark on the disk housing"""
+    beam_angle: Variable = msgspec.field(default_factory=_zero_degrees)
+    """Angle from the disk housing zero-mark to the beam intersection with the disk"""
+    park_angle: Variable = msgspec.field(default_factory=_zero_degrees)
+    """Angle of the disk when the frequency is zero"""
+
+    #: The EPICS chopper controller this disc really is, when somebody has wired one up.
+    #: Every ESS chopper log hangs off it -- ``{pv_root}:Spd_R``, ``:TotDly``, and the
+    #: top-dead-centre channel ``{pv_root}:{tdc_channel}``. Without it a file can only be
+    #: written in simulated mode, so dropping it in the move to `NXdisk_chopper` took
+    #: real-mode NeXus away from every BIFROST disc.
+    pv_root: str | None = None
+    #: The TDC channel suffix, which is per-chopper rather than fixed: BIFROST's six
+    #: discs use ``00-TS-I`` through ``03-TS-I``. Only meaningful with ``pv_root``.
+    tdc_channel: str = '00-TS-I'
+
+    #: `NXdisk_chopper.comp` declares the parked angle as `park_angle`, so that is the
+    #: knob a run sets and the log a forwarder serves.
+    _park_suffix = 'park_angle'
+
+    @classmethod
+    def from_calibration(cls, cal: dict):
+        required = ('name', 'position', 'orientation', 'radius')
+        name, position, orientation, radius = (cal[k] for k in required)
+        none_ok = ('windows', 'width', 'height')
+        windows, width, height = (cal.get(k) for k in none_ok)
+        velocity = cal.get('velocity', cal.get('frequency'))
+        if velocity is None:
+            raise ValueError('velocity must be defined in calibration')
+        delay = cal.get('delay', scalar(0.0, unit='s'))
+        zero_angle = cal.get('zero_angle', scalar(0.0, unit='deg'))
+        beam_angle = cal.get('beam_angle', scalar(0.0, unit='deg'))
+        park_angle = cal.get('park_angle', scalar(0.0, unit='deg'))
+        if windows is None:
+            half = cal['angle'].to(unit='deg') / 2 * array(values=[-1, 1], dims=['edges'])
+            windows = beam_angle.to(unit='deg') + half
+        return cls(
+            name=name, position=position, orientation=orientation,
+            velocity=velocity, delay=delay,
+            radius=radius, windows=windows,
+            width=width, height=height,
+            zero_angle=zero_angle, beam_angle=beam_angle, park_angle=park_angle,
+        )
+
+    def __mccode__(self):
+        params = {
+            'slit_edges': self.edge_array_identifier(),
+            'n_edges': len(self.windows),
+            'radius': self.radius.to(unit='m').value,
+            'nu': self.speed_parameter().name,
+            'delay': self.delay_parameter().name,
+            'park_angle': self.park_parameter().name,
+            'zero_angle': self.zero_angle.to(unit='deg').value,
+            'beam_angle': self.beam_angle.to(unit='deg').value,
+        }
+        if self.width is not None:
+            params['xwidth'] = self.width.to(unit='m').value
+        if self.height is not None:
+            params['yheight'] = self.height.to(unit='m').value
+        return 'NXdisk_chopper', params
+
+    def to_mccode(
+            self, assembler: Assembler, at: Instance | str | None = None,
+            rotate: Instance | str | None = None, insert_provenance_metadata: bool = True,
+    ) -> Instance:
+        from ..assembler import ensure_runtime_parameter, ensure_registry
+        # Make sure the chopper-lib repository is known (for NXdisk_chopper.comp)
+        # Pinned in one place: `niess.chopcalc.emit.CHOPPER_LIB_REGISTRY`, whose
+        # guard is what fails loudly if an older library is used anyway.
+        from ..chopcalc.emit import CHOPPER_LIB_REGISTRY
+        ensure_registry(assembler, CHOPPER_LIB_REGISTRY)
+        # Make sure the user controllable knobs are present
+        for parameter in (self.speed_parameter(), self.delay_parameter(),
+                          self.park_parameter()):
+            ensure_runtime_parameter(assembler, parameter)
+        # Insert the edge array into the instrument DECLARE block
+        assembler.declare_array('double', self.edge_array_identifier(), self.edge_array_values())
+        return super().to_mccode(assembler, at, rotate, insert_provenance_metadata)
+
+    def edge_array_identifier(self) -> str:
+        """When translated to McStas, the component inserts its edge values as an array
+        with this identifier into the instrument DECLARE block.
+
+        This allows the component instance definition and, optionally, the chopper-lib
+        wavelength/emission-time narrowing functions to reuse the same data.
+        """
+        return f"{self.name}edges"
+
+    def edge_array_values(self) -> list[float | int]:
+        return [angle for opening in self.slits() for angle in opening]
+
+    @property
+    def speed(self):
+        from scipp import dot, vector
+        from ..spatial import __is_vector__
+        if not __is_vector__(self.velocity):
+            return self.velocity.to(unit='Hz')
+        # TODO verify the _input_ follows the NeXus convention (this is right.)
+        return dot(vector(value=[0, 0, -1.]), self.velocity).to(unit='Hz')
+
+    def beam_offset(self) -> Variable:
+        # follows corrected beam offset calculation in NXdisk_chopper.comp
+        return disc_beam_offset(
+            radius=self.radius,
+            width=self.width,
+            height=self.height,
+            zero_angle=self.zero_angle,
+            beam_angle=self.beam_angle
+        )
+
+    def __mccode_offset__(self) -> Variable:
+        return self.beam_offset()
+
+
+
+#: Every class that is a disc turning in the beam, whichever McStas component emits it:
+#: `DiscChopper` emits one `DiskChopper` per opening, `NXDiskChopper` emits one
+#: chopper-lib `NXdisk_chopper`. They are siblings rather than one subclassing the other,
+#: so `isinstance(x, DiscChopper)` silently misses half of them -- which is exactly how
+#: `niess.tof` and `niess.nexus` came to see no choppers at all. Anything asking "is this
+#: a disc?" asks with this.
+DISC_CHOPPERS = (DiscChopper, NXDiskChopper)
 
 
 class FermiChopper(Chopper):
