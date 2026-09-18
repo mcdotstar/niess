@@ -42,6 +42,38 @@ class Guide(Component):
     top: Union[float, tuple[float]]  # m-value for y > 0 face
     bottom: Union[float, tuple[float]]   # m-value for the y < 0 face
 
+    def __off__(self):
+        return None
+
+    def __m_values__(self, segments: int = 1) -> list[float]:
+        """One m-value per emitted face, in the order `__off__` emits them.
+
+        `Off.hollow_wedge` and `Off.elliptic_channel` both wind their faces
+        [top, right, bottom, left] per segment, so this has to agree with them: an
+        m-value list that does not line up with the faces mislabels the mirrors rather
+        than failing, which is the kind of wrong nobody notices in a file.
+
+        A guide may carry a tuple of m-values, one per segment, where a plain number
+        means the same m the whole way down.
+        """
+        faces = []
+        for segment in range(segments):
+            for side in (self.top, self.right, self.bottom, self.left):
+                faces.append(float(side[segment] if isinstance(side, tuple) else side))
+        return faces
+
+    def __guide_body__(self, geometry_name: str = 'geometry', segments: int = 1):
+        """An `NXguide` holding this guide's channel and the m-value of every face."""
+        from ..nexus.structure import component_body
+        from ..nexus.nodes import dataset
+        off = self.__off__()
+        children = [dataset('description', type(self).__name__)]
+        children.append(dataset('m_value', self.__m_values__(segments),
+                                dtype='double', attrs={'units': 'dimensionless'}))
+        if off is not None:
+            children.append(off.to_nexus(geometry_name))
+        return component_body('NXguide', children=children)
+
 
 class StraightGuide(Guide):
     width: Variable
@@ -103,6 +135,17 @@ class StraightGuide(Guide):
         p['w2'] = p['w1']
         p['h2'] = p['h1']
         return 'Guide_gravity', p
+
+    def __off__(self):
+        from .geometry import Off
+        return Off.hollow_wedge({
+            'width': self.width, 'height': self.height, 'length': self.length
+        })
+
+    def __nexus_leaf__(self, visit):
+        # one segment: the OFF geometry has faces [top, right, bottom, left]
+        return self.__guide_body__()
+
 
 class SegmentedGuide(Base):
     name: str
@@ -206,6 +249,19 @@ class TaperedGuide(Guide):
         }
         return 'Guide_gravity', p
 
+    def __off__(self):
+        from .geometry import Off
+        return Off.hollow_wedge({
+            'width_in': self.in_width, 'width_out': self.out_width,
+            'height_in': self.in_height, 'height_out': self.out_height,
+            'length': self.length,
+        })
+
+    def __nexus_leaf__(self, visit):
+        # one segment: the channel is a single trapezoidal prism, however much the
+        # cross-section changes between its ends
+        return self.__guide_body__()
+
 
 class TaperedGuides(SegmentedGuide):
     segments: list[TaperedGuide]
@@ -272,6 +328,32 @@ class PartialEllipse(Base):
             f'majorAxisoffset{post}': self.offset.to(unit='m').value,
         }
         return p
+
+    def half_width_at(self, z: float) -> float:
+        """Half the guide's opening, in metres, ``z`` metres along it.
+
+        The same expression the component traces neutrons against::
+
+            Elliptic_guide_gravity.comp:483
+            2 * sqrt(1 - (zside - ellipseMajorOffset)^2 / ellipseMajorAxis^2)
+              * ellipseMinorAxis
+
+        ``offset`` is the distance from the ellipse centre to the guide entrance, so
+        ``z - offset`` is where along the major axis a point ``z`` into the guide sits,
+        and the widest point of the channel is at ``z == offset`` -- inside the guide
+        for some of BIFROST's, outside it for others.
+
+        Outside the ellipse the width is not defined; that is a guide longer than the
+        ellipse it was cut from, so the channel closes rather than going imaginary.
+        """
+        from math import sqrt
+        major = float(self.major.to(unit='m').value)
+        minor = float(self.minor.to(unit='m').value)
+        offset = float(self.offset.to(unit='m').value)
+        along = z - offset
+        if abs(along) >= abs(major):
+            return 0.0
+        return minor * sqrt(1 - (along / major) ** 2)
 
 
 class EllipticGuide(Guide):
@@ -373,3 +455,36 @@ class EllipticGuide(Guide):
             for n in ('left', 'right', 'top', 'bottom'):
                 assembler.declare_array('double', f'{self.name}_{n}', getattr(self, n))
         return super().to_mccode(assembler, at, rotate, insert_provenance_metadata=insert_provenance_metadata)
+
+    #: How many rings a plain elliptic guide's channel is drawn with. The surface is
+    #: curved and OFF is flat, so something has to choose; ten is what moreniius used
+    #: and what the frozen files were written against.
+    OFF_SEGMENTS = 10
+
+    def __ring_positions__(self) -> list[float]:
+        """Where along the guide the OFF cross-sections are taken, in metres.
+
+        A guide carrying a tuple of m-values is already segmented -- each segment has
+        its own length and its own mirror coating -- so the rings go at the segment
+        boundaries and every face gets the m-value that actually applies to it. That is
+        the whole reason to prefer them over an even split: a ring in the middle of a
+        segment would have to be given one of its neighbours' m-values.
+        """
+        from itertools import accumulate
+        if isinstance(self.left, tuple):
+            lengths = [float(v) for v in self.length.to(unit='m').values]
+            return [0.0] + list(accumulate(lengths))
+        total = float(self.length.to(unit='m').value)
+        n = self.OFF_SEGMENTS
+        return [total * i / n for i in range(n + 1)]
+
+    def __off__(self):
+        from .geometry import Off
+        return Off.elliptic_channel([
+            (self.horizontal.half_width_at(z), self.vertical.half_width_at(z), z)
+            for z in self.__ring_positions__()
+        ])
+
+    def __nexus_leaf__(self, visit):
+        return self.__guide_body__(
+            segments=len(self.__ring_positions__()) - 1)

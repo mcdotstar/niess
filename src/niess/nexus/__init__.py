@@ -28,7 +28,6 @@ from .nodes import (
     node_name,
     stream,
 )
-from .off import NXoff
 from .registry import NEXUS_REGISTRY, NiessNexusRegistry
 from .streams import resolve_stream
 from .structure import (
@@ -61,5 +60,4 @@ __all__ = [
     'group',
     'node_name',
     'stream',
-    'NXoff',
 ]

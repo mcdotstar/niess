@@ -254,7 +254,7 @@ class Triplet(Base):
         # takes the default emits exactly the text it did before.
         extra = {} if self.stream is None else {'nexus_stream': self.stream}
         if insert_provenance_metadata:
-            add_niess_metadata(tubes, self, source_name=name, role='physical-component',
+            add_niess_metadata(tubes, self, role='physical-component',
                            extra=extra)
 
     def efu_calibration(self, group: int = -1) -> EFUTripletConfig:

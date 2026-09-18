@@ -160,9 +160,9 @@ def test_a_composite_says_what_it_holds():
     from niess.bifrost.parameters import tank_parameters
     tank = Tank.from_calibration(tank_parameters())
     text = repr(tank)
-    assert text.startswith('Tank: 614 component(s)')
+    assert text.startswith('Tank: 613 component(s)')
     assert 'channels[0]  Channel' in text
-    assert '68 component(s)' in text
+    assert '67 component(s)' in text
     assert len(text) < 1200
 
 
@@ -231,11 +231,19 @@ def test_counting_a_subtree_once_is_enough():
 # -- alignment and parameters ------------------------------------------------------
 
 def test_classes_line_up_under_each_other():
-    """Each sibling group is its own column, sized to its own widest label."""
+    """Each sibling group is its own column, sized to its own widest label.
+
+    The tank has nineteen children now, so the display truncates and ends with a
+    "... 7 more" line. That is a count, not a child, and it has no class column --
+    measuring it says nothing about whether the rows above it line up.
+    """
     from niess.bifrost import Tank
     from niess.bifrost.parameters import tank_parameters
 
-    lines = repr(Tank.from_calibration(tank_parameters())).splitlines()[1:]
+    lines = [line for line in
+             repr(Tank.from_calibration(tank_parameters())).splitlines()[1:]
+             if not line.strip().startswith('…')]
+    assert len(lines) > 1, 'nothing left to compare'
     columns = {line.index(line.strip().split()[1]) for line in lines}
     assert len(columns) == 1, 'the class column is ragged'
 

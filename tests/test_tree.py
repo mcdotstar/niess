@@ -30,6 +30,18 @@ def tank():
     return Tank.from_calibration(tank_parameters())
 
 
+@pytest.fixture(scope='module')
+def bifrost():
+    """Primary and tank together: the sample is what the ten branches part at."""
+    from niess.instrument import Instrument, Mount
+    from niess.bifrost import Primary, Tank
+    from niess.bifrost.parameters import primary_parameters, tank_parameters
+    return Instrument(name='bifrost', origin='sample_origin', parts=(
+        Mount(name='primary', content=Primary.from_calibration(primary_parameters())),
+        Mount(name='tank', content=Tank.from_calibration(tank_parameters())),
+    ))
+
+
 def emitted_source_types(section, name, *args):
     """The niess class behind each emitted instance, in emission order."""
     from mccode_antlr import Flavor
@@ -67,18 +79,21 @@ def test_tank_is_deliberately_finer_than_its_emission(tank):
     import collections
     kinds = collections.Counter(type(node).__name__ for _, node in leaves(tank))
     assert kinds == {'Crystal': 369, 'He3Tube': 135, 'RadialFilterCollimator': 9,
-                     'He3Monitor': 1, 'Frame': 99, 'RadialSlitBank': 1}
-    # the ninety-nine frames and the slit bank are declared nodes, not artefacts of
-    # emitting McStas
-    assert sum(kinds.values()) == 614
+                     'He3Monitor': 1, 'Frame': 99}
+    # the ninety-nine frames are declared nodes, not artefacts of emitting McStas.
+    # The nine filters are the tank's own children now: they used to hang one per
+    # channel, and there was a RadialSlitBank above them to decide which one a ray
+    # was allowed to reach.
+    assert sum(kinds.values()) == 613
 
 
 def test_the_composites_have_the_children_we_think_they_do(tank):
     assert [label for label, _ in tank.__niess_children__()] == \
-           ['slits', 'monitor'] + [f'channels[{i}]' for i in range(9)]
+           [f'filter[{i}]' for i in range(9)] + ['monitor'] \
+           + [f'channels[{i}]' for i in range(9)]
     channel = tank.channels[0]
     assert [label for label, _ in channel.__niess_children__()] == \
-           ['cassette', 'radial_filter_collimator'] + [f'pairs[{i}]' for i in range(5)]
+           ['cassette'] + [f'pairs[{i}]' for i in range(5)]
     assert [label for label, _ in channel.pairs[0].__niess_children__()] == \
            ['analyzer_point', 'analyzer', 'detector_angle', 'detector']
 
@@ -155,39 +170,76 @@ def test_the_tank_has_ten_paths_out_of_the_sample(tank):
     group's `inputs` and `outputs`.
     """
     graph = tank.to_graph()
-    roots = [node for node in graph if graph.in_degree(node) == 0]
-    assert roots == ['slits'], 'the slits are what choose, so they are where flow splits'
-    branches = sorted(graph.successors(roots[0]))
+    roots = sorted(node for node in graph if graph.in_degree(node) == 0)
+    assert len(roots) == 10
+    assert roots == sorted([f'filter[{i}]' for i in range(9)] + ['monitor'])
+
+
+def test_the_ten_branches_are_where_the_tank_says_flow_enters(tank):
+    """The tank has no node of its own above them, so it has to declare all ten.
+
+    The radial slits used to be that node: one thing inside the tank that everything
+    else hung off, which made the tank a single connected graph on its own. Choosing
+    is the sample's job now, so a tank graphed by itself is ten separate branches and
+    the fan-out only appears once an instrument puts a sample above it.
+    """
+    import networkx as nx
+
+    graph = tank.to_graph()
+    entries, _ = tank.__niess_flow__(graph, ())
+    assert sorted(entries) == sorted([f'filter[{i}]' for i in range(9)] + ['monitor'])
+    assert nx.number_weakly_connected_components(graph) == 10
+
+
+def test_the_elastic_monitor_is_reachable_from_the_sample(bifrost):
+    """It used to be isolated: it was attached to `upstream`, None at the top level.
+
+    It went missing again in the move off the slits: the tank returned the monitor's
+    path as one of its entries without ever asking the monitor to add itself, so the
+    node existed only if something above happened to draw an edge to it.
+    """
+    import networkx as nx
+
+    graph = bifrost.to_graph()
+    assert nx.number_weakly_connected_components(graph) == 1
+    assert graph.has_edge('primary/sample_origin', 'tank/monitor')
+
+
+def test_the_sample_is_where_the_ten_branches_part(bifrost):
+    """What the slits used to do, done by the thing that actually does it.
+
+    A neutron leaving the sample takes one of ten paths -- nine wedges or the elastic
+    monitor -- and which one is now decided by which wedge it reaches, not by a
+    separate component tagging it on the way out.
+    """
+    graph = bifrost.to_graph()
+    branches = sorted(graph.successors('primary/sample_origin'))
     assert len(branches) == 10
     assert branches == sorted(
-        [f'channels[{i}]/radial_filter_collimator' for i in range(9)] + ['monitor']
+        [f'tank/filter[{i}]' for i in range(9)] + ['tank/monitor']
     )
 
 
-def test_the_elastic_monitor_is_reachable_from_the_sample(tank):
-    """It used to be isolated: it was attached to `upstream`, None at the top level."""
-    import networkx as nx
-
-    graph = tank.to_graph()
-    assert nx.number_weakly_connected_components(graph) == 1
-    assert graph.has_edge('slits', 'monitor')
-
-
 def test_the_radial_filter_comes_before_a_channels_analyzers(tank):
-    """The filter is what a neutron entering a channel meets first."""
+    """The filter is what a neutron entering a channel meets first.
+
+    It sits in the tank rather than in the channel now, but it is still the channel's
+    gate: the wedge a neutron scatters in is what tags it with the cassette, and the
+    channel's own components are gated on that tag.
+    """
     import networkx as nx
 
     graph = tank.to_graph()
-    filtered = 'channels[0]/radial_filter_collimator'
+    filtered = 'filter[0]'
     for arm in range(5):
         assert nx.has_path(graph, filtered, f'channels[0]/pairs[{arm}]/analyzer')
-    assert graph.in_degree(filtered) == 1
+    assert graph.in_degree(filtered) == 0, 'the sample above the tank is what feeds it'
 
 
 def test_a_channels_arms_are_chained_in_series(tank):
     """A neutron that is not scattered by one analyzer meets the next."""
     graph = tank.to_graph()
-    chain = ['channels[3]/radial_filter_collimator']
+    chain = ['filter[3]']
     for arm in range(5):
         chain += [f'channels[3]/pairs[{arm}]/analyzer',
                   f'channels[3]/pairs[{arm}]/detector']
@@ -254,8 +306,7 @@ def test_a_frame_is_transparent_to_flow(tank):
     graph = tank.to_graph()
     assert not [node for node in graph
                 if node.endswith(('cassette', 'analyzer_point', 'detector_angle'))]
-    assert graph.has_edge('channels[0]/radial_filter_collimator',
-                          'channels[0]/pairs[0]/analyzer')
+    assert graph.has_edge('filter[0]', 'channels[0]/pairs[0]/analyzer')
 
 
 def test_a_declared_turn_survives_being_emitted_exactly(tank):
@@ -292,7 +343,11 @@ def test_what_sits_in_which_frame(tank):
 
     instrument = Instrument(name='t', parts=(Mount(name='tank', content=tank),))
     seen = {v.id: v.frame for v in visits(instrument)}
-    assert seen['tank/channels[0]/radial_filter_collimator'] == 'tank/channels[0]/cassette'
+    # The wedges and the monitor sit in the tank's own frame -- they are placed at the
+    # sample and carry their angle as their orientation, so there is no frame between.
+    assert seen['tank/filter[0]'] is None
+    assert seen['tank/monitor'] is None
+    assert seen['tank/channels[0]/pairs[0]/analyzer_point'] == 'tank/channels[0]/cassette'
     assert seen['tank/channels[0]/pairs[0]/analyzer'] == \
         'tank/channels[0]/pairs[0]/analyzer_point'
     assert seen['tank/channels[0]/pairs[0]/detector'] == \

@@ -80,25 +80,62 @@ def test_arm_scattering_angle_is_twice_theta(tank):
     assert arm.analyzer_theta.value == pytest.approx(arm.scattering_angle.value / 2)
 
 
-def test_slit_width_stays_inside_the_channel_spacing(tank):
-    """Adjacent slits must not overlap, or a neutron is tagged with two channels."""
-    assert tank.slit_width < tank.channel_spacing
+def wedge_angle(wedge):
+    """Where a wedge points, in radians about the vertical axis.
+
+    Read back off the orientation rather than taken from a stored number, so it is the
+    angle the emission will actually use.
+    """
+    from scipp import vector, atan2
+    at = wedge.orientation * vector([0, 0, 1.])
+    return atan2(y=at.fields.x, x=at.fields.z).to(unit='radian').value
 
 
-def test_slit_width_clears_the_analyzer(tank):
+def wedge_width(wedge):
+    """The angular width of a wedge, in radians."""
+    return wedge.angle_width.to(unit='radian').value
+
+
+def test_a_wedge_points_at_the_channel_it_tags(tank):
+    """The wedge and its cassette have to agree, or the tag names the wrong channel.
+
+    Both turn about the vertical, which is y here. A wedge built about z instead
+    lands at the same angle in the wrong plane, and the only one that survives it is
+    the middle wedge -- whose rotation is the identity either way.
+    """
+    for index, (wedge, channel) in enumerate(zip(tank.filters, tank.channels)):
+        assert wedge_angle(wedge) == pytest.approx(
+            channel.cassette_angle.to(unit='radian').value, abs=1e-9
+        ), f'wedge_{index}'
+
+
+def test_wedge_width_stays_inside_the_channel_spacing(tank):
+    """Adjacent wedges must not overlap, or a neutron is tagged with two channels.
+
+    The wedges do the tagging that the radial slits used to: a neutron scatters in at
+    most one of them, and its EXTEND is what writes `secondary_cassette`. Overlapping
+    wedges would let the first one reached claim a neutron aimed at its neighbour.
+    """
+    for index, wedge in enumerate(tank.filters):
+        assert wedge_width(wedge) < tank.channel_spacing, f'wedge_{index}'
+
+
+def test_wedge_width_clears_the_analyzer(tank):
     """...and must not clip the analyzer it is there to tag neutrons into."""
     from scipp import vector
     origin = vector([0, 0, 0], unit='m')
     widest = max(channel.pairs[0].analyzer.coverage(origin, unit='radian')[0].value
                  for channel in tank.channels)
-    assert tank.slit_width > widest
+    for index, wedge in enumerate(tank.filters):
+        assert wedge_width(wedge) > widest, f'wedge_{index}'
 
 
-def test_no_two_slits_overlap(tank):
-    """Every slit, the elastic monitor's included, keeps clear of its neighbours."""
-    angles = sorted(tank.slit_angles)
+def test_no_two_wedges_overlap(tank):
+    """Each keeps clear of its neighbours, so no neutron is inside two at once."""
+    angles = sorted(wedge_angle(w) for w in tank.filters)
+    widest = max(wedge_width(w) for w in tank.filters)
     for lower, upper in zip(angles, angles[1:]):
-        assert upper - lower >= tank.slit_width
+        assert upper - lower >= widest
 
 
 def test_channel_spacing_takes_the_smallest_gap(tank, monkeypatch):
@@ -107,7 +144,6 @@ def test_channel_spacing_takes_the_smallest_gap(tank, monkeypatch):
     monkeypatch.setattr(Tank, 'channel_angles',
                         property(lambda self: [0.0, 0.5, 0.7, 1.4]))
     assert tank.channel_spacing == pytest.approx(0.2)
-    assert tank.slit_width < 0.2
 
 
 def test_channel_spacing_refuses_a_single_channel(tank, monkeypatch):
@@ -118,36 +154,40 @@ def test_channel_spacing_refuses_a_single_channel(tank, monkeypatch):
         _ = tank.channel_spacing
 
 
-def test_tank_slit_geometry_is_what_the_radial_slits_are_built_from(tank, emitted):
-    slits = emitted['slits']
-    assert expr_float(slits.get_parameter('slit_width').value) == pytest.approx(
-        tank.slit_width
-    )
-    assert expr_float(slits.get_parameter('number').value) == len(tank.slit_angles)
+def test_wedge_geometry_is_what_the_emitted_filter_is_built_from(tank, emitted):
+    """Each wedge object, against the Radial_col_filter it becomes."""
+    for index, wedge in enumerate(tank.filters):
+        instance = emitted[f'wedge_{index}']
+
+        def emitted_value(name):
+            return expr_float(instance.get_parameter(name).value)
+
+        assert emitted_value('angle_width') == pytest.approx(
+            wedge.angle_width.to(unit='degree').value), index
+        assert emitted_value('collimation') == pytest.approx(
+            wedge.collimation_angle.to(unit='degree').value), index
+        assert emitted_value('filter_minimum_radius') == pytest.approx(
+            wedge.filter_inner_radius.to(unit='m').value), index
+        assert emitted_value('collimator_minimum_radius') == pytest.approx(
+            wedge.collimator_inner_radius.to(unit='m').value), index
+        assert rotate_angles(instance) == pytest.approx(
+            [0, wedge_angle(wedge) * 180 / 3.141592653589793, 0], abs=1e-9), index
 
 
-def test_tank_slit_angles_are_the_declared_array(tank):
-    """The angles reach McStas as a DECLARE'd C array, not as a component parameter."""
-    from mccode_antlr import Flavor
-    from mccode_antlr.assembler import Assembler
+def test_the_collimation_is_the_calibrated_one_not_the_whole_wedge(tank):
+    """It used to arrive under a key nothing read.
 
-    assembler = Assembler('bifrost', flavor=Flavor.MCSTAS)
-    assembler.component('sample_origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
-    tank.to_mccode(assembler, 'sample_origin')
-
-    declared = [block.source for block in assembler.instrument.declare
-                if 'slits_positions' in block.source]
-    assert len(declared) == 1, 'expected exactly one slits_positions array'
-    values = [float(v) for v in
-              declared[0].split('{')[1].split('}')[0].split(',')]
-    assert values == pytest.approx(tank.slit_angles)
-
-
-def test_tank_slit_angles_end_with_the_elastic_monitor(tank):
-    """The monitor's slit is added last, which is what its emitted WHEN relies on."""
-    assert tank.slit_angles[:-1] == tank.channel_angles
-    assert tank.slit_angles[-1] == tank.monitor_angle
-    assert len(tank.slit_angles) == len(tank.channels) + 1
+    `RadialFilterCollimator.from_calibration` takes `collimation_angle`; the tank
+    passed `collimation`, so every filter silently fell back to the default -- the
+    full width of the wedge -- and the emitted instrument collimated to 7.8 degrees
+    where the calibration says 0.65.
+    """
+    from niess.bifrost.parameters import known_channel_params
+    calibrated = known_channel_params()['radial_collimator_collimation']
+    for index, wedge in enumerate(tank.filters):
+        assert wedge.collimation_angle.to(unit='degree').value == pytest.approx(
+            calibrated.to(unit='degree').value), f'wedge_{index}'
+        assert wedge.collimation_angle < wedge.angle_width
 
 
 def test_disc_chopper_opening_turns_match_the_slits():
@@ -177,13 +217,13 @@ def test_disc_chopper_opening_turns_match_the_slits():
     assert turns == pytest.approx([70.0, 330.0, 90.0])
 
 
-def test_the_slit_parameters_are_declared(tank):
-    """They were named by the emitted component and never defined.
+def test_the_wedges_tag_the_cassette_they_belong_to(tank):
+    """What the radial slits used to do, and the only thing that still does it.
 
-    Slit_radial_multi is emitted with offset=slitAngle*DEG2RAD and radius=slitDistance,
-    and neither appeared in the instrument's parameters or in any DECLARE block -- so
-    the generated C carried two undefined identifiers. They are what makes the slits
-    scannable: a calibration run sweeps a narrow slit across the analyzers.
+    Slit_radial_multi reported which opening a neutron came through and an EXTEND
+    turned that index into `secondary_cassette`. The wedges carry it themselves now:
+    each one is in a single GROUP, so a neutron scatters in at most one, and its
+    EXTEND writes the cassette index that the channel below is gated on.
     """
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
@@ -192,27 +232,44 @@ def test_the_slit_parameters_are_declared(tank):
     assembler.component('sample_origin', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
     tank.to_mccode(assembler, 'sample_origin')
 
-    declared = {p.name: p for p in assembler.instrument.parameters}
-    assert 'slitAngle' in declared and 'slitDistance' in declared
-    assert declared['slitAngle'].unit == '"degree"'
-    assert declared['slitDistance'].unit == '"m"'
-    assert float(str(declared['slitDistance'].value)) == pytest.approx(0.4)
+    assert any('secondary_cassette' in block.source
+               for block in assembler.instrument.user), 'declared as a USERVAR'
 
-    slits = next(c for c in assembler.instrument.components if c.name == 'slits')
-    used = {p.name: str(p.value) for p in slits.parameters}
-    assert used['radius'] == 'slitDistance'
-    assert used['offset'] == 'DEG2RAD*slitAngle'
+    emitted = {c.name: c for c in assembler.instrument.components}
+    groups = set()
+    for index in range(len(tank.filters)):
+        instance = emitted[f'wedge_{index}']
+        groups.add(instance.group)
+        sources = ' '.join(block.source for block in instance.extend)
+        assert f'secondary_cassette = {index + 1};' in sources, index
+
+    # the monitor closes the group: a neutron that scatters in no wedge reaches it,
+    # and McStas absorbs whatever fails to scatter in the last member of a GROUP
+    monitor = emitted['elastic_monitor']
+    groups.add(monitor.group)
+    assert len(groups) == 1, 'one group, or the wedges do not exclude each other'
+    assert f'secondary_cassette = {len(tank.filters) + 1};' in \
+        ' '.join(block.source for block in monitor.extend)
 
 
-def test_the_slits_start_inside_everything_they_scan(tank):
-    """0.4 m, against 0.5 m to the collimators and 1.19 m to the nearest analyzer."""
-    from scipp import concat, min as smin, norm
+def test_the_wedges_start_inside_everything_downstream(tank):
+    """0.5 to 0.82 m for the collimators, against 1.19 m to the nearest analyzer.
 
-    radius = tank.slit_radius
-    collimators = smin(concat(
-        [c.radial_filter_collimator.collimator_inner_radius for c in tank.channels],
-        dim='channel')).to(unit='m')
-    assert radius < collimators
-    assert radius < norm(tank.monitor.position).to(unit='m')
-    assert radius < norm(
+    The wedges sit between the sample and the channels they tag neutrons into, which
+    is what lets a neutron meet its wedge before the analyzer it is headed for. They
+    have to clear it entirely, so it is the outer radius that matters.
+
+    The elastic monitor is at 0.8 m, inside that -- but it is at 59 degrees, well
+    outside the plus or minus 40 the wedges span, so the two never meet. Only the
+    inner radius is comparable to it.
+    """
+    from scipp import concat, min as smin, max as smax, norm
+
+    inner = smax(concat([w.collimator_inner_radius for w in tank.filters],
+                        dim='wedge')).to(unit='m')
+    outer = smax(concat([w.collimator_outer_radius for w in tank.filters],
+                        dim='wedge')).to(unit='m')
+    assert inner < outer
+    assert inner < norm(tank.monitor.position).to(unit='m')
+    assert outer < norm(
         tank.channels[4].pairs[0].analyzer.central_blade.position).to(unit='m')

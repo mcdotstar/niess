@@ -37,7 +37,7 @@ def test_composite_built_instances_are_tagged(bifrost):
         provenance = NiessProvenance.from_instance(component)
         by_type.setdefault(component.type.name, []).append(provenance)
 
-    for type_name in ('Monochromator_Rowland', 'Detector_tubes', 'Slit_radial_multi'):
+    for type_name in ('Monochromator_Rowland', 'Detector_tubes', 'Radial_col_filter'):
         assert type_name in by_type, f'{type_name} missing from the assembled instrument'
         assert all(p is not None for p in by_type[type_name])
 
@@ -53,3 +53,47 @@ def test_reference_frames_are_distinguishable_from_components(bifrost):
     assert roles.keys() == {'physical-component', 'reference-frame'}
     assert roles['reference-frame'] > 0
     assert roles['physical-component'] > 0
+
+
+# -- the name comes off the instance ------------------------------------------
+
+def test_the_name_is_read_off_the_instance_not_the_payload(bifrost):
+    """Schema 3 stopped writing `source_name`, because it could only ever repeat.
+
+    Every writer passed the same string it had just handed `assembler.component`, and
+    `Instance` keeps that name verbatim -- `add_component` raises on a collision rather
+    than renaming around it. So the field was a second copy of `instance.name` on a
+    block already attached to that instance, and two copies of one name is a thing that
+    can disagree.
+    """
+    for component in bifrost.components:
+        provenance = NiessProvenance.from_instance(component)
+        assert provenance.schema_version == 3
+        assert provenance.source_name == component.name
+
+
+def test_a_file_that_still_carries_the_name_is_taken_at_its_word():
+    """Schema 1 and 2 wrote it, and those files still have to read back."""
+    from json import dumps
+    from mccode_antlr.common import MetaData
+    from niess.provenance import (NIESS_PROVENANCE_METADATA_MIMETYPE,
+                                  NIESS_PROVENANCE_METADATA_NAME,
+                                  NIESS_PROVENANCE_METADATA_NAMESPACE)
+
+    assembler = Assembler('old', flavor=Flavor.MCSTAS)
+    instance = assembler.component('emitted_name', 'Arm', at=((0, 0, 0), 'ABSOLUTE'))
+    instance.add_metadata(MetaData.from_instance_tokens(
+        instance.name,
+        NIESS_PROVENANCE_METADATA_MIMETYPE,
+        NIESS_PROVENANCE_METADATA_NAME,
+        dumps({'namespace': NIESS_PROVENANCE_METADATA_NAMESPACE,
+               'schema_version': 2,
+               'source_type': 'niess.components.component.Component',
+               'source_name': 'what_schema_2_wrote',
+               'role': 'physical-component',
+               'extra': {}}),
+    ))
+
+    provenance = NiessProvenance.from_instance(instance)
+    assert provenance.schema_version == 2
+    assert provenance.source_name == 'what_schema_2_wrote'

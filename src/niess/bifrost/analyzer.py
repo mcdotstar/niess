@@ -164,6 +164,5 @@ class Analyzer(Base):
         mono.WHEN(when)
         mono.EXTEND(extend)
         if insert_provenance_metadata:
-            add_niess_metadata(mono, self, source_name=name,
-                               role='physical-component')
+            add_niess_metadata(mono, self, role='physical-component')
 

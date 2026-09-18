@@ -246,7 +246,7 @@ class Arm(Base):
         # Move to the center of the analyzer & reorient for monochromator scattering in vertical plane
         arm = assembler.component(point, "Arm", at=((0, 0, sample_analyzer_d.value), ref), rotate=((0, 0, 90), ref))
         if insert_provenance_metadata:
-            add_niess_metadata(arm, self, source_name=point, role='reference-frame',
+            add_niess_metadata(arm, self, role='reference-frame',
                                extra={'frame': 'analyzer-point', 'arm': name})
         if analyzer_when is not None:
             arm.WHEN(analyzer_when)
@@ -256,7 +256,7 @@ class Arm(Base):
         # Change the coordinate system by theta -- total scattering angle is then 2theta
         det_angle = assembler.component(orient, "Arm", at=((0, 0, 0), mono), rotate=((0, theta, 0), mono))
         if insert_provenance_metadata:
-            add_niess_metadata(det_angle, self, source_name=orient,
+            add_niess_metadata(det_angle, self,
                                role='reference-frame',
                                extra={'frame': 'detector-angle', 'arm': name})
         det_angle.WHEN(detector_when)

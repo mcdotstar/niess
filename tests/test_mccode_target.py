@@ -111,8 +111,12 @@ def test_the_emitted_flow_graph_is_unchanged(bifrost):
 def test_the_tank_emits_what_it_used_to(bifrost):
     built = to_mccode(bifrost)
     names = [c.name for c in built.components]
-    assert len(names) == 358
-    assert names.index('slits') < names.index('elastic_monitor')
+    # 357 rather than 358: the radial slit bank and the nine per-channel filters became
+    # nine tank-level wedges, so one component fewer overall.
+    assert len(names) == 357
+    # emission order still gates the tag: every wedge, then the monitor that closes
+    # their GROUP, then the channels the tag selects between
+    assert names.index('wedge_8') < names.index('elastic_monitor')
     assert names.index('elastic_monitor') < names.index('channel_1_arm')
     frames = [c for c in built.components
               if c.type.name == 'Arm'
@@ -121,11 +125,19 @@ def test_the_tank_emits_what_it_used_to(bifrost):
 
 
 def test_per_particle_state_stays_on_the_mcstas_side(bifrost):
-    """secondary_cassette and its WHEN clauses mean nothing to any other target."""
+    """secondary_cassette and its WHEN clauses mean nothing to any other target.
+
+    192 WHENs rather than 202: the ten components that choose the branch -- nine wedges
+    and the monitor -- are gated by belonging to one GROUP now, not by a WHEN each.
+
+    100 EXTENDs rather than 91: the slit bank's one EXTEND, which turned a slit index
+    into the tag, is replaced by ten -- one per wedge and one for the monitor.
+    """
     built = to_mccode(bifrost)
     assert any('secondary_cassette' in block.source for block in built.user)
-    assert sum(1 for c in built.components if c.when is not None) == 202
-    assert sum(1 for c in built.components if c.extend) == 91
+    assert sum(1 for c in built.components if c.when is not None) == 192
+    assert sum(1 for c in built.components if c.extend) == 100
+    assert len({c.group for c in built.components if c.group}) == 1
 
 
 def test_a_multi_opening_disc_still_groups():
@@ -301,3 +313,100 @@ def test_provenance_can_be_left_out():
     # Channel declare, and the analyzer and triplet they emit, carry it too
     assert 'reference-frame' not in without
     assert without.count('COMPONENT ') == with_it.count('COMPONENT ')
+
+
+# -- what encloses a component may say how it is emitted ----------------------------
+
+def _identity():
+    from scipp.spatial import rotations_from_rotvecs
+    import scipp as sc
+    return rotations_from_rotvecs(sc.vector([0, 0, 0.], unit='deg'))
+
+
+def _wedges(count=3):
+    """Several components that are alternatives to each other, under one parent."""
+    import scipp as sc
+    from niess.components.aperture import Slit
+    from niess.components.component import Base
+
+    class Wedges(Base):
+        parts: tuple
+
+        def __mccode_enter__(self, visit):
+            context = visit.context
+            for index, (label, _) in enumerate(self.__niess_children__()):
+                child = f'{visit.id}/{label}'
+                context.groups[child] = 'wedges'
+                context.extends[child] = f'which = {index};'
+            return None
+
+    return Wedges(parts=tuple(
+        Slit(name=f'wedge_{i}', width=sc.scalar(0.01, unit='m'),
+             height=sc.scalar(0.01, unit='m'),
+             position=sc.vector([0, 0, 1.0], unit='m'), orientation=_identity())
+        for i in range(count)))
+
+
+def _emitted(part, name='t'):
+    from niess.instrument import Instrument, Mount
+    from niess.mccode import to_mccode
+    return to_mccode(Instrument(name=name, parts=(Mount(name='p', content=part),)))
+
+
+def test_a_composite_can_group_components_it_does_not_emit_itself():
+    """A GROUP spans separate objects, so no one of them can name it.
+
+    The disc chopper's own grouping is a different problem -- it emits several instances
+    of itself and can call GROUP in its own loop. Here each wedge is a component in its
+    own right, emitted by the registry with the walk's name and frame, so what encloses
+    them says it against the visit instead.
+    """
+    text = str(_emitted(_wedges()))
+    assert text.count('GROUP wedges') == 3
+
+
+def test_each_of_them_carries_its_own_extend():
+    text = str(_emitted(_wedges()))
+    for index in range(3):
+        assert f'which = {index};' in text
+
+
+def test_a_component_saying_nothing_gets_neither():
+    """The default is silence: no GROUP, no EXTEND, on anything that asked for none."""
+    from niess.teaching import Primary
+    text = str(_emitted(Primary.from_calibration(), name='teaching'))
+    assert 'GROUP' not in text
+    assert 'EXTEND' not in text
+
+
+def test_it_reaches_every_instance_a_component_emitted():
+    """A disc that came apart into one component per opening is still one thing.
+
+    The WHEN mechanism has always applied to all of them; a GROUP or an EXTEND set
+    against the same visit has to as well, or a split disc would be half-gated.
+    """
+    import scipp as sc
+    from niess.components import DiscChopper
+    from niess.components.component import Base
+    from scipp.spatial import rotations_from_rotvecs
+
+    disc = DiscChopper.from_calibration({
+        'name': 'pack',
+        'position': sc.vector([0, 0, 1.0], unit='m'),
+        'orientation': rotations_from_rotvecs(sc.vector([0, 0, 0.], unit='deg')),
+        'radius': sc.scalar(0.35, unit='m'), 'frequency': sc.scalar(14.0, unit='Hz'),
+        'windows': sc.array(values=[10., 30., 100., 140.], dims=['edges'], unit='deg'),
+    })
+
+    class Holder(Base):
+        parts: tuple
+
+        def __mccode_enter__(self, visit):
+            label, _ = self.__niess_children__()[0]
+            visit.context.extends[f'{visit.id}/{label}'] = 'seen = 1;'
+            return None
+
+    text = str(_emitted(Holder(parts=(disc,))))
+    # two openings, so two components, and the extend is on both
+    assert text.count('EXTEND') == 2
+    assert text.count('seen = 1;') == 2

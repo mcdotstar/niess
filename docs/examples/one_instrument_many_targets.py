@@ -29,7 +29,7 @@ def main(outdir: Path) -> None:
 
     instrument = to_mccode(bifrost)          # an mccode_antlr Instr
     # --8<-- [end:mccode]
-    assert len(instrument.components) == 358
+    assert len(instrument.components) == 357
 
     # --8<-- [start:nexus]
     from niess.nexus import to_nexus_structure
@@ -54,7 +54,7 @@ def main(outdir: Path) -> None:
 
     # --8<-- [start:flow]
     graph = bifrost.to_graph()
-    branches = list(graph.successors('tank/slits'))
+    branches = list(graph.successors('primary/sample_origin'))
     # --8<-- [end:flow]
     # ten paths leave the sample: nine channels and the elastic monitor
     assert len(branches) == 10

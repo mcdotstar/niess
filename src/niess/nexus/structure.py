@@ -185,7 +185,11 @@ def _transformations(visit: Visit, position, rotation_deg) -> tuple[list, str]:
         if isinstance(angle, Motor):
             from .streams import motor_group
             children.append(motor_group(
-                name=f'rotation_{axis}', source=angle.source, topic=angle.topic, attrs=attrs
+                name=f'rotation_{axis}',
+                source=angle.source,
+                topic=angle.topic,
+                attrs=attrs,
+                default=angle.default
             ))
         elif isinstance(angle, InstrumentParameter):
             from ..nexus.streams import linked_nxlog
@@ -239,8 +243,14 @@ def _placed(visit: Visit, body: dict) -> dict:
     name = body.get('name') or visit.name
     transformations, depends = _transformations(visit, position, angles)
     children = list(body['children']) + transformations
-    if transformations:
-        children.append(dataset('depends_on', depends))
+    # Always, even when this component adds no transformation of its own. `depends`
+    # is the parent's link in that case, and dropping it detached the component from
+    # the chain entirely: a wedge or a cassette sitting at exactly zero degrees said
+    # nothing about hanging off the tank, so it did not turn when a motorised mounting
+    # above it did. NeXus lets depends_on name a transformation in another group, so
+    # the link is all that is needed -- there is no identity transformation to invent.
+    # A component with nothing above it gets '.', which is how NeXus spells that.
+    children.append(dataset('depends_on', depends))
     node = group(name, nx_class=body['nx_class'], children=children)
     for key, value in body['attrs'].items():
         node = add_child(node, attribute(key, value)) if False else node
@@ -338,7 +348,6 @@ def register_defaults() -> None:
     from ..components.component import Component
     from ..components.filter import Filter
     from ..components.frame import Frame
-    from ..components.guide import Guide
     from ..components.monitors import FrameMonitor
     from ..components.source import Source
 
@@ -360,22 +369,11 @@ def register_defaults() -> None:
     def filtered(visit):
         return component_body('NXfilter')
 
-    @translator(Guide)
-    def guide(visit):
-        """m is the guide's own field, not a number recovered from a component call."""
-        obj = visit.obj
-        children = [dataset('description', f'{type(obj).__name__} guide')]
-        for face in ('left', 'right', 'top', 'bottom'):
-            value = getattr(obj, face, None)
-            if isinstance(value, (int, float)):
-                children.append(dataset(f'm_{face}', float(value)))
-        # a guide built in segments carries a length per segment, not one number
-        from scipp import sum as ssum
-        from ..utilities import is_scalar
-        length = obj.length if is_scalar(obj.length) else ssum(obj.length)
-        children.append(dataset('length', float(length.to(unit='m').value),
-                                attrs={'units': 'm'}))
-        return component_body('NXguide', children)
+    # No @translator(Guide): each guide class writes its own `__nexus_leaf__`, because
+    # what an NXguide needs is the shape of the channel and the m-value of every face
+    # of it, and only the class knows what its channel looks like. The generic one that
+    # used to be here wrote `length` and a scalar `m_left`/`m_right`/`m_top`/`m_bottom`,
+    # none of which is a field NXguide has.
 
     @translator(Aperture)
     def aperture(visit):
@@ -388,8 +386,10 @@ def register_defaults() -> None:
         if not any('y' in edge for edge in edges):
             children.append(dataset('y_gap', float(obj.height.to(unit='m').value), attrs={'units': 'm'}))
 
-        children.extend(context.motor_log(edge, parameter, attrs={'units': 'm'})
-                        for edge, parameter in edges.items())
+        children.extend(
+            context.motor_log(edge, parameter, attrs={'units': 'm','dtype': 'double'})
+            for edge, parameter in edges.items()
+        )
         return component_body('NXaperture', children)
 
     @translator(FrameMonitor)
@@ -427,8 +427,9 @@ def register_defaults() -> None:
             dataset('slits', len(obj.slits())),
             # what a run sets, so the file says where to read it rather than guessing
             context.motor_log('rotation_speed', obj.speed_parameter(),
-                         attrs={'units': 'Hz'}),
-            context.motor_log('delay', obj.delay_parameter(), attrs={'units': 's'}),
+                              attrs={'units': 'Hz', 'dtype': 'double'}),
+            context.motor_log('delay', obj.delay_parameter(),
+                              attrs={'units': 's', 'dtype': 'double'}),
             # the standard's convention, not niess' looser one: positive,
             # increasing, opening edge first, only the last edge past 360
             dataset('slit_edges', obj.nexus_slit_edges(), dtype='double',

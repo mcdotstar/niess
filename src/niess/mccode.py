@@ -11,8 +11,8 @@ from; this is only the machinery that drives it. See `ObjectTranslator` for the 
 
 What the walk supplies, so no translator works it out for itself:
 
-  names   `channel_3_radial_filter_collimator` is the filter's own name under what the
-          channel contributes, not an f-string rebuilt at emission time
+  names   `channel_3_1_monochromator` is the analyzer's own name under what the channel
+          and the arm contribute, not an f-string rebuilt at emission time
   frames  what a component is placed against, threaded down from the mounting
   order   declaration order, which is beam order
 
@@ -39,6 +39,19 @@ class McCodeContext(Context):
     #: Per-visit WHEN clauses, same idea: which channel a neutron was tagged with is
     #: per-particle state, so it is McStas's business and not the tree's.
     whens: dict = field(default_factory=dict)
+    #: Per-visit GROUP names. A McStas GROUP makes its members alternatives -- a neutron
+    #: is offered each in turn until one does not absorb it -- so it spans components
+    #: that are separate objects, and no one of them can name it. Whatever declares them
+    #: says so here, as it says a WHEN.
+    #:
+    #: A component that groups instances *of itself*, as a multi-opening disc does, has
+    #: no need of this: it emits them all and can call GROUP in its own loop.
+    groups: dict = field(default_factory=dict)
+    #: Per-visit EXTEND blocks, the C run after a component accepts a neutron. Same
+    #: reason as the others: what a component contributes is written on the component,
+    #: but what a *composite* wants each of its parts to record about the particle is
+    #: the composite's business, and it is the only thing that knows the index.
+    extends: dict = field(default_factory=dict)
     #: The name emitted at each visit, so a frame can be named as the thing another
     #: component is placed relative to. Names rather than instances because that is what
     #: a placement refers to, and what an Assembler resolves.
@@ -117,10 +130,19 @@ class ComponentTranslator:
         # a component may emit more than one: a disc chopper whose openings are neither
         # identical nor evenly spaced becomes one grouped component per opening
         emitted = instance if isinstance(instance, (list, tuple)) else [instance]
-        when = context.whens.get(visit.id)
-        if when is not None:
-            for one in emitted:
-                one.WHEN(when)
+        # Whatever encloses this component may have something to say about how it is
+        # emitted -- when it applies, what it is an alternative to, what it records --
+        # and says it against this visit. Applied to every instance the component
+        # emitted, because a disc that came apart into one component per opening is
+        # still one thing being gated, grouped or extended.
+        for clause, apply in (
+                (context.whens.get(visit.id), lambda one, v: one.WHEN(v)),
+                (context.groups.get(visit.id), lambda one, v: one.GROUP(v)),
+                (context.extends.get(visit.id), lambda one, v: one.EXTEND(v)),
+        ):
+            if clause is not None:
+                for one in emitted:
+                    apply(one, clause)
         # the first is what anything placed against this node refers to
         context.emitted[visit.id] = emitted[0].name
         return instance

@@ -4,10 +4,6 @@ from niess.utilities import calibration
 from niess.components import He3Monitor
 from niess.components.component import Base
 
-#: How much narrower than the channel spacing each radial slit is cut, as a fraction of
-#: that spacing, so that neutrons on a boundary fall to one channel rather than to both.
-SLIT_BOUNDARY_MARGIN = 1e-6
-
 
 def _no_rotation():
     """No turn at all, as a fresh Variable every time; see :func:`_origin`."""
@@ -49,29 +45,55 @@ def _elastic_monitor_from_params(params):
     return He3Monitor.from_calibration(cal)
 
 
+def _filters_from_params(angles, params) -> tuple:
+    from scipp import scalar, vector, collapse
+    from scipp.spatial import rotations_from_rotvecs
+    from ..components import RadialFilterCollimator
+
+    mm = scalar(1., unit='mm', dtype='float')
+    deg = scalar(1., unit='deg', dtype='float')
+    kelvin = scalar(1., unit='K', dtype='float')
+
+    def one_of(names, otherwise):
+        for name in names:
+            if name in params:
+                return params[name]
+        return otherwise
+
+    fname, rname = 'beryllium_filter', 'radial_collimator'
+    common = {
+        'height': one_of([f'{x}_height' for x in (fname, rname)], 80 * mm),
+        'angle_width': one_of([f'{x}_width' for x in (fname, rname)], 180 * deg),
+        'temperature': one_of([f'{fname}_temperature'], 70 * kelvin),
+        'composition': one_of([f'{fname}_ncrystal_cfg'], 'Be_sg194'),
+    }
+    for key, which in zip(('filter', 'collimator'), (fname, rname)):
+        for radius in ('inner_radius', 'outer_radius'):
+            common[f'{key}_{radius}'] = params.get(f'{which}_{radius}', 0 * mm)
+    # collimation is the size of the entire wedge if not set
+    common['collimation_angle'] = one_of([f'{rname}_collimation'], common['angle_width'])
+
+    # the per-wedge orientation is its rotation about the vertical sample-table axis
+    orientations = rotations_from_rotvecs(angles * vector([0, 1, 0]))
+
+    return tuple(
+        RadialFilterCollimator.from_calibration(
+            {'name': f'wedge_{idx}', 'orientation': orientation} | common
+        )
+        for idx, orientation in enumerate(orientations)
+    )
+
+
 class Tank(Base):
     from scipp import Variable
     from .channel import Channel
+    from ..components.filter import RadialFilterCollimator
     from mccode_antlr.assembler import Assembler
     from mccode_antlr.instr import Instance
 
-    # Declaration order is emission order: to_mccode emits the radial slits, then the
-    # elastic monitor, then the channels. The walk rewrite derives emission order from
-    # the child protocol, so a composite whose fields are declared in a different order
-    # from the one it emits in would need an event API rich enough to interleave its own
-    # emissions between groups of children -- permanent API surface to preserve one
-    # accident. Cheaper to make the declaration honest.
-    #
-    # The slits themselves have no field yet; they become a component object of their
-    # own when the McStas-only artefacts move onto the McStas translator, and they go
-    # first when they do.
+    filters: tuple[RadialFilterCollimator, ...]
     monitor: He3Monitor
     channels: tuple[Channel, ...]
-
-    # -- the radial slit geometry ---------------------------------------------
-    # What the emitted Slit_radial_multi is built from. It used to be worked out inside
-    # to_mccode, which meant the tank reached into every channel's coverage at emission
-    # time and no other target could see the result.
 
     @property
     def channel_angles(self) -> list[float]:
@@ -83,17 +105,12 @@ class Tank(Base):
     def monitor_angle(self) -> float:
         """Where the elastic (Bragg peak) monitor sits, in radians.
 
-        It is outside the slits and gets a slit of its own, added last -- which is what
-        lets the emitted WHEN clause identify it by index.
+        Outside the angles the wedges span, which is what lets it close their GROUP
+        without competing with any of them for a neutron.
         """
         from scipp import atan2
         at = self.monitor.position - _origin().to(unit=self.monitor.position.unit)
         return atan2(y=at.fields.x, x=at.fields.z).to(unit='radian').value
-
-    @property
-    def slit_angles(self) -> list[float]:
-        """Every radial slit opening, in radians: one per channel, then the monitor."""
-        return [*self.channel_angles, self.monitor_angle]
 
     @property
     def channel_spacing(self) -> float:
@@ -101,60 +118,20 @@ class Tank(Base):
 
         The smallest rather than the nominal one: the nine channels are laid out on a
         uniform grid by default, but a calibration is free to supply its own angles and
-        the slits must not overlap for any of them.
+        the wedges must not overlap for any of them.
         """
         angles = sorted(self.channel_angles)
         if len(angles) < 2:
             raise ValueError(
                 'a tank with fewer than two channels has no channel spacing; give the '
-                'slits an explicit width instead'
+                'wedges an explicit width instead'
             )
         return min(b - a for a, b in zip(angles, angles[1:]))
-
-    @property
-    def slit_radius(self):
-        """How far from the sample the radial slits sit.
-
-        The default for the drivable ``slitDistance``, not a fixed dimension: the slits
-        exist to be scanned, and this is only where they start. 0.4 m is the value the
-        instrument was previously compiled and run with.
-
-        It clears everything further out, which is what it has to do: the radial
-        collimators begin at 0.5 m, the elastic monitor is at 0.8 m and the nearest
-        analyzer at 1.19 m.
-        """
-        from scipp import scalar
-        return scalar(0.4, unit='m')
-
-    @property
-    def slit_width(self) -> float:
-        """The angular width shared by every radial slit, in radians.
-
-        The radial slits are not an aperture -- they are how a neutron leaving the
-        sample gets tagged with the channel it entered. Slit_radial_multi accepts a
-        neutron within ``slit_width/2`` of a slit angle and reports which one, and the
-        emitted EXTEND turns that index into ``secondary_cassette``, which every
-        channel's components are then gated on.
-
-        So the only real constraints are that a slit be wide enough not to clip its
-        channel's analyzer, and narrow enough not to reach its neighbour. The channel
-        spacing gives both at once, and it is what the layout actually guarantees --
-        where deriving the width from the analyzer's angular coverage did not: that
-        route reached into every channel's blades to recover a number the geometry
-        already fixes, and it went through the analyzer's *vertical* extent to get
-        there, which only worked because doubling it happened to land below the
-        spacing.
-
-        The margin exists so a neutron arriving exactly on a boundary is not claimed by
-        both neighbours. It only has to beat floating-point noise, so it is far too
-        small to lose anything real -- at a 10-degree spacing it is a hundred-thousandth
-        of a degree.
-        """
-        return self.channel_spacing * (1 - SLIT_BOUNDARY_MARGIN)
 
     @classmethod
     def from_dict(cls, data):
         from .channel import Channel
+        from ..components.filter import RadialFilterCollimator as Filter
         cs = data['channels']
         if not hasattr(cs, '__len__'):
             raise ValueError('Channels must have length (probably 9)')
@@ -162,7 +139,11 @@ class Tank(Base):
         mn = data['monitor']
         if not isinstance(mn, He3Monitor):
             mn = He3Monitor.from_dict(mn)
-        return cls(monitor=mn, channels=cs)
+        fl = data['filters']
+        if not hasattr(fl, '__len__') or len(fl) != len(cs):
+            raise ValueError('Filters must have length equal to the number of channels')
+        fl = tuple(f if isinstance(f, Filter) else Filter.from_dict(f) for f in fl)
+        return cls(filters=fl, monitor=mn, channels=cs)
 
     @staticmethod
     @calibration
@@ -184,6 +165,7 @@ class Tank(Base):
         """
         from scipp import arange, linspace
         from .channel import Channel
+        from ..components.filter import RadialFilterCollimator as Filter
         from .parameters import known_channel_params
         from niess.utilities import variant_parameters
         params = cal.get('channels', known_channel_params())
@@ -202,7 +184,8 @@ class Tank(Base):
             val.update(variant_parameters(val, params))
 
         channels = [Channel.from_calibration(angles[i], **channel_params[i]) for i in range(9)]
-        return Tank(monitor=_elastic_monitor_from_params(cal),
+        return Tank(filters=_filters_from_params(angles, params),
+                    monitor=_elastic_monitor_from_params(cal),
                     channels=tuple(channels))
 
     @staticmethod
@@ -218,7 +201,8 @@ class Tank(Base):
                             array(values=[-40, -30, -20, -10, 0, 10, 20, 30, 40.], unit='degree', dims=['channel']))
 
         channels = [Channel.from_calibration(angles[i], **channel_params[i]) for i in range(3)]
-        return Tank(monitor=_elastic_monitor_from_params(params),
+        return Tank(filters=_filters_from_params(angles[:3], params),
+                    monitor=_elastic_monitor_from_params(params),
                     channels=tuple(channels))
 
     def to_secondary(self, **params):
@@ -273,18 +257,28 @@ class Tank(Base):
         return [concat(q, dim='channel') for q in zip(*[c.rtp_parameters(sample) for c in self.channels])]
 
     def __mccode_enter__(self, visit):
-        """Only the monitor's gate; the slits emit themselves.
+        """The cassette tag, written by whichever wedge a neutron scatters in.
 
-        The elastic monitor has an opening of its own, added last, so the tag it waits
-        for is the count of them.
+        The wedges and the monitor share one GROUP, so a neutron takes exactly one of
+        them; each EXTEND records which. The monitor goes last and so carries the
+        index after the wedges', and closes the group.
         """
         # TODO after mccode-antlr is fully demoted, insert the tank in its own .instr
         # assembler = visit.context.assembler
-        # visit.context.whens[f'{visit.id}/monitor'] = \
-        #     f'secondary_cassette == {len(self.slit_angles)}'
         # return visit.context.push(assembler.included(f'{assembler.name}_tank'))
-        visit.context.whens[f'{visit.id}/monitor'] = \
-            f'secondary_cassette == {len(self.slit_angles)}'
+
+        for declaration in ('int secondary_cassette;',):
+            visit.context.assembler.ensure_user_var(declaration)
+
+        def extend(n: int):
+            return f"""if (SCATTERED) secondary_cassette = {n + 1};"""
+
+        for i, w in enumerate(self.filters):
+            visit.context.extends[f'{visit.id}/filter[{i}]'] = extend(i)
+            visit.context.groups[f'{visit.id}/filter[{i}]'] = 'filters_monitor'
+
+        visit.context.extends[f'{visit.id}/monitor'] = extend(len(self.filters))
+        visit.context.groups[f'{visit.id}/monitor'] = 'filters_monitor'
         return None
 
     # TODO matching context-escape needed for eventual tank-section output
@@ -307,9 +301,20 @@ class Tank(Base):
             flat: bool = True,
             **kwargs
     ):
-        # The slits emit themselves, along with the run-time knobs, the array of
-        # angles and the per-particle variable every channel below is gated on.
-        self.slit_bank().to_mccode(assembler, at=sample, rotate=sample)
+        uservar = "secondary_cassette"
+        group = "filters_monitor"
+        def set_channel(n: int):
+            return f"""if (SCATTERED) {uservar} = {n + 1};"""
+
+        def is_channel(n: int):
+            return f'{n + 1} == {uservar}'
+
+        assembler.ensure_user_var(f'int {uservar};')
+
+        for index, wedge in enumerate(self.filters):
+            obj = wedge.to_mccode(assembler, at=sample, rotate=sample, **kwargs)
+            obj.EXTEND(set_channel(index))
+            obj.GROUP(group)
 
         # Insert the Bragg Peak elastic monitor -- it is outside the slits.
         # Rotated relative to `sample` as well as positioned there: `sample` is the
@@ -317,37 +322,21 @@ class Tank(Base):
         # monitor turns with the tank. Left to default, the rotation would be
         # ABSOLUTE and the monitor would stay put as the tank rotated around it.
         mon = self.monitor.to_mccode(assembler, at=sample, rotate=sample)
-        # The slit for this monitor was added last, so it _is_ the last one
-        mon.WHEN(f"secondary_cassette == {len(self.slit_angles)}")
+        mon.EXTEND(set_channel(len(self.filters)))
+        mon.GROUP(group)
 
         for index, channel in enumerate(self.channels):
             name = f"channel_{1 + index}"
-            when = f"{1 + index} == secondary_cassette"
-            channel.to_mccode(assembler, sample, name=name, when=when, settings=settings, flat=flat, **kwargs)
-
-    def slit_bank(self):
-        """The radial slits, as the aperture they are.
-
-        Derived rather than stored: every number in it comes from where the channels
-        are, so a calibration that moves a channel moves the slit that tags it.
-        """
-        from scipp import array, scalar
-        from ..components.slitbank import RadialSlitBank
-        return RadialSlitBank(
-            name='slits',
-            stem='slit',   # the knobs are slitAngle and slitDistance
-            position=_origin(),
-            orientation=_no_rotation(),
-            angles=array(values=self.slit_angles, dims=['slit'], unit='radian'),
-            width=scalar(self.slit_width, unit='radian'),
-            radius=self.slit_radius,
-            height=scalar(0.2, unit='m'),
-        )
+            channel.to_mccode(assembler, sample, name=name, when=is_channel(index), settings=settings, flat=flat, **kwargs)
 
     def __niess_children__(self):
-        """The slits, then the monitor, then the channels -- which is emission order."""
-        return (('slits', self.slit_bank()), ('monitor', self.monitor),
-                *((f'channels[{i}]', c) for i, c in enumerate(self.channels)))
+        """The filters, then the monitor, then the channels -- i.e., emission order"""
+        return (
+            tuple((f'filter[{i}]', f) for i, f in enumerate(self.filters))
+            +(('monitor', self.monitor),)
+            + tuple((f'channels[{i}]', c) for i, c in enumerate(self.channels))
+        )
+
 
     def __niess_flow__(self, graph, path):
         """Ten paths leave the sample: nine channels and the elastic monitor.
@@ -356,22 +345,30 @@ class Tank(Base):
         it can express is declaration order, and a neutron leaving the sample here takes
         exactly one of ten branches. NeXus can say it, through each group's `inputs` and
         `outputs`, which is why it is worth knowing.
-
-        The radial slits are what choose, so they are where the branches start: the
-        emitted component tags a neutron with a channel, or with the monitor's own
-        opening, and everything downstream is gated on that tag.
         """
-        (slit_label, slits), *rest = self.__niess_children__()
-        entries, exits = slits.__niess_flow__(graph, path + (slit_label,))
-        out: tuple[str, ...] = ()
-        for label, child in rest:
-            child_entries, child_exits = child.__niess_flow__(graph, path + (label,))
-            for source in exits:
-                for target in child_entries:
-                    graph.add_edge(source, target)
-            out = out + child_exits
-        return entries, out
+        children = self.__niess_children__()
+        filters = children[:len(self.filters)]
+        monitor_label, monitor = children[len(filters)]
+        channels = children[len(filters)+1:]
 
+        # Every node has to be registered by the child that owns it: returning a path
+        # the tank built itself leaves the node absent unless a parent happens to draw
+        # an edge to it, which is why the tank alone used to graph as nine disconnected
+        # channels with no monitor in them at all.
+        monitor_entries, exits = monitor.__niess_flow__(graph, path + (monitor_label,))
+
+        # Each filter-channel pair is (sample -- filter -- {channel})
+        entries = monitor_entries
+        for (wedge_label, wedge), (channel_label, channel) in zip(filters, channels):
+            wedge_entries, wedge_exits = wedge.__niess_flow__(graph, path + (wedge_label,))
+            channel_entries, channel_exits = channel.__niess_flow__(graph, path + (channel_label,))
+            for source in wedge_exits:
+                for target in channel_entries:
+                    graph.add_edge(source, target)
+            entries = entries + wedge_entries
+            exits = exits + channel_exits
+
+        return entries, exits
 
     def efu_calibration(self):
         """Build the serializable representation of the EFU calibration data needed

@@ -28,11 +28,19 @@ from mccode_antlr.instr import Instance
 NIESS_PROVENANCE_METADATA_NAMESPACE = 'niess.provenance'
 NIESS_PROVENANCE_METADATA_NAME = 'niess_provenance'
 NIESS_PROVENANCE_METADATA_MIMETYPE = 'application/json'
-NIESS_PROVENANCE_METADATA_SCHEMA_VERSION = 2
+NIESS_PROVENANCE_METADATA_SCHEMA_VERSION = 3
 
 #: Schema 1 spelled these for NeXus, which was never the only reader: chopcalc and tof
 #: dispatch on them too, and neither has anything to do with NeXus. Schema 2 says what
 #: they are. A file written by an older niess is still read.
+#:
+#: Schema 3 stopped writing `source_name`. Every writer passed the same string it had
+#: just given `assembler.component`, and `Instance` stores that name verbatim --
+#: `add_component` raises on a collision rather than renaming around it -- so the field
+#: could only ever repeat `instance.name`, which the block is attached to anyway. Two
+#: copies of one name is a thing that can disagree, and the copy in the metadata is the
+#: one that would look authoritative when it did. Read back off the instance now; a file
+#: that still carries the field is taken at its word.
 _RENAMED_IN_SCHEMA_2 = {
     'nexus_group_id': 'disc_group_id',
     'nexus_group_index': 'disc_group_index',
@@ -48,6 +56,8 @@ class NiessProvenance:
     namespace: str
     schema_version: int
     source_type: str
+    #: The emitted instance's name. Read off the instance rather than the payload since
+    #: schema 3, which stopped writing a second copy of it.
     source_name: str
     role: str
     extra: dict[str, Any]
@@ -66,7 +76,7 @@ class NiessProvenance:
             namespace=payload['namespace'],
             schema_version=payload['schema_version'],
             source_type=payload['source_type'],
-            source_name=payload['source_name'],
+            source_name=payload.get('source_name', instance.name),
             role=_RENAMED_ROLES.get(role, role),
             extra=extra,
         )
@@ -80,7 +90,6 @@ def niess_source_type(source: type | Any) -> str:
 def niess_metadata_payload(
         *,
         source_type: str,
-        source_name: str,
         role: str = 'physical-component',
         extra: dict[str, Any] | None = None,
 ):
@@ -88,7 +97,6 @@ def niess_metadata_payload(
         'namespace': NIESS_PROVENANCE_METADATA_NAMESPACE,
         'schema_version': NIESS_PROVENANCE_METADATA_SCHEMA_VERSION,
         'source_type': source_type,
-        'source_name': source_name,
         'role': role,
         'extra': {} if extra is None else extra,
     }
@@ -99,7 +107,6 @@ def add_niess_metadata(
         source: Any | None = None,
         *,
         source_type: str | None = None,
-        source_name: str | None = None,
         role: str = 'physical-component',
         extra: dict[str, Any] | None = None,
 ):
@@ -107,7 +114,6 @@ def add_niess_metadata(
 
     if source is not None:
         source_type = niess_source_type(source)
-        source_name = getattr(source, 'name', None) if source_name is None else source_name
         # Recorded here rather than by each caller: a component whose emitted frame is
         # turned relative to its own is the one thing an adapter reading the instrument
         # back cannot work out for itself, and there are two emission paths that would
@@ -123,12 +129,11 @@ def add_niess_metadata(
         if displacement is not None and any(abs(v) > 0 for v in displacement):
             extra = dict(extra or {}) | {'mccode_frame_offset': displacement}
 
-    if source_type is None or source_name is None:
-        raise ValueError('Both source_type and source_name must be defined')
+    if source_type is None:
+        raise ValueError('source_type must be defined')
 
     payload = niess_metadata_payload(
         source_type=source_type,
-        source_name=source_name,
         role=role,
         extra=extra,
     )

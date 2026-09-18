@@ -22,7 +22,7 @@ def test_to_mccode_adds_niess_metadata():
     from mccode_antlr import Flavor
     from mccode_antlr.assembler import Assembler
     from niess.components import StraightGuide
-    from niess.provenance import read_niess_metadata
+    from niess.provenance import NiessProvenance, read_niess_metadata
 
     guide = StraightGuide(
         name='g1',
@@ -42,9 +42,13 @@ def test_to_mccode_adds_niess_metadata():
     payload = read_niess_metadata(instance)
 
     assert payload is not None
-    assert payload['source_name'] == 'g1'
     assert payload['source_type'].endswith('StraightGuide')
     assert payload['role'] == 'physical-component'
+    # the name is not in the payload since schema 3 -- the block hangs off the instance
+    # that carries it, so a second copy could only ever repeat what is already there
+    assert 'source_name' not in payload
+    assert instance.name == 'g1'
+    assert NiessProvenance.from_instance(instance).source_name == 'g1'
 
 
 def test_a_guide_is_drawn_around_its_own_substrate():
