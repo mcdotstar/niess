@@ -23,6 +23,11 @@ def groups(structure):
             if c.get('type') == 'group']
 
 
+def beam_groups(structure):
+    """The emitted components, without the instrument's own furniture."""
+    return [n for n in groups(structure) if n != 'neutron_prod_info']
+
+
 def value(node, name):
     return find_child(node, name)['config']['values']
 
@@ -70,14 +75,17 @@ def test_each_component_gets_the_class_it_should(teaching):
     """
     assert [(name, get_attribute(find_child(instrument_group(
         to_nexus_structure(teaching)), name), 'NX_class'))
-        for name in groups(to_nexus_structure(teaching))] == [
+        for name in groups(to_nexus_structure(teaching))
+        # not a component of the beam: it records the pulse reference times every
+        # other timestamp in the file is measured against
+        if name != 'neutron_prod_info'] == [
         ('source', 'NXmoderator'),
         ('unit_1', 'NXguide'),
         ('unit_2', 'NXguide'),
         ('chopper', 'NXdisk_chopper'),
         ('jaw', 'NXaperture'),
         ('monitor', 'NXmonitor'),
-        ('sample_origin', 'NXcoordinate_system'),
+        ('sample_origin', 'NXcomponent'),
     ]
 
 
@@ -93,13 +101,12 @@ def test_a_multi_opening_disc_is_one_disc(multi_opening):
     """
     structure = to_nexus_structure(
         Instrument(name='chopped', parts=(Mount(name='s', content=multi_opening),)))
-    assert groups(structure) == ['pack']
+    assert beam_groups(structure) == ['pack']
 
     disc = find_child(instrument_group(structure), 'pack')
     assert get_attribute(disc, 'NX_class') == 'NXdisk_chopper'
     assert value(disc, 'slits') == 3
     assert value(disc, 'slit_edges') == [10., 30., 100., 140., 350., 370.]
-    assert value(disc, 'zero_position') == 15.0
     assert value(disc, 'beam_position') == 90.0
 
 
@@ -150,7 +157,9 @@ def test_an_identity_placement_still_says_what_it_hangs_from():
               relative_to='sample_origin', rotation=(0, a4, 0)),
     ))
     group = instrument_group(to_nexus_structure(instrument, registry=BIFROST_REGISTRY))
-    mounting = '/entry/instrument/tank_mounting/transformations/rotation_y'
+    # A motorised mounting is a positioner beside the frame, not a transformation
+    # inside it, so what everything below the tank hangs from is its `value` log.
+    mounting = '/entry/instrument/tank_mounting_a4/value'
 
     # wedge_4 is the one at zero degrees, and channel_5_arm is its cassette
     for name in ('wedge_4', 'channel_5_arm'):
@@ -249,12 +258,13 @@ def test_bifrost_converts(bifrost):
     counted = classes(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
     assert counted['NXcrystal'] == 45      # one per arm, not one per blade
     assert counted['NXdetector'] == 45     # one per arm, not one per tube
+    assert counted['NXsource'] == 1          # neutron_prod_info, the pulse reference
     assert counted['NXguide'] == 119
     assert counted['NXdisk_chopper'] == 6
     # no NXslit: the radial slit bank is a simulation device, not an aperture, and is
     # deliberately not written -- see `test_the_radial_slit_bank_is_not_written`
     assert 'NXslit' not in counted
-    assert sum(counted.values()) == 357    # one group per emitted component
+    assert sum(counted.values()) == 358    # one per emitted component, plus the source
 
 
 def test_the_tree_classifies_what_an_emitted_instrument_could_not(bifrost):
@@ -340,9 +350,10 @@ def test_every_declared_migration_is_still_doing_something(bifrost):
 def test_every_log_says_where_its_values_come_from(bifrost):
     """An NXlog with no source is a promise the file cannot keep.
 
-    Either it carries a stream that fills it -- `f144` for a value a run drives -- or it
-    links to datasets in a log something else fills. A group with neither is an empty
-    log that reads as though data were coming.
+    Either it carries a stream that fills it -- `f144` for a value a run drives, `tdct`
+    for a chopper's top-dead-centre timestamps -- or it links to datasets in a log
+    something else fills. A group with neither is an empty log that reads as though data
+    were coming.
     """
     from .baseline import _walk_nodes, nexus_structures
 
@@ -354,24 +365,8 @@ def test_every_log_says_where_its_values_come_from(bifrost):
                 continue
             modules = {c.get('module') for c in (node.get('children') or [])}
             assert modules, f'{name}: {node.get("name")} is an NXlog with no children'
-            assert modules <= {'f144', 'link'}, \
+            assert modules <= {'f144', 'tdct', 'link'}, \
                 f'{name}: {node.get("name")} fills itself with {modules}'
-
-
-def test_a_disc_writes_the_field_name_the_format_asks_for(bifrost):
-    """`zero_position`, not `top_dead_center`.
-
-    A calibration may still be *given* `top_dead_center` -- that is an input alias for
-    `zero_angle` and `test_the_nexus_names_are_accepted` covers it. This is the written
-    field, and the two are deliberately allowed to differ.
-    """
-    from .baseline import _walk_nodes, nexus_structures
-
-    for name, structure in nexus_structures().items():
-        for node in _walk_nodes(structure):
-            config = node.get('config') or {}
-            assert config.get('name') != 'top_dead_center', \
-                f'{name}: a disc still writes top_dead_center'
 
 
 def test_no_dataset_still_carries_the_deprecated_key(bifrost):
@@ -400,20 +395,27 @@ def test_a_knob_is_a_link_not_a_number(teaching):
     """
     structure = to_nexus_structure(teaching)
     chopper = find_child(instrument_group(structure), 'chopper')
-    for field in ('rotation_speed', 'delay'):
+    # `mark_delay`, not `delay`: ESS `delay` is the controller's total electronic delay
+    # in nanoseconds, and the McStas one is when the disc's mark reaches the beam, in
+    # seconds. Writing the second under the first's name would be read as the first.
+    for field in ('rotation_speed', 'mark_delay'):
         linked = find_child(chopper, field)
         assert get_attribute(linked, 'NX_class') == 'NXlog', field
         assert linked['children'], f'{field} links nothing'
 
 
-def test_a_driven_edge_is_a_link(teaching):
+def test_a_driven_edge_is_a_positioner(teaching):
     """A jaw's edges are knobs; a plain aperture's opening is not."""
     structure = to_nexus_structure(teaching)
     jaw = find_child(instrument_group(structure), 'jaw')
-    assert get_attribute(find_child(jaw, 'left'), 'NX_class') == 'NXlog'
-    assert get_attribute(find_child(jaw, 'right'), 'NX_class') == 'NXlog'
-    # its height is fixed, so it stays a number
-    assert find_child(jaw, 'y_gap')['config']['values'] > 0
+    for edge in ('left', 'right'):
+        driven = find_child(jaw, edge)
+        assert get_attribute(driven, 'NX_class') == 'NXpositioner', edge
+        assert get_attribute(find_child(driven, 'value'), 'NX_class') == 'NXlog', edge
+    # Only the driven edges are recorded. `x_gap`/`y_gap` are `NXslit` fields and this is
+    # an `NXaperture`, so the jaw's fixed height is deliberately not in the file -- see
+    # the note in `niess.components.slitbank`.
+    assert find_child(jaw, 'y_gap') is None
 
 
 def test_a_monitor_carries_its_stream(teaching):

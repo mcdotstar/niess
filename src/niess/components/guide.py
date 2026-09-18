@@ -69,7 +69,15 @@ class Guide(Component):
         off = self.__off__()
         children = [dataset('description', type(self).__name__)]
         children.append(dataset('m_value', self.__m_values__(segments),
-                                dtype='double', attrs={'units': 'dimensionless'}))
+                                dtype='double',
+                                # TODO resolve whether units should be provided for
+                                #      m-values.
+                                #      - ess-nexus-compiler flags units on datasets
+                                #        which do not explicitly name units=NX_{type}
+                                #      - scipp/chexus may still complain about missing
+                                #        units
+                                # attrs={'units': '1'}
+                                ))
         if off is not None:
             children.append(off.to_nexus(geometry_name))
         return component_body('NXguide', children=children)

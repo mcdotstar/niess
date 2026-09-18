@@ -157,7 +157,6 @@ def test_a_disc_writes_its_openings_to_nexus_in_the_mark_frame():
     found = {(ch.get('config') or {}).get('name'): (ch.get('config') or {}).get('values')
              for ch in body['children']}
     assert found['slit_edges'] == [95.0, 265.0]
-    assert found['zero_position'] == 0.0
     assert found['beam_position'] == 180.0
     assert found['slit_angle'] == 170.0
 
@@ -325,7 +324,9 @@ def test_nexus_records_the_discs_own_orientation():
     assert nexus_rotations(body) == []
     found = {(ch.get('config') or {}).get('name'): (ch.get('config') or {}).get('values')
              for ch in body['children']}
-    assert found['zero_position'] == 30.0
+    # The zero angle itself is not a field: `NXdisk_chopper` measures `slit_edges` from
+    # the mark, so the mark is the origin of the frame rather than a number in it. What
+    # records the orientation is that these edges are 30 degrees off the emitted ones.
     assert found['beam_position'] == 75.0
     assert found['slit_edges'] == [65.0, 85.0]
 
@@ -375,8 +376,9 @@ def test_the_derived_offset_follows_an_edited_radius():
 def test_the_nexus_names_are_accepted():
     """A calibration may name these as NXdisk_chopper does.
 
-    About the input, not the output: the written field is `zero_position` now. If those
-    two are meant to agree, this is one of the places that says so.
+    About the input, not the output. `top_dead_center` is written too, but as the `tdct`
+    log saying when the mark passes -- not as this angle, which the file records only by
+    measuring `slit_edges` from it.
     """
     disc = DiscChopper.from_calibration(calibration(
         top_dead_center=scalar(30.0, unit='deg'),

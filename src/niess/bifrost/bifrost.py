@@ -12,14 +12,20 @@ def instrument(params: dict):
     sample = params.pop('sample', None)
     a3_source = params.pop('a3_source', 'a3')
     a4_source = params.pop('a4_source', 'a4')
+    # The real positioners, when there are any. Absent, a3 and a4 are simulation knobs
+    # and a real conversion says so rather than inventing PVs for them.
+    a3_pv_root = params.pop('a3_pv_root', None)
+    a4_pv_root = params.pop('a4_pv_root', None)
     origin = params.pop('origin', 'sample_origin')
     motor_topic = params.get('motor_topic', 'bifrost_motors')
 
     primary = Primary.from_calibration(**params)
     tank = Tank.from_calibration(**params)
 
-    a3 = Motor(name='a3', unit='degree', source=a3_source, topic=motor_topic, default=0.0)
-    a4 = Motor(name='a4', unit='degree', source=a4_source, topic=motor_topic, default=0.0)
+    a3 = Motor(name='a3', unit='degree', source=a3_source, topic=motor_topic,
+               default=0.0, pv_root=a3_pv_root)
+    a4 = Motor(name='a4', unit='degree', source=a4_source, topic=motor_topic,
+               default=0.0, pv_root=a4_pv_root)
 
     if sample is None:
         sample = Component(

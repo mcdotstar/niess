@@ -77,9 +77,11 @@ putting it back together afterwards took metadata tags that three separate targe
 up reading. Converting the tree, the disc is a disc.
 
 Reading the tree also classifies more. A window with nothing to say emits as a McStas
-`Arm`; an instrument-reading converter sees an `Arm` and files it under
-`NXcoordinate_system`, while the tree says `Filter`. For BIFROST that is 22 windows and
-9 collimators that are now what they are.
+`Arm`; an instrument-reading converter sees an `Arm` and files it under a generic
+placeholder class, while the tree says `Filter`. For BIFROST that is 22 windows and
+9 collimators that are now what they are. What is left over — a declared frame, a sample
+position — is written as `NXcomponent`, the base every instrument component extends, with
+a `description` saying it is a reference frame.
 
 ### What the walk gives a translator
 

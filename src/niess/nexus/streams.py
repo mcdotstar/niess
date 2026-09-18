@@ -6,7 +6,9 @@ object model there is nothing to smuggle them through.
 """
 from __future__ import annotations
 
-from .nodes import group, stream
+from typing import Any
+
+from .nodes import dataset, group, stream
 
 # Datasets an f144 module writes into its NXlog, which a link module can mirror.
 # The commented entries trip a NeXus library failure in kafka-to-nexus.
@@ -42,42 +44,161 @@ def linked_nxlog(name: str, source: str, attrs: dict | None = None) -> dict:
     return group(name, 'NXlog', children=nxlog_data_links(source), attrs=attrs)
 
 
-def motor_group(name: str, source: str, topic: str, attrs: dict | None = None, default: Any = None) -> dict:
-    """A NXlog group constructed to hold a NXpositioner value or NXtransformations entry
+def f144_log(name: str, source: str, topic: str, units: str, dtype: str,
+             attrs: dict[str, Any] | None = None) -> dict:
+    """One NXlog filled by an f144 stream.
 
-    The group has a list of attributes including the NX_class, depends_on,
-    transformation_type, and vector,
-    while its children consists only of the stream definition module, which specifies
-    the units of the logged value in two ways
+    The units are written twice on purpose and neither is redundant. ``value_units`` is
+    the transport contract: it is a key the ESS f144 config schema requires, and a config
+    carrying only ``unit`` -- which is not a key that schema declares at all -- is
+    rejected. The ``units`` attribute *on the module* is what a reader resolving a
+    transformation chain looks at first. Both are written from one already-cleaned
+    string, so they cannot disagree; cleaning only one of them is how a silently wrong
+    unit becomes a loudly conflicting one.
 
-    {'name':..., 'type':'group', 'attributes':[
-            {'name':'NX_class', 'values':'NXlog', 'dtype':'string'},
-            {'name':'depends_on', 'values':..., 'dtype':'string'},
-            {'name':'transformation_type', 'values':..., 'dtype':'string'},
-            {'name':'vector', 'values':[...], 'dtype':'float'}
-        ],
-        'children':[{
-            'module':'f144',
-            'config':{'dtype':..., 'source':..., 'topic':..., 'value_units'=...},
-            'attributes':{'name':'units', 'values:..., 'dtype':'string'}
-        }]
-    }
+    Nothing goes on the group. A transformation's units belong to its values, and its
+    values live in the module.
     """
-    dtype = (attrs or {}).pop('dtype', None)
-    if dtype is None and default is not None:
+    return group(name, nx_class='NXlog', attrs=attrs, children=[stream(
+        'f144',
+        {'source': source, 'topic': topic, 'dtype': dtype, 'value_units': units},
+        {'units': units} if units else None,
+    )])
+
+
+def motor_group(name: str, source: str, topic: str, attrs: dict[str, Any] | None = None,
+                default=None, units: str | None = None,
+                dtype: str | None = None) -> dict:
+    """An NXlog for a streamed value, taking its units and dtype out of ``attrs``.
+
+    Takes them out without mutating: this used to ``pop`` them off the caller's dict, so
+    a caller reusing one dict across two axes silently lost the units on the second.
+    """
+    attrs = dict(attrs or {})
+    units = attrs.pop('units', units)
+    dtype = attrs.pop('dtype', dtype)
+    if dtype is None:
+        # Never None in the emitted config: dtype is a required f144 key, and a null
+        # one is rejected outright rather than defaulted by the reader.
         from .nodes import convert_type
-        dtype, _ = convert_type(default)
-    units = (attrs or {}).pop('units', None)
-    return group(
-        name,
-        nx_class='NXlog',
-        children=[stream(
-            'f144',
-            {'source': source, 'topic': topic, 'unit': units, 'dtype': dtype},
-            {'units': units}
-        )],
-        attrs=attrs,
-    )
+        dtype = convert_type(default)[0] if default is not None else 'double'
+    return f144_log(name, source, topic, units or '', dtype, attrs or None)
+
+
+def tdct_log(name: str, source: str, topic: str,
+             attrs: dict[str, Any] | None = None) -> dict:
+    """One NXlog filled by a `tdct` stream of top-dead-centre timestamps.
+
+    Unlike `f144`, a `tdct` config carries no dtype and no units: the schema is a name
+    and a vector of absolute nanoseconds, and there is nothing else to say about it. The
+    wrapper carries ``default="time"`` because the timestamps *are* the data -- a reader
+    opening the group wants the time axis, not a value axis.
+    """
+    attributes = dict(attrs or {})
+    attributes.setdefault('default', 'time')
+    return group(name, nx_class='NXlog', attrs=attributes,
+                 children=[stream('tdct', {'source': source, 'topic': topic})])
+
+
+#: The ESS canonical NXdisk_chopper: eight logs, in this order. `top_dead_center` is
+#: third, not first, and the order is compared exactly -- a group that carries all eight
+#: in another order is reported just as loudly as one that is missing some.
+#:
+#: The second element of each entry is the PV suffix the ESS chopper controller serves
+#: that quantity on. `top_dead_center` is the odd one out twice over: it is a `tdct`
+#: stream rather than `f144`, and its suffix is per-chopper rather than fixed, so it
+#: comes from the disc instead of from here.
+CHOPPER_LOGS = (
+    ('rotation_speed', ':Spd_R', 'Hz'),
+    ('rotation_speed_setpoint', ':Spd_S', 'Hz'),
+    ('top_dead_center', None, None),
+    ('delay', ':TotDly', 'ns'),
+    ('experiment_delay', ':ChopDly-S', 'ns'),
+    ('mechanical_delay', ':MechDly-S', 'degrees'),
+    ('pulse_delay', ':BeamPosDly-S', 'ns'),
+    ('park_angle', ':Pos_R', 'degrees'),
+)
+
+
+#: The ESS canonical NXpositioner: three logs, in this order. `value` is what the axis
+#: reads, `target_value` what it was told, `idle_flag` whether it got there.
+POSITIONER_LOGS = ('value', 'target_value', 'idle_flag')
+
+
+def chopper_logs(disc, binding) -> list[dict]:
+    """The NXlog children of one disc's NXdisk_chopper.
+
+    Real: all eight canonical logs, sourced off the disc's controller. `top_dead_center`
+    is a `tdct` stream on the disc's own TDC channel; the rest are `f144` on fixed
+    suffixes. Getting all eight right is what lets the validator recover the PV root at
+    all -- it infers the root from the TDC source, so a group without one cannot even be
+    offered an automatic fix.
+
+    Simulated: only the logs a simulation can honestly fill. There is no setpoint
+    distinct from the value, no electronics to delay anything, and the numbers a
+    simulation does have are its own parameter names rather than PVs. What it can say is
+    how fast the disc turns, when the mark passes, and -- when parked -- where it
+    stopped.
+
+    The McStas delay is deliberately *not* written as `delay`. ESS `delay` is
+    `{root}:TotDly`, the chopper's total electronic delay in nanoseconds; the McStas one
+    is when the disc's zero mark reaches the beam, in seconds. Writing the second under
+    the first's name would be read as the first by everything downstream, so a simulated
+    file records it as `mark_delay` instead -- an unexpected log the layout check will
+    mention, which is the honest cost of not lying.
+    """
+    topic = binding.topic
+    if not binding.canonical:
+        return [
+            f144_log('rotation_speed', disc.speed_parameter(), topic, 'Hz', 'double'),
+            tdct_log('top_dead_center', f'{disc.name}_tdc', topic),
+            f144_log('mark_delay', disc.delay_parameter(), topic, 's', 'double'),
+            f144_log('park_angle', disc.park_parameter(), topic, 'degrees', 'double'),
+        ]
+
+    root = binding.pv_root
+    logs = []
+    for name, suffix, units in CHOPPER_LOGS:
+        if suffix is None:
+            logs.append(tdct_log(name, f'{root}:{binding.tdc_channel}', topic))
+        else:
+            logs.append(f144_log(name, f'{root}{suffix}', topic, units, 'double'))
+    return logs
+
+
+def positioner_group(binding, name: str, depends_on: str = '.',
+                     transform: dict[str, Any] | None = None) -> dict:
+    """An NXpositioner for one driven axis.
+
+    Real: the three canonical logs, sourced ``{pv_root}.RBV``, ``.VAL`` and ``.DMOV``.
+    Simulated: ``value`` alone, because a simulation has no setpoint and no done flag --
+    the parameter *is* the position. The group is the same shape either way, so nothing
+    reading the file has to know which kind of run produced it.
+
+    ``transform``, when given, is the transformation attributes the ``value`` log
+    carries: the ESS pattern where a positioner's reading *is* the transformation,
+    rather than a separate transformation copying it and becoming the number everyone
+    trusts instead.
+    """
+    sources = binding.sources()
+    # Units never ride on a transformation's group. They belong to its values, and the
+    # values live in the module -- which `f144_log` fills from `binding.units` anyway,
+    # so a caller handing us transformation attributes cannot put them in the wrong
+    # place by including them.
+    transform = {k: v for k, v in (transform or {}).items() if k != 'units'} or None
+    children = []
+    for log in POSITIONER_LOGS:
+        source = sources.get(log)
+        if source is None:
+            continue
+        idle = log == 'idle_flag'
+        children.append(f144_log(
+            log, source, binding.topic,
+            units='' if idle else binding.units,
+            dtype='int64' if idle else binding.dtype,
+            attrs=dict(transform) if (transform and log == 'value') else None))
+    children.append(dataset('depends_on', depends_on))
+    return group(name, nx_class='NXpositioner', children=children)
 
 
 def ev44_event_data_group(name: str, source: str, topic: str, attrs: dict | None = None) -> dict:

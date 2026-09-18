@@ -149,6 +149,18 @@ def convert_type(obj) -> tuple[str, Any]:
     return _DTYPE_ALIASES.get(name, name), obj
 
 
+def _normalised_dtype(dtype_name: str) -> str:
+    """The NeXus name for a numpy dtype name.
+
+    An array of strings carries its width in its numpy name -- ``array(['a', 'bc'])`` is
+    ``str96`` -- and a width is not a NeXus type. Every such name is ``string``, which is
+    also what the scalar path produces, so a name and a list of one agree.
+    """
+    if dtype_name.startswith(('str', 'bytes', 'unicode')):
+        return 'string'
+    return _DTYPE_ALIASES.get(dtype_name, dtype_name)
+
+
 def _array_type(values: list, dtype_name: str | None) -> tuple[str, Any]:
     if dtype_name in (None, 'object'):
         element = values
@@ -156,7 +168,7 @@ def _array_type(values: list, dtype_name: str | None) -> tuple[str, Any]:
             element = element[0]
         from numpy import dtype as np_dtype
         dtype_name = np_dtype(type(element)).name if not isinstance(element, list) else 'double'
-    dtype = _DTYPE_ALIASES.get(dtype_name, dtype_name)
+    dtype = _normalised_dtype(dtype_name)
     return dtype, _cast_elements(values, dtype)
 
 
@@ -181,6 +193,38 @@ def _cast_elements(values, dtype: str):
         return cast(value)
 
     return apply(values)
+
+
+#: What a child writes in its `depends_on` to say "wherever my component ended up".
+#:
+#: A translator builds its children before the component is placed, so it cannot know
+#: the component's chain end -- and cannot compute it either, because which
+#: transformations get written depends on the placement: no `translation` at zero
+#: offset, no `rotation_y` at zero angle, and nothing at all under a component that
+#: only inherits its frame's position. `niess.nexus.structure._placed` resolves this
+#: once the chain end is known. The NUL keeps it from ever colliding with a real path,
+#: and makes a leak into a file obvious rather than plausible.
+SAME_PLACE = '\0same-place'
+
+
+def resolve_same_place(node: dict, depends: str) -> dict:
+    """Rewrite every `SAME_PLACE` under ``node`` to ``depends``, in place.
+
+    Both spellings, because a `depends_on` is a dataset on a component and an attribute
+    on a transformation, and a child may carry either.
+    """
+    if is_dataset(node) and node['config'].get('values') == SAME_PLACE:
+        node['config']['values'] = depends
+
+    for attr in (node.get('attributes') or []):
+        if attr.get('values') == SAME_PLACE:
+            attr['values'] = depends
+
+    for child in children_of(node):
+        if isinstance(child, dict):
+            resolve_same_place(child, depends)
+
+    return node
 
 
 def to_absolute(parent: str, path: str) -> str:
@@ -214,3 +258,4 @@ def absolutize_depends_on(node: dict, parent_path: str) -> dict:
             absolutize_depends_on(child, path if is_group(node) else parent_path)
 
     return node
+

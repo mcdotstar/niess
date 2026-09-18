@@ -84,6 +84,15 @@ class Base(msgspec.Struct):
         from ..display import html_tree, node_header
         return html_tree(self, header=f'<b>{escape(node_header(self))}</b>')
 
+    def __niess_pv_root__(self, key: str) -> str | None:
+        """The EPICS positioner driving one of this object's axes, if it declares one.
+
+        ``None`` means "not wired up", which is the honest answer for most things and
+        the only answer a simulated conversion ever needs. Overridden where a component
+        owns axes somebody has connected -- an aperture's driven edges.
+        """
+        return None
+
     def __niess_label__(self, label: str) -> str | None:
         """What this object contributes to the names of things emitted inside it.
 

@@ -28,7 +28,9 @@ def main(outdir: Path) -> None:
     # --8<-- [end:inspect]
     assert classes == {
         'NXmoderator', 'NXguide', 'NXdisk_chopper',
-        'NXaperture', 'NXmonitor', 'NXcoordinate_system',
+        'NXaperture', 'NXmonitor', 'NXcomponent',
+        # the pulse reference times every other timestamp is measured against
+        'NXsource',
     }, classes
 
     # A constant becomes a value; a run-time instrument parameter becomes a link to

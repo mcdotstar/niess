@@ -9,6 +9,28 @@ patch; everything removed is listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+### Changed — a NeXus structure the ESS checker accepts
+
+The written file now passes the ESS structure checker, in either of two modes.
+`to_nexus_structure(instrument, streams=...)` says where a driven axis's numbers come
+from: `SIMULATED` (the default) writes the simulation's own parameter names, `REAL` writes
+the EPICS positioners the components declare. One tree, two files.
+
+Two fields go, and neither is a rename:
+
+- **`zero_position` on an `NXdisk_chopper`.** `NXdisk_chopper` measures `slit_edges` *from*
+  the top-dead-centre mark, so the mark is the origin of that frame rather than a number
+  in it — writing the angle again alongside the edges it is the zero of says nothing the
+  file does not already say. When the mark passes is a different question, and the
+  `top_dead_center` log answers it.
+- **`x_gap`/`y_gap` on an aperture.** They are `NXslit` fields; a jaw is an `NXaperture`.
+  Only the driven edges are recorded, so a jaw's *fixed* height is now not in the file.
+  If it is wanted it needs a home chosen on purpose.
+
+`Aperture.__mccode_extra__` goes with them, for the same reason on the McStas side: a
+jaw's edges are run-time parameters, so provenance repeating their width duplicated what
+the instance already carries. The fixed height went unrecorded there too.
+
 ### Changed — BIFROST tags the channel at the cassette, not at a ring of slits
 
 The nine radial filter-collimators move from one-per-channel up into the tank, share a

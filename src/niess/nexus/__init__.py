@@ -19,6 +19,7 @@ Converting an instrument niess did *not* build, by reading emitted McStas back, 
 second route of some 1500 lines. It is gone: niess converts niess instruments.
 """
 from .nodes import (
+    SAME_PLACE,
     attribute,
     children_of,
     dataset,
@@ -27,6 +28,14 @@ from .nodes import (
     group,
     node_name,
     stream,
+)
+from .bindings import (
+    REAL,
+    SIMULATED,
+    AxisBinding,
+    RealStreams,
+    SimulatedStreams,
+    UndeclaredAxis,
 )
 from .registry import NEXUS_REGISTRY, NiessNexusRegistry
 from .streams import resolve_stream
@@ -42,6 +51,13 @@ from .structure import (
 __all__ = [
     # conversion
     'to_nexus_structure',
+    # where a driven axis's numbers come from
+    'SIMULATED',
+    'REAL',
+    'SimulatedStreams',
+    'RealStreams',
+    'AxisBinding',
+    'UndeclaredAxis',
     'NexusContext',
     'DEFAULT_NXLOG_ROOT',
     # writing translators
@@ -60,4 +76,5 @@ __all__ = [
     'group',
     'node_name',
     'stream',
+    'SAME_PLACE',
 ]

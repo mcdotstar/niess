@@ -2,7 +2,7 @@
 
 Reach for this when the default conversion is not good enough:
 
-- a component came out as `NXcoordinate_system` when it should be a real class;
+- a component came out as a bare `NXcomponent` reference frame when it should be a real class;
 - niess has never heard of the component type;
 - several McStas instances are physically one device and belong in one NeXus group.
 

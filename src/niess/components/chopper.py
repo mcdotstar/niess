@@ -91,6 +91,14 @@ class DiscChopper(Chopper):
     beam_angle: Variable = msgspec.field(default_factory=_zero_degrees)
     """From the zero mark to where the beam crosses the disc."""
 
+    #: The EPICS chopper controller this disc really is, when somebody has wired one up.
+    #: Every ESS chopper log hangs off it -- ``{pv_root}:Spd_R``, ``:TotDly``, and the
+    #: top-dead-centre channel ``{pv_root}:{tdc_channel}``.
+    pv_root: str | None = None
+    #: The TDC channel suffix, which is per-chopper rather than fixed: BIFROST's six
+    #: discs use ``00-TS-I`` through ``03-TS-I``. Only meaningful with ``pv_root``.
+    tdc_channel: str = '00-TS-I'
+
     @property
     def speed(self):
         from scipp import dot, vector
@@ -182,6 +190,8 @@ class DiscChopper(Chopper):
             height=height,
             zero_angle=zero_angle,
             beam_angle=beam_angle,
+            pv_root=cal.get('pv_root'),
+            tdc_channel=cal.get('tdc_channel', '00-TS-I'),
         )
 
     def nexus_slit_edges(self) -> list[float]:
@@ -288,6 +298,24 @@ class DiscChopper(Chopper):
     def delay_parameter(self) -> str:
         """The run-time knob saying when this disc's reference opening is at the beam."""
         return f'{self.name}delay'
+
+    def park_parameter(self) -> str:
+        """The run-time knob saying where a parked disc is standing.
+
+        A disc that is not turning still blocks or passes the beam, depending on whether
+        an opening happens to be in front of it -- which McStas' own ``DiskChopper``
+        cannot express, because a zero frequency there becomes ``omega = 1e-15`` and the
+        disc falls permanently open rather than stopping somewhere.
+        """
+        return f'{self.name}park'
+
+    def __niess_pv_root__(self, key: str) -> str | None:
+        """The chopper controller driving this disc, if one is declared.
+
+        ``key`` is ignored: unlike an aperture, whose edges are separately driven axes,
+        a disc has one controller and every one of its eight logs hangs off it.
+        """
+        return self.pv_root
 
     def group_name(self) -> str:
         """The McStas GROUP the emitted openings share, when there is more than one.
