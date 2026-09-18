@@ -227,10 +227,14 @@ class Component(Base, kw_only=True):
 
         comp, pars = self.__mccode__()
 
+        # A parameter given as an `InstrumentParameter` is declared on the instrument and
+        # then referred to *by name*. `str()` of one is its declaration --
+        # `slit_width/"m"=0.03` -- which the assembler would re-parse as arithmetic, so
+        # the name is taken explicitly.
         if len(pairs:=[(k, x) for k, x in pars.items() if isinstance(x, InstPar)]):
             for name, value in pairs:
                 ensure_runtime_parameter(assembler, value)
-                pars[name] = str(value)
+                pars[name] = value.name
 
         at_rel = 'ABSOLUTE' if at is None else at
         # `rotate` is normally the reference to turn relative to, this component

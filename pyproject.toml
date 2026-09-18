@@ -51,6 +51,10 @@ docs = [
 ]
 
 
+[project.scripts]
+# A developer tool: nothing in `niess` imports `niess.scaffold` at run time.
+niess-scaffold = "niess.scaffold.cli:main"
+
 [project.urls]
 Documentation = "https://mcdotstar.github.io/niess/"
 Issues = "https://github.com/mcdotstar/niess/issues"

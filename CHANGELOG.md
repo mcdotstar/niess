@@ -9,6 +9,49 @@ patch; everything removed is listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+### Added — `niess.scaffold`, and a `.instr` migration path
+
+Removing the instrument-reading routes (below) left no way in from a McStas file at all.
+This is the way back in, and it is a different kind of tool: not a second front-end into
+every target, but a **one-way source generator**. It reads a `.instr` and writes a niess
+submodule you own and edit, so what runs afterwards is ordinary niess source and there is
+still exactly one path into each target.
+
+```console
+$ niess-scaffold my_instrument.instr -o src/niess --origin sample
+```
+
+It resolves every placement, maps the components whose McStas type *determines* a niess
+class, wraps the rest in `Opaque`, and refuses to write anything unless the module it
+generates places every component where the `.instr` does.
+
+Be clear about the scale of what it does: for a real instrument it maps a small fraction
+of the components — 8 of 50 for `ESS_IN5_reprate`. The rest become `Opaque` and the report
+lists them, most frequent first. That list is the point of the tool as much as the code
+is.
+
+`docs/how-to/translate-an-instr.md` now documents the tool and, more usefully, the four
+things it cannot do.
+
+### Added — `niess.components.Opaque`
+
+A McStas component niess has no class for, carried through verbatim: it holds a component
+type name and arguments and emits exactly that, with role `unmodelled-component`.
+
+It exists because the alternative was worse. A `Component` subclass with no `__mccode__`
+inherits one that emits a bare `Arm`, so an unmodelled component silently became a
+coordinate frame and the instrument quietly changed meaning.
+
+### Fixed — a run-time parameter passed to a component by its declaration
+
+`Component.to_mccode` substituted `str(InstrumentParameter)` for an
+`InstrumentParameter`-valued entry in a component's parameter dictionary. That is the
+parameter's *declaration* — `slit_width/"m"=0.03` — which the assembler then re-parsed as
+arithmetic, giving `slit_width*1.0/"m"`. It now substitutes the name.
+
+No shipped component reached this: `Aperture` and the rest pass `.name` themselves. It was
+`Opaque` that first handed over the object.
+
 ### Changed — BIFROST's discs are chopper-lib `NXdisk_chopper` components
 
 A disc is now emitted as one `NXdisk_chopper` from
