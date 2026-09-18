@@ -9,6 +9,60 @@ patch; everything removed is listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+### Changed — BIFROST tags the channel at the cassette, not at a ring of slits
+
+The nine radial filter-collimators move from one-per-channel up into the tank, share a
+single McStas `GROUP` with the elastic monitor, and write `secondary_cassette` from their
+own `EXTEND`. A neutron scatters in at most one of them, which is the tagging
+`RadialSlitBank` existed to do — so the slit bank is gone, along with `slit_angles`,
+`slit_width`, `slit_radius` and `SLIT_BOUNDARY_MARGIN`. The beam's branch point is the
+sample now rather than a component inside the tank, which is where it always was
+physically.
+
+Two flow bugs went with it: `Tank.__niess_flow__` reported the monitor's path without ever
+calling the monitor's own `__niess_flow__`, so the node existed only if something above
+happened to draw an edge to it — `Tank.to_graph()` alone gave nine disconnected channels
+and no monitor.
+
+### Added — a composite may `GROUP` and `EXTEND` what it encloses
+
+A McStas `GROUP` makes its members alternatives: a neutron is offered each in turn until
+one does not absorb it. So it spans components that are separate objects and no one of them
+can name it, and the same goes for the `EXTEND` recording which of them took the ray.
+`McCodeContext` gains `groups` and `extends` beside the `whens` it already had — set by a
+composite's `__mccode_enter__` against a descendant's path, applied by the leaf emitter.
+
+This is not the disc chopper's pattern. A disc emits several instances *of itself*, so it
+owns them and calls `GROUP` in its own loop. Here each part is a component in its own right
+and has to be emitted by the registry, with the name, frame, placement and provenance the
+walk supplies — a parent emitting its own children would bypass all of it.
+
+### Fixed — an elliptic guide's widest point was in the wrong place
+
+`EllipticGuide` evaluated its half-width at `offset - minor + z` where
+`Elliptic_guide_gravity.comp` traces neutrons against `z - offset`: a sign error on the
+offset, and a spurious `minor`. Both terms are small next to the major axis, so the result
+stayed a plausible guide and read as more-or-less right — but the widest point of the
+channel belongs at `z == offset`, and the sign put it at `-offset`, which for most of
+BIFROST's guides is outside the guide entirely. **Across the 58 faces of the primary the
+median error is 10% and the worst is 100%.**
+
+`TaperedGuide` and `EllipticGuide` now have `__off__` and `__nexus_leaf__` alongside
+`StraightGuide`'s, and the m-values move onto `Guide` so all three wind their faces the
+same way — `[top, right, bottom, left]` per segment, one m-value each. The generic
+`@translator(Guide)` is gone: it wrote `length` and scalar `m_left`/`m_right`/`m_top`/
+`m_bottom`, none of which `NXguide` has.
+
+### Changed — provenance schema 3 drops `source_name`
+
+It could only ever repeat `instance.name`. Every writer passed the same string it had just
+handed `assembler.component`, and `Instance` keeps that name verbatim since `add_component`
+raises on a collision rather than renaming around it. Nothing read it —
+`dispatch._resolve_local` resolves on `source_type` and `role`. What it carried was risk:
+two copies of one name can disagree, and the copy in the metadata is the one that would
+look authoritative when they did. `NiessProvenance.source_name` stays as an attribute, read
+off the instance.
+
 ### Added — `niess.components.Motor`, a driven axis that says where its numbers come from
 
 A `Motor` carries a name, a unit, a default, and the Kafka `source`/`topic` its values
