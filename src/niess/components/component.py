@@ -224,6 +224,10 @@ class Component(Base, kw_only=True):
                 pars[name] = str(value)
 
         at_rel = 'ABSOLUTE' if at is None else at
+        # `rotate` is normally the reference to turn relative to, this component
+        # supplying the angles. A caller that knows better -- a collapsed mounting
+        # frame -- hands over both.
+        given = rotate if isinstance(rotate, tuple) and len(rotate) == 2 else None
         rot_rel = 'ABSOLUTE' if rotate is None else rotate
 
         # `+` rather than `+=`: scipp adds in place, and `self.position` is the very
@@ -231,7 +235,7 @@ class Component(Base, kw_only=True):
         # component and the calibration it came from -- accumulating another offset
         # on every subsequent build from the same data.
         at = ((self.position + self.__mccode_offset__()).to(unit='m').value, at_rel)
-        rot = (mccode_ordered_angles(self.__mccode_orientation__()), rot_rel)
+        rot = given or (mccode_ordered_angles(self.__mccode_orientation__()), rot_rel)
 
         instance = assembler.component(self.name, comp, at=at, rotate=rot, parameters=pars)
         if insert_provenance_metadata:

@@ -218,13 +218,15 @@ class Triplet(Base):
             name=name,
             when=context.whens.get(visit.id),
             extend='flag = (SCATTERED) ? 1 : 0;',
+            insert_provenance_metadata=context.provenance,
         )
         context.emitted[visit.id] = name
         return SKIP
 
     def to_mccode(self, assembler: Assembler, relative: str, distance: float, name: str,
                   when: str = None, extend: str = None, add_metadata: bool = False,
-                  component: str = None, parameters: dict = None):
+                  component: str = None, parameters: dict = None,
+            insert_provenance_metadata: bool = True):
         from niess.assembler import ensure_registry
         from niess.provenance import add_niess_metadata
         if component is None:
@@ -251,7 +253,8 @@ class Triplet(Base):
         # the emitted component. Written only when there is one, so an instrument that
         # takes the default emits exactly the text it did before.
         extra = {} if self.stream is None else {'nexus_stream': self.stream}
-        add_niess_metadata(tubes, self, source_name=name, role='physical-component',
+        if insert_provenance_metadata:
+            add_niess_metadata(tubes, self, source_name=name, role='physical-component',
                            extra=extra)
 
     def efu_calibration(self, group: int = -1) -> EFUTripletConfig:

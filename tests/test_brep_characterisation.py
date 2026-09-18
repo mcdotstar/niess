@@ -212,3 +212,73 @@ def test_a_marker_is_only_for_a_marker():
 
     assert build_arm(Subject(name='w', params={}, obj=window)) is None
     assert build_arm(Subject(name='m', params={}, obj=marker)) is not None
+
+
+# -- what a guide says about itself, rather than what it was tagged with ------------
+
+def _plain_guide(**extra):
+    import scipp as sc
+    from scipp.spatial import rotations_from_rotvecs
+    from niess.components import StraightGuide
+    return StraightGuide(
+        name='g1', position=sc.vector([0, 0, 0.], unit='m'),
+        orientation=rotations_from_rotvecs(sc.vector([0, 0, 0.], unit='deg')),
+        length=sc.scalar(3.0, unit='m'), left=1.0, right=1.0, top=1.0, bottom=1.0,
+        width=sc.scalar(0.1, unit='m'), height=sc.scalar(0.2, unit='m'), **extra)
+
+
+def _drawn(guide):
+    from niess.brep import to_assembly
+    from niess.instrument import Instrument, Mount
+    assembly = to_assembly(Instrument(name='g', parts=(Mount(name='g', content=guide),)))
+    return assembly.solids()[0].bounding_box().size
+
+
+def test_a_guide_states_its_own_substrate():
+    """It used to be sayable only by tagging an emitted instance with provenance extras,
+    which is a thing only the instrument-reading route could read."""
+    import scipp as sc
+    importorskip('build123d', reason='niess.brep needs the brep extra')
+
+    size = _drawn(_plain_guide(substrate=sc.scalar(0.02, unit='m')))
+    assert size.X == pytest.approx(0.1 + 2 * 0.02)
+    assert size.Y == pytest.approx(0.2 + 2 * 0.02)
+
+
+def test_saying_nothing_draws_what_it_always_drew():
+    """The default is unchanged, so no existing export moves."""
+    importorskip('build123d', reason='niess.brep needs the brep extra')
+    from niess.brep.builders import SUBSTRATE
+
+    size = _drawn(_plain_guide())
+    assert size.X == pytest.approx(0.1 + 2 * SUBSTRATE)
+    assert size.Y == pytest.approx(0.2 + 2 * SUBSTRATE)
+
+
+def test_an_elliptic_guide_states_how_finely_to_draw_it():
+    """`resolution` is metres per segment: fewer metres, more solids."""
+    importorskip('build123d', reason='niess.brep needs the brep extra')
+    import msgspec
+    from niess.bifrost import Primary
+    from niess.bifrost.parameters import primary_parameters
+    from niess.components.guide import EllipticGuide
+    from niess.brep import to_assembly
+    from niess.instrument import Instrument, Mount
+    from niess.walk import visits
+
+    primary = Primary.from_calibration(primary_parameters())
+    tree = Instrument(name='b', parts=(Mount(name='primary', content=primary),))
+    elliptic = next(v.obj for v in visits(tree) if isinstance(v.obj, EllipticGuide))
+
+    def drawn(guide):
+        assembly = to_assembly(Instrument(
+            name='g', parts=(Mount(name='g', content=guide),)))
+        return assembly.solids()[0]
+
+    # one solid either way -- the ellipse is approximated by more of its surface, not
+    # by more pieces, so faces are what changes
+    coarse = drawn(msgspec.structs.replace(elliptic, resolution=1.0))
+    fine = drawn(msgspec.structs.replace(elliptic, resolution=0.25))
+    assert len(fine.faces()) > len(coarse.faces())
+    # and a finer approximation of a curved surface encloses a little more of it
+    assert fine.volume > coarse.volume

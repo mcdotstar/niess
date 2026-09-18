@@ -132,8 +132,9 @@ def _check_knobs(instrument, values: dict) -> None:
         )
 
 
-def to_tof_model(instrument, *, values: dict | None = None, neutrons: int = 1_000_000,
-                 pulses: int | None = None, seed: int | None = None, skip=(),
+def to_tof_model(instrument, *, source=None, values: dict | None = None,
+                 neutrons: int = 1_000_000, pulses: int | None = None,
+                 seed: int | None = None, sample: str | None = None, skip=(),
                  path_lengths=None):
     """A ready-to-run ``tof.Model`` for ``instrument``, and what went into it.
 
@@ -145,6 +146,15 @@ def to_tof_model(instrument, *, values: dict | None = None, neutrons: int = 1_00
     different chopper speed means -- a chopper's speed or delay, or one of the source's
     wavelength bounds. A scipp scalar is converted to the unit that knob is declared in,
     and a name that is not a knob is refused. See `chopper_specs`.
+
+    ``source`` is a ``tof.Source`` to use instead of building one. Building one fetches
+    the facility's pulse profile, so passing your own is how this runs offline -- which
+    is what the test suite does, and the reason this is an argument rather than
+    something read off the instrument.
+
+    ``sample`` names the component to put the last detector on. The instrument's own
+    ``origin`` is used when it is not given, which is right for an instrument that
+    declares one.
     """
     import scipp as sc
 
@@ -180,13 +190,18 @@ def to_tof_model(instrument, *, values: dict | None = None, neutrons: int = 1_00
                              overridden=name in values,
                              used_by=(f'{source_visit.name}.{field}',)))
 
-    facility = _facility_for(instrument, tof)
-    extra = {}
-    if pulses is not None:
-        extra['pulses'] = int(pulses)
-    if seed is not None:
-        extra['seed'] = int(seed)
-    source = tof.Source(facility=facility, neutrons=int(neutrons), **band, **extra)
+    if source is None:
+        facility = _facility_for(instrument, tof)
+        extra = {}
+        if pulses is not None:
+            extra['pulses'] = int(pulses)
+        if seed is not None:
+            extra['seed'] = int(seed)
+        source = tof.Source(facility=facility, neutrons=int(neutrons), **band, **extra)
+    else:
+        # a source handed over is used as it is: it already carries its own pulses,
+        # neutrons and band, and quietly rebuilding it would discard them
+        band_used = []
     origin = float(source.distance.to(unit='m').value)
 
     specs = chopper_specs(instrument, values=values, origin=origin, skip=skip,
@@ -204,7 +219,7 @@ def to_tof_model(instrument, *, values: dict | None = None, neutrons: int = 1_00
                                                               unit='m'), name=name))
             detectors.append(name)
 
-    sample = getattr(instrument, 'origin', None)
+    sample = getattr(instrument, 'origin', None) if sample is None else sample
     if sample is not None and sample in train and sample not in detectors:
         components.append(tof.Detector(distance=sc.scalar(origin + train[sample],
                                                           unit='m'), name=sample))
@@ -222,9 +237,9 @@ def to_tof_model(instrument, *, values: dict | None = None, neutrons: int = 1_00
                             used_by=(f'{visit.name}.{which}',)))
 
     def rebuild(overrides):
-        return to_tof_model(instrument, values={**values, **overrides},
-                            neutrons=neutrons, pulses=pulses, seed=seed, skip=skip,
-                            path_lengths=path_lengths)
+        return to_tof_model(instrument, source=source, values={**values, **overrides},
+                            neutrons=neutrons, pulses=pulses, seed=seed, sample=sample,
+                            skip=skip, path_lengths=path_lengths)
 
     from .setup import TofSetup
     return TofSetup(model=tof.Model(source=source, components=components),

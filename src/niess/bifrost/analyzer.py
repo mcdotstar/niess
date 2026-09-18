@@ -146,12 +146,14 @@ class Analyzer(Base):
             extend=(f'secondary_scattered = (SCATTERED) ? 1 : 0;\n'
                     f'analyzer = (SCATTERED) ? {1 + arm.index} : 0;'),
             origin=vector([0, 0, 0], unit='m'),
+            insert_provenance_metadata=context.provenance,
         )
         context.emitted[visit.id] = name
         return SKIP
 
     def to_mccode(self, assembler: Assembler, source: str, relative: str, sink: str, theta: float, name: str,
-                  when: str = None, extend: str = None, origin: Variable = None):
+                  when: str = None, extend: str = None, origin: Variable = None,
+            insert_provenance_metadata: bool = True):
         from niess.assembler import ensure_registry
         from niess.provenance import add_niess_metadata
         ensure_registry(assembler, "mcdotstar/mcstas-monochromator-rowland@main")
@@ -161,5 +163,7 @@ class Analyzer(Base):
         mono.set_parameters(**self.mcstas_parameters(origin, source, sink))
         mono.WHEN(when)
         mono.EXTEND(extend)
-        add_niess_metadata(mono, self, source_name=name, role='physical-component')
+        if insert_provenance_metadata:
+            add_niess_metadata(mono, self, source_name=name,
+                               role='physical-component')
 

@@ -110,14 +110,24 @@ def _transformations(visit: Visit, position, rotation_deg) -> list:
                    'vector': direction, 'depends_on': previous}))
         previous = f'{INSTRUMENT_PATH}/{visit.name}/transformations/translation'
 
+    from mccode_antlr.common import InstrumentParameter
+
     for axis, angle in zip(('x', 'y', 'z'), rotation_deg):
-        if not angle:
+        knob = angle if isinstance(angle, InstrumentParameter) else None
+        if knob is None and not angle:
             continue
         vector = [1.0 if axis == a else 0.0 for a in ('x', 'y', 'z')]
-        children.append(dataset(
-            f'rotation_{axis}', float(angle), dtype='double',
-            attrs={'units': 'degrees', 'transformation_type': 'rotation',
-                   'vector': vector, 'depends_on': previous}))
+        attrs = {'units': 'degrees', 'transformation_type': 'rotation',
+                 'vector': vector, 'depends_on': previous}
+        if knob is None:
+            children.append(dataset(f'rotation_{axis}', float(angle),
+                                    dtype='double', attrs=attrs))
+        else:
+            # a turn a run sets is not a number the file can state; it is a link to
+            # where that run's value is published. `linked_log` carries the
+            # transformation attributes the original NXlog has no reason to have.
+            children.append(visit.context.linked_log(f'rotation_{axis}', knob.name,
+                                                     attrs=attrs))
         previous = (f'{INSTRUMENT_PATH}/{visit.name}/transformations/'
                     f'rotation_{axis}')
 

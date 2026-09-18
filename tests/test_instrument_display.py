@@ -52,7 +52,10 @@ def test_it_counts_the_components_of_each_part(bifrost):
     assert set(counts) == {'primary', 'tank'}
     for mount in bifrost.parts:
         assert counts[mount.name] == len(leaves(mount.content))
-    assert sum(counts.values()) == len(leaves(bifrost))
+    # a turned mounting contributes a frame of its own, which belongs to the instrument
+    # rather than to either part
+    turned = sum(1 for mount in bifrost.parts if mount.is_turned())
+    assert sum(counts.values()) + turned == len(leaves(bifrost))
 
 
 def test_it_says_where_a_part_hangs_and_how_it_turns(bifrost):
@@ -109,11 +112,15 @@ def test_displaying_an_instrument_does_not_walk_it_twice(bifrost):
 def unwalkable():
     """`IndirectSecondary` derives from `object`: no `__niess_children__`, so no walk.
 
-    `niess.bifrost.BIFROST` holds one, which is how this turns up in practice.
+    A real niess object rather than a stub, because the point is that this happens: a
+    tank converted for event processing is not a tree, and neither is `None`, and
+    neither is a stray dict from a mis-decorated factory.
     """
-    from niess.bifrost import BIFROST
+    import scipp as sc
+    from niess.bifrost import Tank
     from niess.bifrost.parameters import tank_parameters
-    return BIFROST.from_calibration(**tank_parameters()).secondary
+    tank = Tank.from_calibration(tank_parameters())
+    return tank.to_secondary(sample=sc.vector([0, 0, 0.], unit='m'))
 
 
 def test_a_part_that_cannot_be_walked_is_reported_not_raised(unwalkable):

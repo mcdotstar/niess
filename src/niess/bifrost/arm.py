@@ -227,7 +227,8 @@ class Arm(Base):
 
     def to_mccode(self, assembler: Assembler, ref: Instance, name: str,
                   analyzer_when: str = None, analyzer_extend: str = None,
-                  detector_when: str = None, detector_extend: str = None, **kwargs):
+                  detector_when: str = None, detector_extend: str = None,
+                  insert_provenance_metadata: bool = True, **kwargs):
         from scipp import vector
         from niess.provenance import add_niess_metadata
         # For each channel we need to define the local coordinate system, relative to the provided sample
@@ -244,8 +245,9 @@ class Arm(Base):
 
         # Move to the center of the analyzer & reorient for monochromator scattering in vertical plane
         arm = assembler.component(point, "Arm", at=((0, 0, sample_analyzer_d.value), ref), rotate=((0, 0, 90), ref))
-        add_niess_metadata(arm, self, source_name=point, role='reference-frame',
-                           extra={'frame': 'analyzer-point', 'arm': name})
+        if insert_provenance_metadata:
+            add_niess_metadata(arm, self, source_name=point, role='reference-frame',
+                               extra={'frame': 'analyzer-point', 'arm': name})
         if analyzer_when is not None:
             arm.WHEN(analyzer_when)
         # Insert the analyzer rotated by theta (origin is used for calculating coverage angles)
@@ -253,8 +255,10 @@ class Arm(Base):
                                 when=analyzer_when, extend=analyzer_extend, origin=origin)
         # Change the coordinate system by theta -- total scattering angle is then 2theta
         det_angle = assembler.component(orient, "Arm", at=((0, 0, 0), mono), rotate=((0, theta, 0), mono))
-        add_niess_metadata(det_angle, self, source_name=orient, role='reference-frame',
-                           extra={'frame': 'detector-angle', 'arm': name})
+        if insert_provenance_metadata:
+            add_niess_metadata(det_angle, self, source_name=orient,
+                               role='reference-frame',
+                               extra={'frame': 'detector-angle', 'arm': name})
         det_angle.WHEN(detector_when)
         # Insert the detector distance along that arm
         self.detector.to_mccode(assembler, relative=orient, distance=analyzer_detector_distance.value, name=triplet,

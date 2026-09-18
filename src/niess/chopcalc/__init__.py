@@ -20,9 +20,12 @@ import logging
 import dataclasses
 import re
 
-from .emit import (CHOPPER_LIB_REGISTRY, already_emitted, declare_text,
-                   export_declare_text, finalize_text, include_present,
-                   initialize_text)
+from mccode_antlr.assembler import Assembler
+from mccode_antlr.instr import Instr
+
+from .emit import (CHOPPER_LIB_REGISTRY, already_emitted, declare_block,
+                   export_declare_block, finalize_block, include_present,
+                   initialize_block)
 from .model import ChopperEntry, ChopperTrain, Exclusion, Export, SourceEntry
 from .paths import ChopcalcError
 from .train import train_from_instrument
@@ -44,7 +47,7 @@ __all__ = [
 
 
 def narrow_source_wavelengths(
-        assembler,
+        obj: Assembler | Instr,
         *,
         source: str | None = None,
         skip=(),
@@ -55,7 +58,7 @@ def narrow_source_wavelengths(
         export_chopper_count: str | None = None,
         registry: str = CHOPPER_LIB_REGISTRY,
         strict: bool = False,
-        train: ChopperTrain | None = None,
+        chopper_train: ChopperTrain | None = None,
 ) -> ChopperTrain | None:
     """Restrict the source's wavelength band to what the chopper train passes.
 
@@ -64,9 +67,10 @@ def narrow_source_wavelengths(
 
     Parameters
     ----------
-    assembler:
-        The **top-level** assembler. A child from ``assembler.included(...)`` merges into
-        its parent only when the block exits, so its choppers are not visible yet.
+    obj:
+        An Instr or **top-level** assembler. A child from ``assembler.included(...)``
+        merges into its parent only when the block exits,
+        so its choppers are not visible yet.
     source:
         The source component's name. Inferred from the beam path when omitted.
     skip:
@@ -92,70 +96,83 @@ def narrow_source_wavelengths(
         cannot say that a beam branches, so an instrument whose flow is not the order its
         components are declared in has to be handed the real one. Built from the
         instrument when omitted.
+    registry:
+        The source of library functions called by the emitted C code.
     strict:
         Raise :class:`ChopcalcError` instead of warning and doing nothing. Worth passing
         alongside ``export_choppers``: a component that reads the train needs it to exist,
         and the default is to warn and emit nothing.
+    chopper_train:
+        The ChopperTrain information needed to construct the emitted C code
 
     Returns
     -------
     The train that was used, or ``None`` when nothing could be narrowed.
     """
     from ..assembler import ensure_registry
+    if isinstance(obj, Assembler):
+        if getattr(obj, 'parent', None) is not None:
+            raise ChopcalcError(
+                'narrow_source_wavelengths needs the top-level Assembler, after every '
+                'section has been added. A section\'s child Assembler is merged into its '
+                'parent only on leaving the included() block, so its components -- and '
+                'every later section\'s -- are not visible yet.'
+            )
+        instrument = obj.instrument
+    else:
+        # An Instr's component instances have their .source field filled with their
+        # name when they are %include'd in another Instr; so an Instr that has
+        # a component instance _without_ a source property (inst.source is None)
+        # *has not* been included. But an Instr without any non-included component
+        # instances _may_ consist of _only_ %include statements, so this check would
+        # not be reliable.
+        # Instead, we trust that the user knows what they are doing.
+        instrument = obj
 
-    if getattr(assembler, 'parent', None) is not None:
-        raise ChopcalcError(
-            'narrow_source_wavelengths needs the top-level Assembler, after every '
-            'section has been added. A section\'s child Assembler is merged into its '
-            'parent only on leaving the included() block, so its components -- and '
-            'every later section\'s -- are not visible yet.'
-        )
-
-    instrument = assembler.instrument
     if already_emitted(instrument):
         return _refuse('this instrument has already been narrowed; calling '
                        'narrow_source_wavelengths twice would apply two bands', strict)
 
     try:
         export = _export_names(instrument, export_choppers, export_chopper_count)
-        if train is None:
+        if chopper_train is None:
             # Everything below is emission, and emission does not care how the train was
             # found: `train_from_instrument` builds the same thing by reading the discs
             # rather than the components they were emitted as. Imported here rather than
             # at the top so that this module -- which is emission, and stays -- does not
             # depend on the route that goes.
             from .via_instr import build_train
-            train = build_train(instrument, source=source, skip=skip,
-                                path_lengths=path_lengths,
-                                latest_emission=latest_emission, graph=graph)
+            chopper_train = build_train(instrument, source=source, skip=skip,
+                                        path_lengths=path_lengths,
+                                        latest_emission=latest_emission, graph=graph)
     except ChopcalcError as error:
         return _refuse(str(error), strict)
-    train = dataclasses.replace(train, export=export)
+    chopper_train = dataclasses.replace(chopper_train, export=export)
 
-    for exclusion in train.excluded:
+    for exclusion in chopper_train.excluded:
         logger.warning('niess.chopcalc: leaving out %s -- %s',
                        ', '.join(exclusion.members), exclusion.reason)
 
-    if not train.choppers:
-        why = '; '.join(f'{e.name}: {e.reason}' for e in train.excluded)
+    if not chopper_train.choppers:
+        why = '; '.join(f'{e.name}: {e.reason}' for e in chopper_train.excluded)
         return _refuse(
             f'no chopper reached the calculation, so there is nothing to narrow'
             f'{" -- " + why if why else ""}', strict)
 
-    ensure_registry(assembler, registry)
+    ensure_registry(instrument, registry)
     if not include_present(instrument):
-        assembler.declare(declare_text())
+        instrument.DECLARE(declare_block())
     if export is not None:
-        assembler.declare(export_declare_text(export))
-    assembler.initialize(initialize_text(train))
+        instrument.DECLARE(export_declare_block(export))
+    instrument.INITIALIZE(initialize_block(chopper_train))
     if export is not None:
-        assembler.final(finalize_text(export))
+        instrument.FINALLY(finalize_block(export))
     logger.info(
         'niess.chopcalc: %d chopper(s) narrowing %s/%s of source %r',
-        len(train.choppers), train.source.lambda_min, train.source.lambda_max,
-        train.source.name,
+        len(chopper_train.choppers), chopper_train.source.lambda_min, chopper_train.source.lambda_max,
+        chopper_train.source.name,
     )
-    return train
+    return chopper_train
 
 
 def _export_names(instrument, choppers: str | None, count: str | None) -> Export | None:
