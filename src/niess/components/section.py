@@ -31,6 +31,22 @@ class Section(msgspec.Struct, tag=True):
         from ..tree import default_children
         return default_children(self)
 
+    def __repr__(self) -> str:
+        """What this is and what it contains. See :mod:`niess.display`.
+
+        Spelled out here rather than inherited: a Section is not a Base, and a user
+        holding a `Primary` should not get a different answer from one holding a `Tank`
+        because of which root it happens to descend from.
+        """
+        from ..display import node_header, text_tree
+        return text_tree(self, header=node_header(self))
+
+    def _repr_html_(self) -> str:
+        """The same tree in a notebook, collapsed, one `<details>` per node."""
+        from html import escape
+        from ..display import html_tree, node_header
+        return html_tree(self, header=f'<b>{escape(node_header(self))}</b>')
+
     @classmethod
     @lru_cache(maxsize=None)
     def parts(cls):

@@ -14,6 +14,19 @@ tree. The route that reads an assembled McStas instrument instead is kept, one
 `via_instr` per package, and is what goes when converting a foreign `.instr` stops being
 served. `niess.targets` is gone.
 
+### Added
+
+- **niess objects display themselves.** msgspec generates a repr from the fields, and a
+  composite's fields are its whole subtree — a BIFROST `Instrument` came out at nearly
+  300 000 characters, so typing its name flooded the terminal. `Instrument`, `Mount`,
+  and every `Base` and `Section` now say what they are, what they contain and how big
+  that is, in columns aligned across each set of siblings. A node small enough to say
+  so also lists its own fields — one chopper gives its radius, speed and position, where
+  a whole instrument lists its parts; `niess.display.PARAMETERS` overrides that
+  judgement and `niess.display.show()` takes it per call. In a notebook `_repr_html_`
+  renders the same tree as nested `<details>`, collapsed below the top level, so a
+  thousand-node instrument opens where you want it.
+
 ### Changed — import paths
 
 | was | is |

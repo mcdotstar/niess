@@ -136,6 +136,10 @@ class Channel(Base):
         def idx_or(obj, index):
             return obj['analyzer', index] if 'analyzer' in obj.dims else obj
 
+        # Captured before the loop: the loop rebinds `params` to the per-arm dict it
+        # builds, so reading the calibration inside it would read the previous arm's.
+        stream = params.get('stream')
+
         pairs = []
         for idx, (ap, tv, dl, ct, cs, cc, gp) in enumerate(zip(
                 analyzer_position, tau_vecs, vp['detector_length'], vp['blade_count'], vp['crystal_shape'], coverages,
@@ -151,7 +155,10 @@ class Channel(Base):
                 detector_orient=idx_or(detector_orient, idx),
                 resistance=idx_or(resistance, idx),
                 resistivity=idx_or(resistivity, idx),
-                gap=gp
+                gap=gp,
+                # this dict is an allow-list -- anything the calibration says that is
+                # not named here stops at this channel and never reaches the detector
+                stream=stream,
             )
             pairs.append(Arm.from_calibration(ap, tv, detector_position['analyzer', idx], dl, **params))
 

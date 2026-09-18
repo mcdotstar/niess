@@ -298,7 +298,8 @@ def register_defaults() -> None:
         children = [dataset('description', visit.name)]
         selection = obj.stream
         if selection is None:
-            topic = f'{context.instrument.name.lower()}_beam_monitor'
+            from ..components.monitors import beam_monitor_topic
+            topic = beam_monitor_topic(context.instrument.name)
             selection = {'module': 'da00', 'topic': topic, 'source': visit.name,
                          'config': _da00_config(topic, visit.name, obj.time_bins())}
         children.append(context.stream_group(selection))

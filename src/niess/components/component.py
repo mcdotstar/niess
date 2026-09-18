@@ -69,6 +69,21 @@ class Base(msgspec.Struct):
         from ..tree import default_children
         return default_children(self)
 
+    def __repr__(self) -> str:
+        """What this is and what it contains, not every field of every descendant.
+
+        See :mod:`niess.display`. The generated repr is the whole subtree -- a BIFROST
+        tank is a quarter of a million characters of nested scipp variables.
+        """
+        from ..display import node_header, text_tree
+        return text_tree(self, header=node_header(self))
+
+    def _repr_html_(self) -> str:
+        """The same tree in a notebook, collapsed, one `<details>` per node."""
+        from html import escape
+        from ..display import html_tree, node_header
+        return html_tree(self, header=f'<b>{escape(node_header(self))}</b>')
+
     def __niess_label__(self, label: str) -> str | None:
         """What this object contributes to the names of things emitted inside it.
 

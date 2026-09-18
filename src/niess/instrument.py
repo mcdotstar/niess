@@ -25,6 +25,38 @@ from mccode_antlr.common import InstrumentParameter
 from .components.component import Base
 
 
+def _walk(node):
+    """Deferred so importing this module does not pull the tree machinery in."""
+    from .tree import walk
+    return walk(node)
+
+
+def _count_leaves(content) -> Optional[int]:
+    """How many things a part contributes, or ``None`` if it is not a tree node.
+
+    `walk` calls ``__niess_children__`` on everything it reaches, so anything that is
+    not a node -- an `IndirectSecondary`, say, which derives from `object` and predates
+    the tree protocol -- raises part-way through. That is the right answer for a target,
+    which cannot emit what it cannot walk, and the wrong one for a repr.
+    """
+    from .tree import is_node
+    if not is_node(content):
+        return None
+    try:
+        return sum(1 for _, node in _walk(content)
+                   if is_node(node) and not node.__niess_children__())
+    except Exception:  # a part that will not walk is a part with no count
+        return None
+
+
+def _angle_text(angle) -> str:
+    """A mounting angle as it reads: a parameter by name, a number as a number."""
+    name = getattr(angle, 'name', None)
+    if name is not None:
+        return str(name)
+    return f'{angle:g}' if isinstance(angle, (int, float)) else str(angle)
+
+
 class Mount(msgspec.Struct):
     """A top-level piece of an instrument, and the frame it hangs from.
 
@@ -61,6 +93,18 @@ class Mount(msgspec.Struct):
             not isinstance(angle, (int, float)) or angle != 0
             for angle in self.rotation
         )
+
+    def __repr__(self) -> str:
+        """What is mounted and where, not the whole of it.
+
+        Same reason as `Instrument.__repr__`: the generated one prints `content` in
+        full, so reaching for `instrument.parts` floods the terminal.
+        """
+        text = f'Mount {self.name}: {type(self.content).__name__}'
+        where = f' \u2190 {self.relative_to}' if self.relative_to else ''
+        if self.is_turned():
+            where += f' turned ({", ".join(_angle_text(a) for a in self.rotation)})'
+        return text + where
 
     def parameters(self):
         """The run-time parameters this mounting depends on, if any."""
@@ -128,6 +172,81 @@ class Instrument(Base):
                 if parameter not in found:
                     found.append(parameter)
         return tuple(found)
+
+    def summary(self) -> tuple[tuple[str, str, Optional[int]], ...]:
+        """Each part as ``(label, class name, component count)``, in beam order.
+
+        The count is leaves -- things that emit -- rather than nodes, because that is
+        the number anyone asking "how big is this?" means.
+
+        ``None`` where the part cannot be walked at all, which means it is not a niess
+        tree node: it has no ``__niess_children__``, so no target can read it either and
+        this instrument will not emit. Reported rather than raised, because the first
+        thing anyone does with an object that is not working is look at it, and a repr
+        that raises takes that away.
+        """
+        from .display import leaf_count
+        return tuple((mount.name, type(mount.content).__name__,
+                      leaf_count(mount.content)) for mount in self.parts)
+
+    def _mounting(self, mount: Mount) -> str:
+        """Where a part hangs and how it is turned, as one phrase."""
+        where = f'\u2190 {mount.relative_to}' if mount.relative_to else ''
+        if not mount.is_turned():
+            return where
+        angles = ', '.join(_angle_text(a) for a in mount.rotation)
+        return f'{where} turned ({angles})'.strip()
+
+    def _annotate(self, label: str, _child) -> str:
+        """A top-level part's line says where it hangs; nothing deeper does."""
+        try:
+            return self._mounting(self.mount_of(label))
+        except KeyError:
+            return ''
+
+    def _knobs(self) -> tuple[str, ...]:
+        """Every run-time parameter this instrument names, declared or mounted."""
+        names = [p.name for p in self.parameters]
+        for parameter in self.mount_parameters():
+            if parameter.name not in names:
+                names.append(parameter.name)
+        return tuple(names)
+
+    def _header(self) -> str:
+        """What this instrument is, before anything it contains."""
+        parts = self.summary()
+        known = [count for _, _, count in parts if count is not None]
+        total = f'{sum(known)}{"+" if len(known) < len(parts) else ""}'
+        head = (f'{self.name}: {len(parts)} part(s), {total} component(s)'
+                f' [{self.flavor}]')
+        if self.origin:
+            head += f', origin {self.origin!r}'
+        return head
+
+    def __repr__(self) -> str:
+        """One screen, not the whole tree.
+
+        msgspec generates a repr from the fields, which for BIFROST is 300 000
+        characters of nested scipp variables -- displaying an instrument by accident
+        floods the terminal and tells you nothing. This says what it is, what it is made
+        of and how big each piece is; :mod:`niess.display` does the same for the pieces.
+        """
+        from .display import text_tree
+        text = text_tree(self, header=self._header(), annotate=self._annotate)
+        knobs = self._knobs()
+        return text + (f'\n  run-time parameters: {", ".join(knobs)}' if knobs else '')
+
+    def _repr_html_(self) -> str:
+        """The whole instrument as a collapsed tree, for a notebook."""
+        from html import escape
+        from .display import html_tree
+        html = html_tree(self, header=f'<b>{escape(self._header())}</b>',
+                         annotate=self._annotate)
+        knobs = self._knobs()
+        if knobs:
+            named = ', '.join(f'<code>{escape(k)}</code>' for k in knobs)
+            html += f'<div>run-time parameters: {named}</div>'
+        return html
 
     def mount_of(self, label: str) -> Mount:
         """The Mount a top-level piece arrived in."""
