@@ -50,7 +50,18 @@ def add_monitor_metadata(instr_name: str, inst: Instance, n, topic: str | None =
     return inst
 
 
-class FrameMonitor(Component):
+class FrameMonitor(Component, kw_only=True):
+    """A monitor that histograms in time.
+
+    ``stream`` says how its data reaches NeXus -- ``{'module': 'ev44', 'topic': ...,
+    'source': ...}`` for events, ``da00`` for histograms. Which suits is a property of
+    the instrument setup rather than of the monitor, so it is chosen by whoever builds
+    the instrument and recorded here. It used to be an argument to ``to_mccode``, which
+    meant a target reading the tree could not see it, and a target reading the emitted
+    instrument had to find it in a metadata blob.
+    """
+    stream: dict | None = None
+
     @staticmethod
     def time_bins():
         return int(1e6 / 14.0 / 7) # 7 microsecond bins
@@ -84,6 +95,7 @@ class FrameMonitor(Component):
         # on a per-section topic nobody subscribes to.
         instrument = instrument_name(assembler)
 
+        nexus_stream = self.stream if nexus_stream is None else nexus_stream
         if nexus_stream is None:
             # Default: a da00 histogram stream, described by a METADATA block
             return add_monitor_metadata(instrument, inst, self.time_bins(), topic=topic)
@@ -106,7 +118,7 @@ class FrameMonitor(Component):
         return 'Frame_monitor', {'nt': self.time_bins(), 'frequency': 14.0}
 
 
-class FissionChamber(FrameMonitor):
+class FissionChamber(FrameMonitor, kw_only=True):
     """Zero-dimensional fission chamber monitor.
     Outputs events without any spatial information.
     """
@@ -140,7 +152,7 @@ class FissionChamber(FrameMonitor):
         return t, p
 
 
-class He3Monitor(FrameMonitor):
+class He3Monitor(FrameMonitor, kw_only=True):
     """Zero-dimensional He3 tube monitor.
     Outputs events without any spatial information.
     """
@@ -170,7 +182,7 @@ class He3Monitor(FrameMonitor):
         return t, p
 
 
-class BeamCurrentMonitor(FrameMonitor):
+class BeamCurrentMonitor(FrameMonitor, kw_only=True):
     """Zero-dimensional beam current monitor.
     Outputs a current sampled at a configurable frequency.
     """
@@ -209,7 +221,7 @@ class BeamCurrentMonitor(FrameMonitor):
         return t, p
 
 
-class GEM2D(FrameMonitor):
+class GEM2D(FrameMonitor, kw_only=True):
     """Two-dimensional Gas Electron Multiplier monitor.
     Outputs events on X or Y strips (without coincidence) or at (X, Y) point
     (with coincidence).

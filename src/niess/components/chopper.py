@@ -224,9 +224,9 @@ class DiscChopper(Chopper):
             'theta_0': closing - opening,
             'nslit': 1,
             'radius': self.radius.to(unit='m').value,
-            'nu': f'{self.name}speed',
+            'nu': self.speed_parameter(),
             # Not `phase`: a non-zero one makes DiskChopper ignore `delay` and warn.
-            'delay': f'{self.name}delay',
+            'delay': self.delay_parameter(),
         }
         # Only add width or height if provided:
         if self.width is not None:
@@ -234,6 +234,20 @@ class DiscChopper(Chopper):
         if self.height is not None:
             params['yheight'] = self.height.to(unit='m').value
         return 'DiskChopper', params
+
+    def speed_parameter(self) -> str:
+        """The run-time knob this disc's rotation speed is set by.
+
+        Named here rather than spelled out at each use: it appears in the emitted
+        component's parameters, in the generated C that offsets each opening, and in the
+        NXlog a NeXus file links to for the value. Three places is enough for them to
+        drift.
+        """
+        return f'{self.name}speed'
+
+    def delay_parameter(self) -> str:
+        """The run-time knob saying when this disc's reference opening is at the beam."""
+        return f'{self.name}delay'
 
     def group_name(self) -> str:
         """The McStas GROUP the emitted openings share, when there is more than one.
@@ -289,12 +303,12 @@ class DiscChopper(Chopper):
         """
         turn = self._counter_clockwise_turn(opening, closing)
         if turn == 0:
-            return f'{self.name}delay'
+            return self.delay_parameter()
 
-        speed = f'{self.name}speed'
+        speed = self.speed_parameter()
         assembler.declare(f'double {name}_delay;')
         assembler.initialize(
-            f'{name}_delay = {self.name}delay + '
+            f'{name}_delay = {self.delay_parameter()} + '
             f'({speed} < 0 ? {360.0 - turn} : {turn}) / (360.0 * fabs({speed}));'
         )
         return f'{name}_delay'
@@ -314,7 +328,7 @@ class DiscChopper(Chopper):
             'beam_position': self.beam_angle.to(unit='deg').value,
             # The disc's own timing, so a translator rebuilding the disc can link it
             # without re-deriving the parameter naming convention.
-            'delay_parameter': f'{self.name}delay',
+            'delay_parameter': self.delay_parameter(),
         }
         if several:
             extra['nexus_group_id'] = self.name
@@ -340,9 +354,11 @@ class DiscChopper(Chopper):
         from ..mccode import add_niess_metadata, ensure_runtime_line, ensure_runtime_parameter
         from ..spatial import mccode_ordered_angles
 
-        ensure_runtime_line(assembler, f'{self.name}speed/"Hz" = {self.speed.value}')
         ensure_runtime_line(
-            assembler, f'{self.name}delay/"s" = {self.delay.to(unit="s").value}'
+            assembler, f'{self.speed_parameter()}/"Hz" = {self.speed.value}')
+        ensure_runtime_line(
+            assembler,
+            f'{self.delay_parameter()}/"s" = {self.delay.to(unit="s").value}'
         )
 
         position = self.position + self.__mccode_offset__()
