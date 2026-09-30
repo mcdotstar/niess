@@ -133,6 +133,8 @@ class AxisBinding:
     default: Any = None
     source: Optional[str] = None
     pv_root: Optional[str] = None
+    #: The instrument parameter a simulation publishes ``source`` from.
+    parameter: Optional[str] = None
     #: Every log, already resolved. When set, it takes precedence over ``source`` and
     #: ``pv_root``.
     logs: Optional[tuple[LogBinding, ...]] = None
@@ -210,7 +212,7 @@ class SimulatedStreams:
     def bind(self, owner, key: str, motor) -> AxisBinding:
         return AxisBinding(topic=motor.topic or self.topic, units=motor.unit,
                            dtype=_dtype_of(motor), default=motor.default,
-                           source=motor.source or motor.name)
+                           source=motor.source or motor.name, parameter=motor.name)
 
 
 @dataclass(frozen=True)

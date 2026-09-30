@@ -126,7 +126,9 @@ declares them still emits exactly the McStas it always did.
 
 The group is the same shape in both modes. A simulation has no setpoint and no done
 flag — the parameter *is* the position — so it writes `value` alone, and the ESS layout
-check says so as a warning. That is a true statement about a simulated file rather than
+check says so as a warning. A simulated `value` also names the parameter that fills it,
+in a `simulation_parameter` attribute, so whatever serves the simulation's PVs knows
+what to publish on each one. That is a true statement about a simulated file rather than
 a defect in it.
 
 A real conversion **raises** on an axis with no root declared, because the alternative

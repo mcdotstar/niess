@@ -403,3 +403,33 @@ def test_the_chopper_and_the_pulse_share_one_topic():
               for c in disc['children'] if c.get('type') == 'group' and c['name'] != 'transformations'}
     assert len(topics) == 1
     assert pulse['children'][0]['config']['topic'] in topics
+
+
+# -- which parameter fills a simulated log ----------------------------------------
+#
+# Whatever serves a simulation's PVs has to know which parameter each source carries.
+# In a file bound to a facility's names the source looks nothing like the parameter, so
+# every simulated log says, whichever binder wrote it.
+
+def simulation_parameter(log):
+    return get_attribute(log, 'simulation_parameter')
+
+
+def test_a_simulated_edge_names_its_parameter():
+    left = find_child(emitted_jaw(jawed()), 'left')
+    assert simulation_parameter(find_child(left, 'value')) == 'jaw_left'
+
+
+def test_a_simulated_disc_names_its_parameters_but_not_for_the_tdc():
+    """The crossings are computed from the speed and delay; no one parameter feeds them."""
+    disc = emitted_disc(chopped())
+    assert simulation_parameter(find_child(disc, 'rotation_speed')) == 'psc1_rotation_speed'
+    assert simulation_parameter(find_child(disc, 'delay')) == 'psc1_delay'
+    assert simulation_parameter(find_child(disc, 'park_angle')) == 'psc1_park_angle'
+    assert simulation_parameter(find_child(disc, 'top_dead_center')) is None
+
+
+def test_a_real_file_names_no_parameters():
+    disc = emitted_disc(chopped(CHOPPER_ROOT), streams=REAL)
+    left = find_child(emitted_jaw(jawed(ROOTS), streams=REAL), 'left')
+    assert 'simulation_parameter' not in str(disc) + str(left)

@@ -100,6 +100,12 @@ def tdct_log(name: str, source: str, topic: str,
                  children=[stream('tdct', {'source': source, 'topic': topic})])
 
 
+#: The attribute on an NXlog naming the instrument parameter a simulation fills it from.
+#: Whatever serves a simulation's PVs reads it: a log's source need not resemble the
+#: parameter's name, and in a file made to look like a real instrument it does not.
+SIMULATION_PARAMETER = 'simulation_parameter'
+
+
 def bound_log(log, attrs: dict[str, Any] | None = None) -> dict:
     """One NXlog from a resolved `niess.nexus.bindings.LogBinding`.
 
@@ -110,7 +116,7 @@ def bound_log(log, attrs: dict[str, Any] | None = None) -> dict:
     """
     attrs = dict(attrs or {})
     if log.parameter is not None:
-        attrs['simulation_parameter'] = log.parameter
+        attrs[SIMULATION_PARAMETER] = log.parameter
     if log.module == 'tdct':
         return tdct_log(log.name, log.source, log.topic, attrs=attrs or None)
     return f144_log(log.name, log.source, log.topic, log.units, log.dtype,
@@ -169,13 +175,15 @@ def chopper_logs(disc, binding) -> list[dict]:
         return [bound_log(log) for log in binding.logs]
     topic = binding.topic
     if not binding.canonical:
+        def fed(knob):
+            return {SIMULATION_PARAMETER: knob.name}
+        speed, delay, park = (disc.speed_parameter(), disc.delay_parameter(),
+                              disc.park_parameter())
         return [
-            f144_log('rotation_speed', disc.speed_parameter().name, topic,
-                     'Hz', 'double'),
+            f144_log('rotation_speed', speed.name, topic, 'Hz', 'double', fed(speed)),
             tdct_log('top_dead_center', f'{disc.name}_tdc', topic),
-            f144_log('delay', disc.delay_parameter().name, topic, 'ns', 'double'),
-            f144_log('park_angle', disc.park_parameter().name, topic,
-                     'degrees', 'double'),
+            f144_log('delay', delay.name, topic, 'ns', 'double', fed(delay)),
+            f144_log('park_angle', park.name, topic, 'degrees', 'double', fed(park)),
         ]
 
     root = binding.pv_root
@@ -220,11 +228,14 @@ def positioner_group(binding, name: str, depends_on: str = '.',
         if source is None:
             continue
         idle = log == 'idle_flag'
+        attrs = dict(transform) if (transform and log == 'value') else {}
+        if log == 'value' and not binding.canonical and binding.parameter:
+            attrs[SIMULATION_PARAMETER] = binding.parameter
         children.append(f144_log(
             log, source, binding.topic,
             units='' if idle else binding.units,
             dtype='int64' if idle else binding.dtype,
-            attrs=dict(transform) if (transform and log == 'value') else None))
+            attrs=attrs or None))
     children.append(dataset('depends_on', depends_on))
     return group(name, nx_class='NXpositioner', children=children)
 
