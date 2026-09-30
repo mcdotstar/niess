@@ -68,6 +68,9 @@ single opening `{name}_delay` is the knob.
   share a knob.
 - A component emitted under a name already used directly under `NXinstrument` now
   raises.
+- Every simulated NXlog fed by a parameter names it in a `simulation_parameter`
+  attribute, whichever binder wrote the file: the chopper speed, delay and park angle,
+  and a driven axis's `value`. Real files carry none.
 
 ## 0.7.0
 
