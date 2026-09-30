@@ -20,10 +20,10 @@ def main(outdir: Path) -> None:
     # --8<-- [end:inventory]
 
     names = [c.name for c in instrument.components]
-    assert names == ['source', 'unit_1', 'unit_2', 'chopper', 'jaw', 'monitor',
+    assert names == ['moderator', 'unit_1', 'unit_2', 'chopper', 'jaw', 'monitor',
                      'sample_origin'], names
     assert sorted(p.name for p in instrument.parameters) == [
-        'chopperdelay', 'chopperspeed', 'jaw_l', 'jaw_r',
+        'chopper_delay', 'chopper_rotation_speed', 'jaw_left', 'jaw_right',
     ]
 
 

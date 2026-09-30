@@ -46,7 +46,7 @@ def instrument_group():
 
 def test_a_component_records_what_feeds_it(instrument_group):
     sample = instrument_group['sample_origin']
-    assert flow(sample, 'inputs') == 'slit'
+    assert flow(sample, 'inputs') == 'sample_jaws'
 
 
 def test_a_component_feeding_several_records_all_of_them(instrument_group):

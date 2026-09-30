@@ -74,7 +74,7 @@ def test_what_is_modelled_and_what_is_not(teaching):
     conversion = convert(teaching, origin='sample_origin')
     mapped = {m.name: m.niess_class.__name__ for m in conversion.components}
     assert mapped == {
-        'source': 'ESSource',
+        'moderator': 'ESSource',
         'unit_1': 'StraightGuide',
         'unit_2': 'StraightGuide',
         'chopper': 'DiscChopper',
@@ -97,15 +97,15 @@ def test_a_parameter_the_component_declares_itself_is_not_carried_forward(teachi
     """Two declarations of one name collide and the module would not build."""
     conversion = convert(teaching, origin='sample_origin')
     assert conversion.subsumed == {
-        'chopperspeed': 'chopper', 'chopperdelay': 'chopper',
-        'jaw_l': 'jaw', 'jaw_r': 'jaw',
+        'chopper_rotation_speed': 'chopper', 'chopper_delay': 'chopper',
+        'jaw_left': 'jaw', 'jaw_right': 'jaw',
     }
     assert conversion.parameters == ()
 
     # the signature is unchanged: the names still exist, declared by their components
     emitted = to_mccode(to_instrument(conversion))
     assert sorted(p.name for p in emitted.parameters) == [
-        'chopperdelay', 'chopperspeed', 'jaw_l', 'jaw_r',
+        'chopper_delay', 'chopper_rotation_speed', 'jaw_left', 'jaw_right',
     ]
 
 

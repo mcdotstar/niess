@@ -60,8 +60,8 @@ parameter cannot be known until the instrument runs, so it is written as a link 
 | in the instrument | in the NeXus structure |
 | --- | --- |
 | `radius = 0.35` | a `radius` dataset holding `0.35` |
-| `nu = chopperspeed` | a `rotation_speed` **group** of links into `/entry/parameters/chopperspeed` |
-| `nu = chopperspeed * 2` | an `NXcollection` holding the expression and a link per dependency |
+| `nu = chopper_rotation_speed` | a `rotation_speed` **group** of links into `/entry/parameters/chopper_rotation_speed` |
+| `nu = chopper_rotation_speed * 2` | an `NXcollection` holding the expression and a link per dependency |
 
 DECLARE'd instrument variables are folded before this decision, so a parameter written
 in terms of one still becomes a literal.
@@ -107,9 +107,9 @@ A component declares a root per axis, keyed the way it keys the axes themselves:
 
 ```python
 Jaw.from_calibration({
-    'name': 'jaw_3',
-    'pv_roots': {'left':  'BIFROST-SlitSy:MC-SltH-01:LftJaw',
-                 'right': 'BIFROST-SlitSy:MC-SltH-01:RgtJaw'},
+    'name': 'divergence_slit_1',
+    'pv_roots': {'left':  'BIFRO-DivSl1:MC-SlYp-01:Mtr',
+                 'right': 'BIFRO-DivSl1:MC-SlYm-01:Mtr'},
     ...
 })
 ```
@@ -117,8 +117,8 @@ Jaw.from_calibration({
 and a `Motor` — what turns a mounting — carries its own:
 
 ```python
-Motor(name='a4', unit='degree', source='a4', topic='bifrost_motors',
-      default=0.0, pv_root='BIFROST-TankSy:MC-Rot-01')
+Motor(name='detector_tank_angle', unit='degrees', source='detector_tank_angle',
+      topic='bifrost_motion', default=0.0, pv_root='BIFRO-DtCar:MC-RotZ-01:Mtr')
 ```
 
 `pv_roots` is inert unless the file is written for a real run, so an instrument that
@@ -162,29 +162,30 @@ passes, and where it stopped if parked. There is no setpoint distinct from the v
 no electronics to delay anything, so those logs are absent and the ESS layout check says
 so, truthfully.
 
-One name deserves care. **The McStas delay is written as `mark_delay`, never as
-`delay`.** ESS `delay` is `{root}:TotDly`, the controller's total electronic delay in
-nanoseconds; the McStas one is when the disc's zero mark reaches the beam, in seconds.
-They are different quantities, and writing the second under the first's name would be
-read as the first by everything downstream.
+The disc's delay is written as `delay`, in nanoseconds. ESS `delay` is
+`{root}:TotDly`, the controller's total delay. A simulated disc has no electronics
+adding to it, so its total delay is the one knob it has, which is declared in
+nanoseconds for that reason — `{name}_delay/"ns"`. McStas works in seconds, so the
+conversion happens where the knob is inserted into the component:
+`delay = 1e-9 * {name}_delay`. The other delays a real controller reports have no
+counterpart in a simulation and are not written.
 
 ### Where the timestamps are measured from
 
 A top-dead-centre time is meaningless on its own — it is measured against a pulse. So
-the instrument records its pulse reference times, in a `neutron_prod_info` group of
-class `NXsource`, as one sample per pulse of something resembling proton intensity on
-target:
+the instrument records its pulse reference times in the accelerator's `NXsource`, as
+one sample per pulse of the proton current on target:
 
 ```text
-/entry/instrument/neutron_prod_info   NXsource
-    current_log                       NXlog  <- f144, one sample per pulse
+/entry/instrument/source   NXsource
+    current                NXlog  <- f144, one sample per pulse
     depends_on = "."
 ```
 
-`current_log` rather than a bare `NXlog`, because `NXsource` allows only one of the
-latter — a second per-pulse quantity could never join it. Any `*_log` name matches
-NeXus' own `GROUPNAME_log` ("logged values of GROUPNAME"), so `power_log` can sit beside
-it later. And it hangs under `NXinstrument`: a group of this class directly under
+`source` and `current` are ECDC's names, which the real instrument's file uses. The
+group describes the accelerator, not the moderator. A niess `Source` is the moderator,
+and is written as an `NXmoderator` component under its own name (`moderator` in
+BIFROST). The group hangs under `NXinstrument`: a group of this class directly under
 `NXentry` does not validate.
 
 Everything in the file — detector events, motor readbacks, chopper crossings — must
@@ -200,13 +201,77 @@ module — and whatever hangs off the frame names that `value`:
 
 ```text
 /entry/instrument/
-  tank_mounting_a4        NXpositioner
+  detector_tank_angle     NXpositioner
     value                 NXlog   @transformation_type=rotation @vector=[0,1,0]
     target_value          NXlog
     idle_flag             NXlog
   tank_mounting           NXcomponent
-    depends_on = "/entry/instrument/tank_mounting_a4/value"
+    depends_on = "/entry/instrument/detector_tank_angle/value"
 ```
+
+The positioner is named for its knob, which is the name a facility gives it and binds
+its streams to. A second frame turned by the same knob cannot share the positioner,
+because the chain it hangs from differs, so its positioner is named for the frame as
+well: `tank_mounting_detector_tank_angle`.
 
 Writing a separate transformation that copied the positioner would be two names for one
 number, and the copy is the one every reader would end up trusting.
+
+## Streams from a facility bindings file
+
+ECDC keeps, per instrument, a `bindings.yaml` that says which Kafka topic and source
+fill each log of the real instrument's file. It is keyed by where the log sits below
+`NXinstrument`:
+
+```yaml
+pulse_shaping_chopper_1.rotation_speed:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:Spd_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+```
+
+`BoundStreams` reads the answers from such a file rather than building them from a PV
+root, so a per-disc TDC channel or a piezo motor's `PzMtr` record needs no special case.
+For that to work niess names things as the file does. The file's key is then also the
+path niess writes the log at, and no mapping between the two names is kept.
+
+BIFROST carries a verbatim copy of ECDC's file:
+
+```python
+from niess.bifrost import BIFROST
+from niess.bifrost.ecdc import bifrost_streams
+from niess.nexus import to_nexus_structure
+from niess.nexus.bifrost import BIFROST_REGISTRY
+
+to_nexus_structure(BIFROST, registry=BIFROST_REGISTRY, streams=bifrost_streams())
+```
+
+The default is a simulation made to look like the real instrument:
+
+- **Only what the simulation has is written.** That means a knob's `value`, a disc's
+  speed, delay and park angle, the TDC times, and the pulse reference. A setpoint, a done
+  flag, or a delay the electronics add has no counterpart in a simulation, and leaving
+  them out is part of what says the file is simulated.
+- **Every EPICS source is prefixed** with `mcstas:`. The file names the real topics, but
+  `mcstas:BIFRO-ChpSy1:Chop-PSC-101:Spd_R` is never the real PV, so a simulated producer
+  that reached the real network could not impersonate a real motor or chopper. A source
+  an event formation unit chooses (`source_type: efu`, such as a triplet's
+  `arc=0;triplet=0`) is fixed by the EFU and left as it is.
+- **Each simulated log names its knob**, as a `simulation_parameter` attribute on the
+  NXlog, because a source copied from the real instrument does not resemble the name of
+  the parameter that feeds it.
+- **A knob is declared in the unit its log is published in** — millimetres for a jaw
+  edge, nanoseconds for a chopper delay, degrees for an angle — and converted to what
+  McStas wants where it is inserted into a component. A knob declared in any other
+  unit raises `UnitMismatch` instead of being converted silently.
+
+`bifrost_streams(simulated=False)` writes the file for the real instrument: every bound
+log, with the sources exactly as bound.
+
+To refresh the copy, follow `src/niess/bifrost/ecdc/UPSTREAM.md`. Every binding must
+either be written or be excused in `niess.bifrost.ecdc.NOT_SIMULATED`, with a reason.
+`tests/test_bifrost_ecdc_bindings.py` checks this, so a binding ECDC adds or renames
+fails the test rather than going missing from the file.

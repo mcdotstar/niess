@@ -141,8 +141,8 @@ def test_the_angle_shorthand_centres_one_opening_on_the_beam():
 
     assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
     instance = disc.to_mccode(assembler)
-    assert str(instance.get_parameter('delay').value) == 'chopperdelay'
-    assert 'chopper_delay' not in str(assembler.instrument)
+    assert str(instance.get_parameter('delay').value) == '1e-09*chopper_delay'
+    assert 'chopper_opening_delay' not in str(assembler.instrument)
 
 
 def test_a_disc_writes_its_openings_to_nexus_in_the_mark_frame():

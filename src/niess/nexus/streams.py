@@ -100,6 +100,23 @@ def tdct_log(name: str, source: str, topic: str,
                  children=[stream('tdct', {'source': source, 'topic': topic})])
 
 
+def bound_log(log, attrs: dict[str, Any] | None = None) -> dict:
+    """One NXlog from a resolved `niess.nexus.bindings.LogBinding`.
+
+    A log a simulation publishes from a parameter says which one, as a
+    ``simulation_parameter`` attribute. Whatever serves the simulation's PVs reads it,
+    because a source copied from the real instrument does not resemble the parameter's
+    name.
+    """
+    attrs = dict(attrs or {})
+    if log.parameter is not None:
+        attrs['simulation_parameter'] = log.parameter
+    if log.module == 'tdct':
+        return tdct_log(log.name, log.source, log.topic, attrs=attrs or None)
+    return f144_log(log.name, log.source, log.topic, log.units, log.dtype,
+                    attrs or None)
+
+
 #: The ESS canonical NXdisk_chopper: eight logs, in this order. `top_dead_center` is
 #: third, not first, and the order is compared exactly -- a group that carries all eight
 #: in another order is reported just as loudly as one that is missing some.
@@ -140,20 +157,23 @@ def chopper_logs(disc, binding) -> list[dict]:
     how fast the disc turns, when the mark passes, and -- when parked -- where it
     stopped.
 
-    The McStas delay is deliberately *not* written as `delay`. ESS `delay` is
-    `{root}:TotDly`, the chopper's total electronic delay in nanoseconds; the McStas one
-    is when the disc's zero mark reaches the beam, in seconds. Writing the second under
-    the first's name would be read as the first by everything downstream, so a simulated
-    file records it as `mark_delay` instead -- an unexpected log the layout check will
-    mention, which is the honest cost of not lying.
+    The disc's delay knob is written as `delay`, in nanoseconds. ESS `delay` is
+    `{root}:TotDly`, the controller's total delay. A simulated disc has no electronics
+    adding to it, so its total delay is the one knob it has. The other delays a real
+    controller reports have no counterpart in a simulation, so they are not written.
+
+    When ``binding`` carries resolved ``logs`` -- `niess.nexus.bindings.BoundStreams` --
+    those are written as they are.
     """
+    if binding.logs is not None:
+        return [bound_log(log) for log in binding.logs]
     topic = binding.topic
     if not binding.canonical:
         return [
             f144_log('rotation_speed', disc.speed_parameter().name, topic,
                      'Hz', 'double'),
             tdct_log('top_dead_center', f'{disc.name}_tdc', topic),
-            f144_log('mark_delay', disc.delay_parameter().name, topic, 's', 'double'),
+            f144_log('delay', disc.delay_parameter().name, topic, 'ns', 'double'),
             f144_log('park_angle', disc.park_parameter().name, topic,
                      'degrees', 'double'),
         ]
@@ -182,12 +202,18 @@ def positioner_group(binding, name: str, depends_on: str = '.',
     rather than a separate transformation copying it and becoming the number everyone
     trusts instead.
     """
-    sources = binding.sources()
     # Units never ride on a transformation's group. They belong to its values, and the
     # values live in the module -- which `f144_log` fills from `binding.units` anyway,
     # so a caller handing us transformation attributes cannot put them in the wrong
     # place by including them.
     transform = {k: v for k, v in (transform or {}).items() if k != 'units'} or None
+    if binding.logs is not None:
+        children = [bound_log(log, dict(transform) if (transform and log.name == 'value')
+                              else None)
+                    for log in binding.logs]
+        children.append(dataset('depends_on', depends_on))
+        return group(name, nx_class='NXpositioner', children=children)
+    sources = binding.sources()
     children = []
     for log in POSITIONER_LOGS:
         source = sources.get(log)

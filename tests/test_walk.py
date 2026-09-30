@@ -98,7 +98,7 @@ def test_every_derived_component_name_is_one_the_emission_uses(bifrost, emitted_
 
 
 @pytest.mark.parametrize('path,expected', [
-    ('primary/closing/jaw_1', 'jaw_1'),
+    ('primary/closing/divergence_slit_3', 'divergence_slit_3'),
     ('primary/compressor/nboa', 'nboa'),
     ('tank/monitor', 'elastic_monitor'),
     ('tank/filter[2]', 'wedge_2'),
@@ -109,7 +109,7 @@ def test_names_are_built_from_what_the_ancestors_contribute(seen, path, expected
 
 def test_sections_contribute_nothing_to_a_name(seen):
     """A guide three sections deep is still called what it was calibrated as."""
-    visit = seen['primary/closing/jaw_1']
+    visit = seen['primary/closing/divergence_slit_3']
     assert visit.prefix == ''
     assert [v.own_label for v in _ancestors(visit)] == [None, None, None]
 
@@ -147,7 +147,7 @@ def test_ancestor_replaces_reading_indices_out_of_generated_c(seen):
 
 def test_each_piece_hangs_where_its_mount_says(seen):
     """The primary is in global coordinates; the tank is described about the sample."""
-    assert seen['primary/closing/jaw_1'].frame is None
+    assert seen['primary/closing/divergence_slit_3'].frame is None
     assert seen['tank/monitor'].frame == 'sample_origin'
     # inside the tank a declared frame takes over: the cassette, then the arm's own
     assert seen['tank/channels[2]/cassette'].frame == 'sample_origin'
@@ -169,7 +169,7 @@ def test_visits_are_depth_first_in_declaration_order(bifrost):
     order = [visit.id for visit in visits(bifrost)]
     assert order[0] == ''
     assert order[1] == 'primary'
-    assert order[2] == 'primary/source'
+    assert order[2] == 'primary/moderator'
     assert order.index('primary/sample_origin') < order.index('tank')
     assert order.index('tank/monitor') < order.index('tank/channels[0]')
 

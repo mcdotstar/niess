@@ -157,17 +157,20 @@ class Closing(Section):
     unit_83_closing: EllipticGuide
     unit_84_closing: EllipticGuide
     unit_85_closing: EllipticGuide
-    jaw_3: Jaw
+    # ECDC's names, numbered along the beam: slit 1 is the furthest from the sample.
+    divergence_slit_1: Jaw
     unit_86_closing: EllipticGuide
-    jaw_2: Jaw
+    divergence_slit_2: Jaw
     unit_87_closing: EllipticGuide
-    jaw_1: Jaw
+    divergence_slit_3: Jaw
     unit_88_closing: EllipticGuide
     unit_88_exit_window: Filter
 
 
 class Primary(Section):
-    source: ESSource
+    #: The ESS butterfly moderator. Not `source`: that name is the accelerator's
+    #: NXsource in a NeXus file, as ECDC names it.
+    moderator: ESSource
     compressor: Compressor
     # pulse shaping choppers (not in a named section ...)
     pulse_shaping_chopper_1: NXDiskChopper
@@ -180,7 +183,7 @@ class Primary(Section):
 
     mask: Slit
     normalization_monitor: GEM2D
-    slit: Slit
+    sample_jaws: Slit
 
     sample_origin: Component
 

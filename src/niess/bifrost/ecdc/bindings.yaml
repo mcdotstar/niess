@@ -1,0 +1,1206 @@
+source.beam_cycle_id:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufCycleId-I
+  topic: tn_data_general
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+source.beam_state:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufBState-I
+  topic: tn_data_general
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+source.beam_destination:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufBDest-I
+  topic: tn_data_general
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+source.beam_destination_mode:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufBDest-II
+  topic: tn_data_general
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+source.mode:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufBMod-II
+  topic: tn_data_general
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+source.beam_present:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufBPresent-II
+  topic: tn_data_general
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+source.bunch_length:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufBLen-I
+  topic: tn_data_general
+  dtype: int32
+  value_units: us
+  source_type: forwarder
+source.energy:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufBEn-I
+  topic: tn_data_general
+  dtype: int32
+  value_units: keV
+  source_type: forwarder
+source.current:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufBCurr-I
+  topic: tn_data_general
+  dtype: double
+  value_units: mA
+  source_type: forwarder
+source.bunch_pattern:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufTgRast-I
+  topic: tn_data_general
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+source.target_segment:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:DbufTgSeg-I
+  topic: tn_data_general
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+source.data_buffer_sent_offset:
+  schema: f144
+  source: TD-M:Ctrl-SCE-1:DbufSentOffset-SP
+  topic: tn_data_general
+  dtype: double
+  value_units: us
+  source_type: forwarder
+source.beam_pulse_start_event_counter:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:EvtBPulseStCnt-I
+  topic: tn_data_general
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+source.beam_pulse_end_event_counter:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:EvtBPulseEndCnt-I
+  topic: tn_data_general
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+source.beam_pulse_end_event_id:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:EvtBPulseEndId-I
+  topic: tn_data_general
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+source.cycle_start_event_counter:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:EvtF14HzCnt-I
+  topic: tn_data_general
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+source.ni_sync_event_counter:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:EvtNiSyncCnt-I
+  topic: tn_data_general
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+source.ni_acq_start_event_counter:
+  schema: f144
+  source: TD-M:Ctrl-EVR-1:EvtNiAcqStCnt-I
+  topic: tn_data_general
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+source.pulse_charge:
+  schema: f144
+  source: A2T-130LWU:PBI-BCM-001:PulseChargeR
+  topic: tn_data_general
+  dtype: double
+  value_units: uC
+  source_type: forwarder
+source.beamdump_pulse_charge_010:
+  schema: f144
+  source: DmpL-010Drf:PBI-BCM-001:PulseChargeR
+  topic: tn_data_general
+  dtype: double
+  value_units: uC
+  source_type: forwarder
+source.beamdump_pulse_charge_040:
+  schema: f144
+  source: DmpL-040Drf:PBI-BCM-001:PulseChargeR
+  topic: tn_data_general
+  dtype: double
+  value_units: uC
+  source_type: forwarder
+source.flat_top_current:
+  schema: f144
+  source: A2T-130LWU:PBI-BCM-001:FlatTopCurrentR
+  topic: tn_data_general
+  dtype: double
+  value_units: mA
+  source_type: forwarder
+source.pulse_width:
+  schema: f144
+  source: A2T-130LWU:PBI-BCM-001:PulseWidthR
+  topic: tn_data_general
+  dtype: double
+  value_units: us
+  source_type: forwarder
+source.high_beta_pulse_charge:
+  schema: f144
+  source: HEBT-160LWU:PBI-BCM-001:PulseChargeR
+  topic: tn_data_general
+  dtype: double
+  value_units: uC
+  source_type: forwarder
+source.high_beta_flat_top_current:
+  schema: f144
+  source: HEBT-160LWU:PBI-BCM-001:FlatTopCurrentR
+  topic: tn_data_general
+  dtype: double
+  value_units: mA
+  source_type: forwarder
+source.high_beta_pulse_width:
+  schema: f144
+  source: HEBT-160LWU:PBI-BCM-001:PulseWidthR
+  topic: tn_data_general
+  dtype: double
+  value_units: us
+  source_type: forwarder
+source.cryo_tt_82025_temperature:
+  schema: f144
+  source: CrS-CMS:Cryo-TT-82025:MeasValue
+  topic: tn_data_general
+  dtype: double
+  value_units: K
+  source_type: forwarder
+source.cryo_tt_82027_temperature:
+  schema: f144
+  source: CrS-CMS:Cryo-TT-82027:MeasValue
+  topic: tn_data_general
+  dtype: double
+  value_units: K
+  source_type: forwarder
+source.cryo_tt_82029_temperature:
+  schema: f144
+  source: CrS-CMS:Cryo-TT-82029:MeasValue
+  topic: tn_data_general
+  dtype: double
+  value_units: K
+  source_type: forwarder
+source.cryo_tt_82031_temperature:
+  schema: f144
+  source: CrS-CMS:Cryo-TT-82031:MeasValue
+  topic: tn_data_general
+  dtype: double
+  value_units: K
+  source_type: forwarder
+source.cryo_tt_82033_temperature:
+  schema: f144
+  source: CrS-CMS:Cryo-TT-82033:MeasValue
+  topic: tn_data_general
+  dtype: double
+  value_units: K
+  source_type: forwarder
+source.fsm_machine_active:
+  schema: f144
+  source: CrS-CMS:SC-FSM-007x:STS_Active
+  topic: tn_data_general
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+pulse_shaping_chopper_1.rotation_speed:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:Spd_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+pulse_shaping_chopper_1.delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:TotDly
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+pulse_shaping_chopper_1.experiment_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:ChopDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+pulse_shaping_chopper_1.mechanical_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:MechDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+pulse_shaping_chopper_1.park_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:Pos_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+pulse_shaping_chopper_1.pulse_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:BeamPosDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+pulse_shaping_chopper_1.rotation_speed_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:Spd_S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+pulse_shaping_chopper_1.top_dead_center:
+  schema: tdct
+  source: BIFRO-ChpSy1:Chop-PSC-101:00-TS-I
+  topic: bifrost_choppers
+  source_type: forwarder
+pulse_shaping_chopper_2.rotation_speed:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:Spd_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+pulse_shaping_chopper_2.delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:TotDly
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+pulse_shaping_chopper_2.experiment_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:ChopDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+pulse_shaping_chopper_2.mechanical_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:MechDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+pulse_shaping_chopper_2.park_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:Pos_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+pulse_shaping_chopper_2.pulse_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:BeamPosDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+pulse_shaping_chopper_2.rotation_speed_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:Spd_S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+pulse_shaping_chopper_2.top_dead_center:
+  schema: tdct
+  source: BIFRO-ChpSy1:Chop-PSC-102:01-TS-I
+  topic: bifrost_choppers
+  source_type: forwarder
+psc_monitor.data:
+  schema: da00
+  source: cbm1
+  topic: bifrost_beam_monitor
+  source_type: efu
+  attributes:
+    - name: axes
+      data: [frame_time]
+    - name: title
+      data: BIFROST Beam Monitor 1
+  variables:
+    - name: signal
+      data_type: uint32
+      axes: [frame_time]
+      shape: [744]
+      unit: dimensionless
+  constants:
+    - name: frame_time
+      data_type: int32
+      axes: [frame_time]
+      shape: [745]
+      unit: ns
+frame_overlap_chopper_1.rotation_speed:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:Spd_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+frame_overlap_chopper_1.delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:TotDly
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+frame_overlap_chopper_1.experiment_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:ChopDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+frame_overlap_chopper_1.mechanical_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:MechDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+frame_overlap_chopper_1.park_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:Pos_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+frame_overlap_chopper_1.pulse_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:BeamPosDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+frame_overlap_chopper_1.rotation_speed_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:Spd_S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+frame_overlap_chopper_1.top_dead_center:
+  schema: tdct
+  source: BIFRO-ChpSy1:Chop-FOC-101:02-TS-I
+  topic: bifrost_choppers
+  source_type: forwarder
+frame_overlap_chopper_2.rotation_speed:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:Spd_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+frame_overlap_chopper_2.delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:TotDly
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+frame_overlap_chopper_2.experiment_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:ChopDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+frame_overlap_chopper_2.mechanical_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:MechDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+frame_overlap_chopper_2.park_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:Pos_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+frame_overlap_chopper_2.pulse_delay:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:BeamPosDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+frame_overlap_chopper_2.rotation_speed_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:Spd_S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+frame_overlap_chopper_2.top_dead_center:
+  schema: tdct
+  source: BIFRO-ChpSy1:Chop-FOC-201:03-TS-I
+  topic: bifrost_choppers
+  source_type: forwarder
+overlap_monitor.data:
+  schema: da00
+  source: cbm2
+  topic: bifrost_beam_monitor
+  source_type: efu
+  attributes:
+    - name: axes
+      data: [frame_time]
+    - name: title
+      data: BIFROST Beam Monitor 2
+  variables:
+    - name: signal
+      data_type: uint32
+      axes: [frame_time]
+      shape: [744]
+      unit: dimensionless
+  constants:
+    - name: frame_time
+      data_type: int32
+      axes: [frame_time]
+      shape: [745]
+      unit: ns
+bandwidth_chopper_1.rotation_speed:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:Spd_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+bandwidth_chopper_1.delay:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:TotDly
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+bandwidth_chopper_1.experiment_delay:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:ChopDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+bandwidth_chopper_1.mechanical_delay:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:MechDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+bandwidth_chopper_1.park_angle:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:Pos_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+bandwidth_chopper_1.pulse_delay:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:BeamPosDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+bandwidth_chopper_1.rotation_speed_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:Spd_S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+bandwidth_chopper_1.top_dead_center:
+  schema: tdct
+  source: BIFRO-ChpSy2:Chop-BWC-101:00-TS-I
+  topic: bifrost_choppers
+  source_type: forwarder
+bandwidth_chopper_2.rotation_speed:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:Spd_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+bandwidth_chopper_2.delay:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:TotDly
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+bandwidth_chopper_2.experiment_delay:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:ChopDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+bandwidth_chopper_2.mechanical_delay:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:MechDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+bandwidth_chopper_2.park_angle:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:Pos_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+bandwidth_chopper_2.pulse_delay:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:BeamPosDly-S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: ns
+  source_type: forwarder
+bandwidth_chopper_2.rotation_speed_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:Spd_S
+  topic: bifrost_choppers
+  dtype: double
+  value_units: Hz
+  source_type: forwarder
+bandwidth_chopper_2.top_dead_center:
+  schema: tdct
+  source: BIFRO-ChpSy2:Chop-BWC-102:01-TS-I
+  topic: bifrost_choppers
+  source_type: forwarder
+bandwidth_monitor.data:
+  schema: da00
+  source: cbm3
+  topic: bifrost_beam_monitor
+  source_type: efu
+  attributes:
+    - name: axes
+      data: [frame_time]
+    - name: title
+      data: BIFROST Beam Monitor 3
+  variables:
+    - name: signal
+      data_type: uint32
+      axes: [frame_time]
+      shape: [744]
+      unit: dimensionless
+  constants:
+    - name: frame_time
+      data_type: int32
+      axes: [frame_time]
+      shape: [745]
+      unit: ns
+attenuator_1.status:
+  schema: f144
+  source: BIFRO-AttChg:MC-Pne-01:ShtAuxBits07
+  topic: bifrost_motion
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+attenuator_2.status:
+  schema: f144
+  source: BIFRO-AttChg:MC-Pne-02:ShtAuxBits07
+  topic: bifrost_motion
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+attenuator_3.status:
+  schema: f144
+  source: BIFRO-AttChg:MC-Pne-03:ShtAuxBits07
+  topic: bifrost_motion
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+normalization_monitor.data:
+  schema: ev44
+  source: cbm4
+  topic: bifrost_beam_monitor
+  source_type: efu
+elastic_monitor.data:
+  schema: ev44
+  source: cbm5
+  topic: bifrost_beam_monitor
+  source_type: efu
+channel_1_1_triplet.data:
+  schema: ev44
+  source: arc=0;triplet=0
+  topic: bifrost_detector
+  source_type: efu
+channel_1_2_triplet.data:
+  schema: ev44
+  source: arc=1;triplet=0
+  topic: bifrost_detector
+  source_type: efu
+channel_1_3_triplet.data:
+  schema: ev44
+  source: arc=2;triplet=0
+  topic: bifrost_detector
+  source_type: efu
+channel_1_4_triplet.data:
+  schema: ev44
+  source: arc=3;triplet=0
+  topic: bifrost_detector
+  source_type: efu
+channel_1_5_triplet.data:
+  schema: ev44
+  source: arc=4;triplet=0
+  topic: bifrost_detector
+  source_type: efu
+channel_2_1_triplet.data:
+  schema: ev44
+  source: arc=0;triplet=1
+  topic: bifrost_detector
+  source_type: efu
+channel_2_2_triplet.data:
+  schema: ev44
+  source: arc=1;triplet=1
+  topic: bifrost_detector
+  source_type: efu
+channel_2_3_triplet.data:
+  schema: ev44
+  source: arc=2;triplet=1
+  topic: bifrost_detector
+  source_type: efu
+channel_2_4_triplet.data:
+  schema: ev44
+  source: arc=3;triplet=1
+  topic: bifrost_detector
+  source_type: efu
+channel_2_5_triplet.data:
+  schema: ev44
+  source: arc=4;triplet=1
+  topic: bifrost_detector
+  source_type: efu
+channel_3_1_triplet.data:
+  schema: ev44
+  source: arc=0;triplet=2
+  topic: bifrost_detector
+  source_type: efu
+channel_3_2_triplet.data:
+  schema: ev44
+  source: arc=1;triplet=2
+  topic: bifrost_detector
+  source_type: efu
+channel_3_3_triplet.data:
+  schema: ev44
+  source: arc=2;triplet=2
+  topic: bifrost_detector
+  source_type: efu
+channel_3_4_triplet.data:
+  schema: ev44
+  source: arc=3;triplet=2
+  topic: bifrost_detector
+  source_type: efu
+channel_3_5_triplet.data:
+  schema: ev44
+  source: arc=4;triplet=2
+  topic: bifrost_detector
+  source_type: efu
+channel_4_1_triplet.data:
+  schema: ev44
+  source: arc=0;triplet=3
+  topic: bifrost_detector
+  source_type: efu
+channel_4_2_triplet.data:
+  schema: ev44
+  source: arc=1;triplet=3
+  topic: bifrost_detector
+  source_type: efu
+channel_4_3_triplet.data:
+  schema: ev44
+  source: arc=2;triplet=3
+  topic: bifrost_detector
+  source_type: efu
+channel_4_4_triplet.data:
+  schema: ev44
+  source: arc=3;triplet=3
+  topic: bifrost_detector
+  source_type: efu
+channel_4_5_triplet.data:
+  schema: ev44
+  source: arc=4;triplet=3
+  topic: bifrost_detector
+  source_type: efu
+channel_5_1_triplet.data:
+  schema: ev44
+  source: arc=0;triplet=4
+  topic: bifrost_detector
+  source_type: efu
+channel_5_2_triplet.data:
+  schema: ev44
+  source: arc=1;triplet=4
+  topic: bifrost_detector
+  source_type: efu
+channel_5_3_triplet.data:
+  schema: ev44
+  source: arc=2;triplet=4
+  topic: bifrost_detector
+  source_type: efu
+channel_5_4_triplet.data:
+  schema: ev44
+  source: arc=3;triplet=4
+  topic: bifrost_detector
+  source_type: efu
+channel_5_5_triplet.data:
+  schema: ev44
+  source: arc=4;triplet=4
+  topic: bifrost_detector
+  source_type: efu
+channel_6_1_triplet.data:
+  schema: ev44
+  source: arc=0;triplet=5
+  topic: bifrost_detector
+  source_type: efu
+channel_6_2_triplet.data:
+  schema: ev44
+  source: arc=1;triplet=5
+  topic: bifrost_detector
+  source_type: efu
+channel_6_3_triplet.data:
+  schema: ev44
+  source: arc=2;triplet=5
+  topic: bifrost_detector
+  source_type: efu
+channel_6_4_triplet.data:
+  schema: ev44
+  source: arc=3;triplet=5
+  topic: bifrost_detector
+  source_type: efu
+channel_6_5_triplet.data:
+  schema: ev44
+  source: arc=4;triplet=5
+  topic: bifrost_detector
+  source_type: efu
+channel_7_1_triplet.data:
+  schema: ev44
+  source: arc=0;triplet=6
+  topic: bifrost_detector
+  source_type: efu
+channel_7_2_triplet.data:
+  schema: ev44
+  source: arc=1;triplet=6
+  topic: bifrost_detector
+  source_type: efu
+channel_7_3_triplet.data:
+  schema: ev44
+  source: arc=2;triplet=6
+  topic: bifrost_detector
+  source_type: efu
+channel_7_4_triplet.data:
+  schema: ev44
+  source: arc=3;triplet=6
+  topic: bifrost_detector
+  source_type: efu
+channel_7_5_triplet.data:
+  schema: ev44
+  source: arc=4;triplet=6
+  topic: bifrost_detector
+  source_type: efu
+channel_8_1_triplet.data:
+  schema: ev44
+  source: arc=0;triplet=7
+  topic: bifrost_detector
+  source_type: efu
+channel_8_2_triplet.data:
+  schema: ev44
+  source: arc=1;triplet=7
+  topic: bifrost_detector
+  source_type: efu
+channel_8_3_triplet.data:
+  schema: ev44
+  source: arc=2;triplet=7
+  topic: bifrost_detector
+  source_type: efu
+channel_8_4_triplet.data:
+  schema: ev44
+  source: arc=3;triplet=7
+  topic: bifrost_detector
+  source_type: efu
+channel_8_5_triplet.data:
+  schema: ev44
+  source: arc=4;triplet=7
+  topic: bifrost_detector
+  source_type: efu
+channel_9_1_triplet.data:
+  schema: ev44
+  source: arc=0;triplet=8
+  topic: bifrost_detector
+  source_type: efu
+channel_9_2_triplet.data:
+  schema: ev44
+  source: arc=1;triplet=8
+  topic: bifrost_detector
+  source_type: efu
+channel_9_3_triplet.data:
+  schema: ev44
+  source: arc=2;triplet=8
+  topic: bifrost_detector
+  source_type: efu
+channel_9_4_triplet.data:
+  schema: ev44
+  source: arc=3;triplet=8
+  topic: bifrost_detector
+  source_type: efu
+channel_9_5_triplet.data:
+  schema: ev44
+  source: arc=4;triplet=8
+  topic: bifrost_detector
+  source_type: efu
+sample_jaws.left.value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlYp-01:PzMtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.left.target_value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlYp-01:PzMtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.left.idle_flag:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlYp-01:PzMtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+sample_jaws.left.potentiometer_value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlYp-01:PzMtr-PosReadback
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.right.value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlYm-01:PzMtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.right.target_value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlYm-01:PzMtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.right.idle_flag:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlYm-01:PzMtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+sample_jaws.right.potentiometer_value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlYm-01:PzMtr-PosReadback
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.top.value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlZp-01:PzMtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.top.target_value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlZp-01:PzMtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.top.idle_flag:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlZp-01:PzMtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+sample_jaws.top.potentiometer_value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlZp-01:PzMtr-PosReadback
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.bottom.value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlZm-01:PzMtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.bottom.target_value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlZm-01:PzMtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.bottom.idle_flag:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlZm-01:PzMtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+sample_jaws.bottom.potentiometer_value:
+  schema: f144
+  source: BIFRO-SpSl1:MC-SlZm-01:PzMtr-PosReadback
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+sample_jaws.distance_from_guide_exit:
+  schema: f144
+  source: BIFRO-SpSl1:MC-LinX-01:PzMtr-PosReadback
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+get_lost_tube.status:
+  schema: f144
+  source: BIFRO-InBm:MC-Pne-01:ShtAuxBits07
+  topic: bifrost_motion
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+divergence_slit_3.left.value:
+  schema: f144
+  source: BIFRO-DivSl3:MC-SlYp-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_3.left.target_value:
+  schema: f144
+  source: BIFRO-DivSl3:MC-SlYp-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_3.left.idle_flag:
+  schema: f144
+  source: BIFRO-DivSl3:MC-SlYp-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+divergence_slit_3.right.value:
+  schema: f144
+  source: BIFRO-DivSl3:MC-SlYm-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_3.right.target_value:
+  schema: f144
+  source: BIFRO-DivSl3:MC-SlYm-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_3.right.idle_flag:
+  schema: f144
+  source: BIFRO-DivSl3:MC-SlYm-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+divergence_slit_2.left.value:
+  schema: f144
+  source: BIFRO-DivSl2:MC-SlYp-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_2.left.target_value:
+  schema: f144
+  source: BIFRO-DivSl2:MC-SlYp-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_2.left.idle_flag:
+  schema: f144
+  source: BIFRO-DivSl2:MC-SlYp-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+divergence_slit_2.right.value:
+  schema: f144
+  source: BIFRO-DivSl2:MC-SlYm-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_2.right.target_value:
+  schema: f144
+  source: BIFRO-DivSl2:MC-SlYm-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_2.right.idle_flag:
+  schema: f144
+  source: BIFRO-DivSl2:MC-SlYm-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+divergence_slit_1.left.value:
+  schema: f144
+  source: BIFRO-DivSl1:MC-SlYp-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_1.left.target_value:
+  schema: f144
+  source: BIFRO-DivSl1:MC-SlYp-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_1.left.idle_flag:
+  schema: f144
+  source: BIFRO-DivSl1:MC-SlYp-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+divergence_slit_1.right.value:
+  schema: f144
+  source: BIFRO-DivSl1:MC-SlYm-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_1.right.target_value:
+  schema: f144
+  source: BIFRO-DivSl1:MC-SlYm-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: mm
+  source_type: forwarder
+divergence_slit_1.right.idle_flag:
+  schema: f144
+  source: BIFRO-DivSl1:MC-SlYm-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+detector_tank_angle.value:
+  schema: f144
+  source: BIFRO-DtCar:MC-RotZ-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+detector_tank_angle.target_value:
+  schema: f144
+  source: BIFRO-DtCar:MC-RotZ-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+detector_tank_angle.idle_flag:
+  schema: f144
+  source: BIFRO-DtCar:MC-RotZ-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+sample_rotation.value:
+  schema: f144
+  source: BIFRO-SpRot:MC-RotZ-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+sample_rotation.target_value:
+  schema: f144
+  source: BIFRO-SpRot:MC-RotZ-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+sample_rotation.idle_flag:
+  schema: f144
+  source: BIFRO-SpRot:MC-RotZ-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+goniometer_lower.value:
+  schema: f144
+  source: BIFRO-SpGon:MC-RotX-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+goniometer_lower.target_value:
+  schema: f144
+  source: BIFRO-SpGon:MC-RotX-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+goniometer_lower.idle_flag:
+  schema: f144
+  source: BIFRO-SpGon:MC-RotX-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder
+goniometer_upper.value:
+  schema: f144
+  source: BIFRO-SpGon:MC-RotY-01:Mtr.RBV
+  topic: bifrost_motion
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+goniometer_upper.target_value:
+  schema: f144
+  source: BIFRO-SpGon:MC-RotY-01:Mtr.VAL
+  topic: bifrost_motion
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+goniometer_upper.idle_flag:
+  schema: f144
+  source: BIFRO-SpGon:MC-RotY-01:Mtr.DMOV
+  topic: bifrost_motion
+  dtype: int64
+  value_units: ''
+  source_type: forwarder

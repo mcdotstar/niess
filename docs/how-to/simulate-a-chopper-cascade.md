@@ -26,8 +26,8 @@ TofSetup: 1 chopper(s), 2 detector(s)
   detector sample_origin
 
   parameters used (override with with_values(...)):
-    chopperspeed                 = 14.0 Hz  (default)  <- chopper.speed
-    chopperdelay                 = 0.0 s  (default)  <- chopper.delay
+    chopper_rotation_speed       = 14.0 Hz  (default)  <- chopper.speed
+    chopper_delay                = 0.0 ns  (default)  <- chopper.delay
   nothing has to be provided; every value came from the instrument itself.
 ```
 
@@ -50,7 +50,7 @@ component that used it. Turn one with:
 --8<-- "tof_model.py:override"
 ```
 
-`with_values` rebuilds from the same instrument, so the report then marks `chopperspeed` as
+`with_values` rebuilds from the same instrument, so the report then marks `chopper_rotation_speed` as
 given rather than defaulted.
 
 Anything the walk left out — a Fermi chopper, a disc whose description did not reduce to

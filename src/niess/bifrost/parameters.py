@@ -130,7 +130,7 @@ def primary_parameters(use_tcs=False):
         w4_position = vector([0, 0, 0.], unit='m')
         w4_orientation = r(vector([0, 0, 0.], unit='deg'))
 
-    p['source'] = {
+    p['moderator'] = {
         'sector': 'W',
         'beamline': 4,
         'wavelength_minimum': 'source_lambda_min/"angstrom" = 0.75',
@@ -225,7 +225,7 @@ def primary_parameters(use_tcs=False):
         'thickness': 0.1 * mm,
     }
     # and finally a driven sample slit (that also can be adjusted along the beam)
-    p['slit'] = {
+    p['sample_jaws'] = {
         'position': at_relative(rel_p, rel_r, (30 * mm) * z),
         'orientation': rel_r,
         'width': 70 * mm,

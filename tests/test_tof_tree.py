@@ -57,7 +57,7 @@ def test_a_knob_can_be_overridden_by_name():
     The disc names the knob it declared, so nothing here repeats the convention.
     """
     slowed = chopper_specs(as_instrument(),
-                           values={'pulse_shaping_chopper_1speed': 7.0}, origin=0.05)
+                           values={'pulse_shaping_chopper_1_rotation_speed': 7.0}, origin=0.05)
     assert slowed[0].name == 'pulse_shaping_chopper_1'
     assert slowed[0].frequency == 7.0
     # and nothing else moved
@@ -101,22 +101,22 @@ def test_a_speed_is_converted_to_the_unit_the_disc_declares(given, expected):
     the disc, and the two agree by construction rather than by coincidence.
     """
     specs = chopper_specs(as_instrument(),
-                          values={'pulse_shaping_chopper_1speed': given}, origin=0.05)
+                          values={'pulse_shaping_chopper_1_rotation_speed': given}, origin=0.05)
     assert specs[0].frequency == pytest.approx(expected)
 
 
 def test_a_delay_in_milliseconds_is_converted_to_seconds():
     from niess.tof.mapping import delay_to_phase
     specs = chopper_specs(as_instrument(),
-                          values={'pulse_shaping_chopper_1delay': sc.scalar(3.0, unit='ms')},
+                          values={'pulse_shaping_chopper_1_delay': sc.scalar(3.0, unit='ms')},
                           origin=0.05)
     assert specs[0].phase == pytest.approx(delay_to_phase(0.003, 14.0))
 
 
 def test_a_value_in_the_wrong_unit_is_refused_by_name():
-    with pytest.raises(ValueError, match="pulse_shaping_chopper_1speed is declared in 'Hz'"):
+    with pytest.raises(ValueError, match="pulse_shaping_chopper_1_rotation_speed is declared in 'Hz'"):
         chopper_specs(as_instrument(),
-                      values={'pulse_shaping_chopper_1speed': sc.scalar(1.0, unit='m')},
+                      values={'pulse_shaping_chopper_1_rotation_speed': sc.scalar(1.0, unit='m')},
                       origin=0.05)
 
 
@@ -132,14 +132,15 @@ def test_the_whole_model_takes_values_with_units():
     pytest.importorskip('tof')
     from niess.tof import to_tof_model
     setup = to_tof_model(teaching_tree(), neutrons=1000).with_values(
-        chopperspeed=sc.scalar(0.07, unit='kHz'),
-        chopperdelay=sc.scalar(17.0, unit='ms'))
+        chopper_rotation_speed=sc.scalar(0.07, unit='kHz'),
+        chopper_delay=sc.scalar(17.0, unit='ms'))
     used = {use.name: use for use in setup.parameters}
     assert setup.choppers[0].frequency == pytest.approx(70.0)
-    assert used['chopperspeed'].value == pytest.approx(70.0)
-    assert used['chopperdelay'].value == pytest.approx(0.017)
-    assert used['chopperdelay'].unit == 's'
-    assert all(used[name].overridden for name in ('chopperspeed', 'chopperdelay'))
+    assert used['chopper_rotation_speed'].value == pytest.approx(70.0)
+    # the knob is declared in nanoseconds, as ESS publishes a chopper delay
+    assert used['chopper_delay'].value == pytest.approx(17.0e6)
+    assert used['chopper_delay'].unit == 'ns'
+    assert all(used[name].overridden for name in ('chopper_rotation_speed', 'chopper_delay'))
 
 
 def test_a_wavelength_bound_is_converted_to_what_its_own_parameter_declares():
@@ -185,7 +186,7 @@ def test_the_supplied_source_survives_with_values():
                              unit='angstrom'),
         distance=sc.scalar(0.0, unit='m'))
     setup = to_tof_model(teaching_tree(), source=given)
-    assert setup.with_values(chopperspeed=70.0).source is given
+    assert setup.with_values(chopper_rotation_speed=70.0).source is given
 
 
 def test_the_last_detector_can_be_named():

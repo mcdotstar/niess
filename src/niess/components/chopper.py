@@ -64,30 +64,37 @@ class Chopper(Component):
     width: Variable  # the path width
     height: Variable  # the path height
 
-    #: The knob suffix a parked disc's angle is set by. `NXdisk_chopper` names the field
-    #: `park_angle` and declares a parameter for it; the McStas `DiskChopper` route
-    #: predates that and spells it `park`. Both reach a forwarder as a PV name, so
-    #: neither can be quietly renamed here.
-    _park_suffix = 'park'
-
-    def _parameter(self, suffix: str, value: Variable) -> InstrumentParameter:
-        """One run-time knob of this chopper, named for it and carrying its unit."""
-        unit = f'/"{value.unit}"' if value.unit is not None else ''
-        return InstrumentParameter.parse(f'{self.name}{suffix}{unit}={value.value}')
+    #: Each knob is named ``{name}_{log}`` for the `NXdisk_chopper` log it is published
+    #: as, and declared in the unit ESS publishes that log in. A simulation then carries
+    #: the same number the real controller would report, under the same name. The
+    #: conversion to what McStas wants happens where the knob is inserted into a
+    #: component, and nowhere else -- see `delay_seconds`.
+    def _parameter(self, log: str, value: float, unit: str) -> InstrumentParameter:
+        """One run-time knob of this chopper, named for the log it is published as."""
+        return InstrumentParameter.parse(f'{self.name}_{log}/"{unit}"={value}')
 
     def speed_parameter(self) -> InstrumentParameter:
-        """The run-time knob this disc's rotation speed is set by.
+        """The run-time knob this disc's rotation speed is set by, in Hz.
 
         Named here rather than spelled out at each use: it appears in the emitted
         component's parameters, in the generated C that offsets each opening, and in the
         NXlog a NeXus file links to for the value. Three places is enough for them to
         drift.
         """
-        return self._parameter('speed', self.speed)
+        return self._parameter('rotation_speed', float(self.speed.to(unit='Hz').value),
+                               'Hz')
 
     def delay_parameter(self) -> InstrumentParameter:
-        """The run-time knob saying when this disc's reference opening is at the beam."""
-        return self._parameter('delay', self.delay.to(unit='s'))
+        """The run-time knob saying when this disc's reference opening is at the beam.
+
+        In nanoseconds, as ESS publishes a chopper's ``delay`` (``TotDly``). A simulated
+        disc has no electronics adding to it, so its total delay *is* this one.
+        """
+        return self._parameter('delay', float(self.delay.to(unit='ns').value), 'ns')
+
+    def delay_seconds(self) -> str:
+        """The delay knob as McStas wants it: a C expression in seconds."""
+        return f'1e-9 * {self.delay_parameter().name}'
 
     def park_parameter(self) -> InstrumentParameter:
         """The run-time knob saying where a parked disc is standing.
@@ -106,7 +113,8 @@ class Chopper(Component):
         parked = getattr(self, 'park_angle', None)
         if parked is None:
             parked = _zero_degrees()
-        return self._parameter(self._park_suffix, parked.to(unit='deg'))
+        return self._parameter('park_angle', float(parked.to(unit='deg').value),
+                               'degrees')
 
     def __niess_pv_root__(self, key: str) -> str | None:
         """The chopper controller driving this disc, if one is declared.
@@ -356,7 +364,7 @@ class DiscChopper(Chopper):
             'radius': self.radius.to(unit='m').value,
             'nu': self.speed_parameter().name,
             # Not `phase`: a non-zero one makes DiskChopper ignore `delay` and warn.
-            'delay': self.delay_parameter().name,
+            'delay': self.delay_seconds(),
         }
         # Only add width or height if provided:
         if self.width is not None:
@@ -396,30 +404,32 @@ class DiscChopper(Chopper):
         """When this opening's centre is at the beam, as a McStas ``delay``.
 
         Every opening turns with the disc, so they share the one run-time
-        ``{name}delay``; each is offset from it by however long the disc takes to bring
+        ``{name}_delay``; each is offset from it by however long the disc takes to bring
         that opening round. The angle is fixed geometry, but the time is not: it depends
-        on both the magnitude and the *sign* of ``{name}speed``, and neither is known
+        on both the magnitude and the *sign* of ``{name}_rotation_speed``, and neither is known
         until the simulation runs. A disc that turns clockwise reaches an opening lying
         counter-clockwise of the beam by going the other way round, through the
         explementary angle.
 
         So the angle is computed here and the rest is left to the generated C, where the
         speed is a real number rather than a name. An opening already at the beam is a
-        special case worth taking: it is there at ``{name}delay`` whichever way the disc
+        special case worth taking: it is there at ``{name}_delay`` whichever way the disc
         spins, so it needs no variable at all -- which is every disc described by a plain
         ``angle``, since that centres its one opening on the beam.
         """
         turn = self._counter_clockwise_turn(opening, closing)
         if turn == 0:
-            return self.delay_parameter().name
+            return self.delay_seconds()
 
+        # `_opening_delay`, not `_delay`: for a single opening `name` is the disc's own,
+        # and `{disc}_delay` is the knob.
         speed = self.speed_parameter().name
-        assembler.declare(f'double {name}_delay;')
+        assembler.declare(f'double {name}_opening_delay;')
         assembler.initialize(
-            f'{name}_delay = {self.delay_parameter().name} + '
+            f'{name}_opening_delay = {self.delay_seconds()} + '
             f'({speed} < 0 ? {360.0 - turn} : {turn}) / (360.0 * fabs({speed}));'
         )
-        return f'{name}_delay'
+        return f'{name}_opening_delay'
 
     def _opening_extra(self, index: int, opening: float, closing: float,
                        several: bool) -> dict:
@@ -459,16 +469,12 @@ class DiscChopper(Chopper):
         Returns the instance, or the list of them, to match.
         """
         from mccode_antlr.common.parameters import InstrumentParameter as InstPar
-        from ..assembler import ensure_runtime_line, ensure_runtime_parameter
+        from ..assembler import ensure_runtime_parameter
         from ..provenance import add_niess_metadata
         from ..spatial import mccode_ordered_angles
 
-        ensure_runtime_line(
-            assembler, f'{self.speed_parameter().name}/"Hz" = {self.speed.value}')
-        ensure_runtime_line(
-            assembler,
-            f'{self.delay_parameter().name}/"s" = {self.delay.to(unit="s").value}'
-        )
+        ensure_runtime_parameter(assembler, self.speed_parameter())
+        ensure_runtime_parameter(assembler, self.delay_parameter())
 
         position = self.position + self.__mccode_offset__()
         placement = (position.to(unit='m').value, 'ABSOLUTE' if at is None else at)
@@ -548,10 +554,6 @@ class NXDiskChopper(Chopper):
     #: discs use ``00-TS-I`` through ``03-TS-I``. Only meaningful with ``pv_root``.
     tdc_channel: str = '00-TS-I'
 
-    #: `NXdisk_chopper.comp` declares the parked angle as `park_angle`, so that is the
-    #: knob a run sets and the log a forwarder serves.
-    _park_suffix = 'park_angle'
-
     @classmethod
     def from_calibration(cls, cal: dict):
         required = ('name', 'position', 'orientation', 'radius')
@@ -582,7 +584,7 @@ class NXDiskChopper(Chopper):
             'n_edges': len(self.windows),
             'radius': self.radius.to(unit='m').value,
             'nu': self.speed_parameter().name,
-            'delay': self.delay_parameter().name,
+            'delay': self.delay_seconds(),
             'park_angle': self.park_parameter().name,
             'zero_angle': self.zero_angle.to(unit='deg').value,
             'beam_angle': self.beam_angle.to(unit='deg').value,

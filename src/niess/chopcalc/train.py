@@ -61,7 +61,8 @@ def _speed(obj) -> str:
 
 
 def _delay(obj) -> str:
-    return obj.delay_parameter().name
+    """The disc's delay in seconds, which is what chopcalc works in."""
+    return obj.delay_seconds()
 
 
 def _beam(obj) -> str:

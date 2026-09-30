@@ -11,7 +11,7 @@ def test_primary_parameters():
 
     names = list(parameters.keys())
     expected = dedent("""\
-    source
+    moderator
     compressor
     pulse_shaping_chopper_1
     pulse_shaping_chopper_2
@@ -21,7 +21,7 @@ def test_primary_parameters():
     closing
     mask
     normalization_monitor
-    slit
+    sample_jaws
     sample_origin""").splitlines()
 
     for name, ex in zip(names, expected, strict=True):
@@ -149,11 +149,11 @@ def test_primary_parameters():
         unit_83_closing
         unit_84_closing
         unit_85_closing
-        jaw_3
+        divergence_slit_1
         unit_86_closing
-        jaw_2
+        divergence_slit_2
         unit_87_closing
-        jaw_1
+        divergence_slit_3
         unit_88_closing
         unit_88_exit_window""").splitlines(),
     }
@@ -190,19 +190,19 @@ def test_primary_create():
     # ... just getting here is a test that the from_calibration mechanism works
 
     # each successive component should be farther away from the source:
-    start = primary.source.position
+    start = primary.moderator.position
     last = norm(start - start)
     for part in primary.parts()[1:]:
         for dist in beam_dists(getattr(primary, part), start):
             assert dist > last, f'Positioning error for {part}: {dist} <= {last}'
             last = dist
 
-    start_to_end = primary.slit.position - primary.source.position
+    start_to_end = primary.sample_jaws.position - primary.moderator.position
     # the sample is ~162 m from the source; but the primary spectrometer ends at
     # the slit which is ~0.5 m from the sample
     assert isclose(norm(start_to_end), scalar(161.75, unit='m'), atol=scalar(0.5, unit='m'))
 
-    sample_at = primary.sample_origin.position - primary.source.position
+    sample_at = primary.sample_origin.position - primary.moderator.position
     assert isclose(norm(sample_at), scalar(162., unit='m'), atol=scalar(0.1, unit='m'))
 
 

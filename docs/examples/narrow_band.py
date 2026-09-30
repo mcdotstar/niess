@@ -34,9 +34,9 @@ def main(outdir: Path) -> None:
     # --8<-- [end:narrow]
 
     # The band is computed at run time, so the row names parameters rather than numbers:
-    # change --chopperdelay on the command line and the band recomputes.
-    assert train.choppers[0].speed == 'chopperspeed'
-    assert train.choppers[0].delay == 'chopperdelay'
+    # change --chopper_delay on the command line and the band recomputes.
+    assert train.choppers[0].speed == 'chopper_rotation_speed'
+    assert train.choppers[0].delay == '1e-9 * chopper_delay'
 
     # The source says nothing about how long it emits for, so niess' own default of
     # three ESS pulses applies -- the same 0.008571 s that ESS_butterfly's own

@@ -35,10 +35,10 @@ def main(outdir: Path) -> None:
     assert 'nothing has to be provided' in repr(setup)
 
     # --8<-- [start:override]
-    faster = setup.with_values(chopperspeed=70.0)
+    faster = setup.with_values(chopper_rotation_speed=70.0)
     # --8<-- [end:override]
     assert faster.choppers[0].frequency == 70.0
-    assert next(u for u in faster.parameters if u.name == 'chopperspeed').overridden
+    assert next(u for u in faster.parameters if u.name == 'chopper_rotation_speed').overridden
 
     (outdir / 'teaching_tof_setup.txt').write_text(repr(setup))
 
