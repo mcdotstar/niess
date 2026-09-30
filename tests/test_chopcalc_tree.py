@@ -50,7 +50,7 @@ def test_the_train_of_bifrost_is_what_it_is(bifrost_primary):
         'frame_overlap_chopper_1', 'frame_overlap_chopper_2',
         'bandwidth_chopper_1', 'bandwidth_chopper_2',
     ]
-    assert train.source.name == 'source'
+    assert train.source.name == 'moderator'
     assert train.source.lambda_min == 'source_lambda_min'
     assert train.source.lambda_max == 'source_lambda_max'
     assert float(train.source.latest_emission) == pytest.approx(3.0 * 0.002857)
@@ -62,8 +62,8 @@ def test_a_disc_is_a_disc(teaching):
         name='teaching', parts=(Mount(name='primary', content=teaching.from_calibration()),)))
     entry, = train.choppers
     assert entry.name == 'chopper'
-    assert entry.speed == 'chopperspeed'
-    assert entry.delay == 'chopperdelay'
+    assert entry.speed == 'chopper_rotation_speed'
+    assert entry.delay == '1e-9 * chopper_delay'
     assert entry.beam == '180.0'
     assert entry.edges == ('95.0', '265.0')
 
@@ -75,7 +75,7 @@ def test_a_multi_opening_disc_keeps_all_its_openings():
     from niess.components import DiscChopper, ESSource, Section
     from niess.teaching.parameters import teaching_parameters
 
-    source = ESSource.from_calibration(teaching_parameters()['source'])
+    source = ESSource.from_calibration(teaching_parameters()['moderator'])
     disc = DiscChopper.from_calibration({
         'name': 'pack', 'position': vector([0, 0, 5.0], unit='m'),
         'orientation': rotations_from_rotvecs(vector([0, 0, 0.0], unit='deg')),

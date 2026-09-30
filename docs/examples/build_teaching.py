@@ -20,7 +20,7 @@ def main(outdir: Path) -> None:
     # The calibration produced these McStas components, in beam order
     emitted = [(c.name, c.type.name) for c in instrument.components]
     assert emitted == [
-        ('source', 'ESS_butterfly'),
+        ('moderator', 'ESS_butterfly'),
         ('unit_1', 'Guide_gravity'),
         ('unit_2', 'Guide_gravity'),
         ('chopper', 'DiskChopper'),
@@ -33,7 +33,7 @@ def main(outdir: Path) -> None:
     # the chopper generate their own, and the source wavelengths were given as
     # instrument-parameter specifications in the calibration.
     assert sorted(p.name for p in instrument.parameters) == [
-        'chopperdelay', 'chopperspeed', 'jaw_l', 'jaw_r',
+        'chopper_delay', 'chopper_rotation_speed', 'jaw_left', 'jaw_right',
         'source_lambda_max', 'source_lambda_min',
     ]
 

@@ -103,7 +103,7 @@ expressed survive as Python — a component placed `AT (0, 0, GUI_start)` still 
 `vector([0.0, 0.0, GUI_start], unit='m')`. What is lost is that they are *knobs*. A
 detector tank angle really should be run-time: make it a `Motor` on a `Mount`
 (see [`niess.bifrost`](https://github.com/mcdotstar/niess/blob/main/src/niess/bifrost/bifrost.py)'s
-`a3`/`a4`). A guide start distance really is fixed geometry: leave it a constant.
+`sample_rotation`/`detector_tank_angle`, a3 and a4). A guide start distance really is fixed geometry: leave it a constant.
 
 ## Keep the test
 

@@ -55,7 +55,7 @@ def main(outdir: Path) -> None:
     jaw = find_child(instrument, 'jaw')
     assert get_attribute(jaw, 'NX_class') == 'NXslit'
     assert find_child(jaw, 'description') is not None
-    # jaw_r is an instrument parameter, so x_gap became a link to its NXlog
+    # jaw_right is an instrument parameter, so x_gap became a link to its NXlog
     assert get_attribute(find_child(jaw, 'x_gap'), 'NX_class') == 'NXlog'
 
     # The default registry is untouched: the same instrument still converts the old way

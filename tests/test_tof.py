@@ -228,10 +228,10 @@ def test_the_parameters_it_used_are_reported_with_their_defaults():
     used = {use.name: use for use in setup.parameters}
     # only what was actually read: the caller supplied the source here, so the
     # instrument's own wavelength bounds were never consulted
-    assert set(used) == {'chopperspeed', 'chopperdelay'}
-    assert used['chopperspeed'].value == pytest.approx(14.0)
-    assert used['chopperspeed'].unit == 'Hz'
-    assert used['chopperspeed'].used_by == ('chopper.speed',)
+    assert set(used) == {'chopper_rotation_speed', 'chopper_delay'}
+    assert used['chopper_rotation_speed'].value == pytest.approx(14.0)
+    assert used['chopper_rotation_speed'].unit == 'Hz'
+    assert used['chopper_rotation_speed'].used_by == ('chopper.speed',)
     # an instrument niess built carries its own values, so nothing has to be supplied
     assert not any(use.overridden for use in setup.parameters)
     assert 'nothing has to be provided' in repr(setup)

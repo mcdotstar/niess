@@ -41,17 +41,40 @@ class Aperture(Component):
         """The run-time knobs its edges are set by, keyed by which edge."""
         return {k: InstrumentParameter.parse(v) for k, v in self.edge_strings().items()}
 
+    def _edge_knobs(self, **half) -> dict[str, str]:
+        """Driven edges, as ESS names and publishes them.
+
+        Each knob is ``{name}_{edge}``, named for the positioner the edge is published
+        as (``sample_jaws.left.value``), and in millimetres, as ESS publishes a jaw.
+        The conversion to metres happens where the knob is inserted into the McStas
+        component -- see `__mccode__`.
+        """
+        signs = {'left': -1, 'right': 1, 'bottom': -1, 'top': 1}
+        return {edge: f'{self.name}_{edge}/"mm" = {signs[edge] * size}'
+                for edge, size in half.items()}
+
+    def _half(self, dimension: Variable) -> float:
+        """Half of a dimension, in the edge knobs' unit."""
+        return dimension.to(unit='mm', dtype='float').value / 2.0
+
     def __mccode__(self):
+        from .motor import unquote
         edges = self.edge_parameters()
+
+        def metres(edge):
+            knob = edges[edge]
+            factor = {'mm': 0.001, 'm': None}[unquote(knob.unit)]
+            return knob.name if factor is None else f'{factor} * {knob.name}'
+
         params = {}
         if all(x in edges for x in ('left', 'right')):
-            params['xmin'] = edges['left'].name
-            params['xmax'] = edges['right'].name
+            params['xmin'] = metres('left')
+            params['xmax'] = metres('right')
         else:
             params['xwidth'] = self.width.to(unit='m', dtype='float').value
         if all(y in edges for y in ('bottom', 'top')):
-            params['ymin'] = edges['bottom'].name
-            params['ymax'] = edges['top'].name
+            params['ymin'] = metres('bottom')
+            params['ymax'] = metres('top')
         else:
             params['yheight'] = self.height.to(unit='m', dtype='float').value
         return 'Slit', params
@@ -72,19 +95,13 @@ class Jaw(Aperture):
     """A special variable width aperture, open by default and configured at runtime"""
 
     def edge_strings(self) -> dict[str, str]:
-        half = self.width.to(dtype='float', unit='m').value / 2.0
-        return {'left': f'{self.name}_l/"m" = {-half}', 'right': f'{self.name}_r/"m" = {half}',}
+        w = self._half(self.width)
+        return self._edge_knobs(left=w, right=w)
 
 
 class Slit(Aperture):
     """A special variable aperture, open by default and configured at runtime"""
 
     def edge_strings(self) -> dict[str, str]:
-        w = self.width.to(unit='m', dtype='float').value / 2.0
-        h = self.height.to(unit='m', dtype='float').value / 2.0
-        return {
-            'left': f'{self.name}_l/"m" = {-w}',
-            'right': f'{self.name}_r/"m" = {w}',
-            'bottom': f'{self.name}_b/"m" = {-h}',
-            'top': f'{self.name}_t/"m" = {h}',
-        }
+        w, h = self._half(self.width), self._half(self.height)
+        return self._edge_knobs(left=w, right=w, bottom=h, top=h)

@@ -129,7 +129,7 @@ def test_section_extras_are_not_children(teaching):
     """`_flat` is a Section extra; it is a bool, and it is not in the beam."""
     labels = [label for label, _ in teaching.__niess_children__()]
     assert '_flat' not in labels
-    assert labels == ['source', 'guides', 'chopper', 'jaw', 'monitor', 'sample_origin']
+    assert labels == ['moderator', 'guides', 'chopper', 'jaw', 'monitor', 'sample_origin']
 
 
 def test_a_sequence_mixing_components_and_data_is_refused():

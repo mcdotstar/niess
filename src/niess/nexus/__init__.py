@@ -33,9 +33,14 @@ from .bindings import (
     REAL,
     SIMULATED,
     AxisBinding,
+    Binding,
+    BoundStreams,
+    LogBinding,
     RealStreams,
     SimulatedStreams,
     UndeclaredAxis,
+    UnitMismatch,
+    load_bindings,
 )
 from .registry import NEXUS_REGISTRY, NiessNexusRegistry
 from .streams import resolve_stream
@@ -58,6 +63,12 @@ __all__ = [
     'RealStreams',
     'AxisBinding',
     'UndeclaredAxis',
+    # ... or read from a facility bindings file
+    'BoundStreams',
+    'Binding',
+    'LogBinding',
+    'UnitMismatch',
+    'load_bindings',
     'NexusContext',
     'DEFAULT_NXLOG_ROOT',
     # writing translators

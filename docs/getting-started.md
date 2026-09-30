@@ -21,8 +21,10 @@ it can be compiled and run by McStas like any other.
 
 Seven components come out of that: the moderator, two guide units, a chopper, a jaw, a
 monitor and the sample position. So do six run-time parameters —
-`source_lambda_min`, `source_lambda_max`, `chopperspeed`, `chopperdelay`, `jaw_l` and
-`jaw_r` — which nothing had to declare by hand. The chopper and the jaw generate their
+`source_lambda_min`, `source_lambda_max`, `chopper_rotation_speed`, `chopper_delay`,
+`jaw_left` and `jaw_right` — which nothing had to declare by hand. Each is named for the
+log ESS publishes it as, and declared in that log's unit: the delay in nanoseconds, the
+jaw edges in millimetres. The chopper and the jaw generate their
 own, and the source wavelengths were given in the calibration as parameter
 specifications rather than values.
 
@@ -43,7 +45,7 @@ and its contents can be inspected without walking dictionaries by hand:
 That yields `NXmoderator`, `NXguide`, `NXdisk_chopper`, `NXaperture`, `NXmonitor` and
 `NXcomponent` groups — the last of those being the things that are only a place, which
 say so in a `description`. The chopper's `rotation_speed` is not a number but a link
-to an `NXlog`, because `chopperspeed` is settable at run time — see
+to an `NXlog`, because `chopper_rotation_speed` is settable at run time — see
 [constants become values, run-time knobs become links](how-to/nexus-structure.md#constants-become-values-run-time-knobs-become-links).
 
 ## Next

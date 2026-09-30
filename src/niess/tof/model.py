@@ -23,7 +23,7 @@ def chopper_specs(instrument, values: dict | None = None, origin: float = 0.0,
                   skip=(), path_lengths=None) -> tuple[ChopperSpec, ...]:
     """Every disc in ``instrument``, as ``tof`` wants it.
 
-    ``values`` overrides a knob by name -- ``{'chopperspeed': 20}`` -- which is what
+    ``values`` overrides a knob by name -- ``{'chopper_rotation_speed': 20}`` -- which is what
     running the same instrument at a different speed means. The disc names its knobs, so
     the override needs no convention repeated here. A value that carries its own unit, a
     scipp scalar, is converted to the one the disc declares the knob in, so a speed worked
@@ -50,7 +50,8 @@ def chopper_specs(instrument, values: dict | None = None, origin: float = 0.0,
         if not isinstance(disc, DISC_CHOPPERS) or visit.name not in paths:
             continue
         speed = _setting(disc, 'speed', values)
-        delay = _setting(disc, 'delay', values)
+        # The knob is in nanoseconds, as ESS publishes a chopper delay; tof works in s.
+        delay = _setting(disc, 'delay', values) * 1e-9
         beam = float(disc.beam_angle.to(unit='deg').value)
         windows = tuple((beam - closing, beam - opening)
                         for opening, closing in disc.slits())
@@ -63,13 +64,13 @@ def chopper_specs(instrument, values: dict | None = None, origin: float = 0.0,
 def _knob(disc, which: str):
     """A chopper's knob name, its calibrated value and its unit, for speed or delay.
 
-    The unit is the one the disc declares the knob in when it emits -- ``nuspeed/"Hz"``
-    and ``nudelay/"s"`` -- so a value supplied for it is converted to the same thing
-    whichever route read the instrument.
+    The unit is the one the disc declares the knob in when it emits --
+    ``nu_rotation_speed/"Hz"`` and ``nu_delay/"ns"`` -- so a value supplied for it is
+    converted to the same thing whichever route read the instrument.
     """
     if which == 'speed':
         return disc.speed_parameter().name, float(disc.speed.to(unit='Hz').value), 'Hz'
-    return disc.delay_parameter().name, float(disc.delay.to(unit='s').value), 's'
+    return disc.delay_parameter().name, float(disc.delay.to(unit='ns').value), 'ns'
 
 
 def _setting(disc, which: str, values: dict) -> float:

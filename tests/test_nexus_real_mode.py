@@ -75,7 +75,7 @@ def test_a_simulated_edge_is_a_positioner_with_one_log():
     left = find_child(emitted_jaw(jawed()), 'left')
     assert get_attribute(left, 'NX_class') == 'NXpositioner'
     assert log_names(left) == ['value']
-    assert f144(find_child(left, 'value'))['config']['source'] == 'jaw_l'
+    assert f144(find_child(left, 'value'))['config']['source'] == 'jaw_left'
 
 
 def test_a_real_edge_is_the_ess_canonical_positioner():
@@ -120,12 +120,12 @@ def test_every_f144_names_its_value_units():
 
 
 def test_no_unit_arrives_still_quoted():
-    """`InstrumentParameter.unit` is the four characters `"m"`. A NeXus unit is `m`."""
+    """`InstrumentParameter.unit` is the five characters `"mm"`. A NeXus unit is `mm`."""
     left = find_child(emitted_jaw(jawed(ROOTS), streams=REAL), 'left')
     module = f144(find_child(left, 'value'))
-    assert module['config']['value_units'] == 'm'
+    assert module['config']['value_units'] == 'mm'
     attrs = {a['name']: a['values'] for a in module['attributes']}
-    assert attrs['units'] == 'm'
+    assert attrs['units'] == 'mm'
 
 
 def test_the_units_attribute_and_value_units_cannot_disagree():
@@ -205,7 +205,7 @@ def turned(pv_root=None, name='a4'):
 
 def test_a_motorised_frame_is_a_positioner_beside_it():
     group = instrument_group(to_nexus_structure(turned('BF:Rot-01'), streams=REAL))
-    positioner = find_child(group, 'tank_mounting_a4')
+    positioner = find_child(group, 'a4')
     assert get_attribute(positioner, 'NX_class') == 'NXpositioner'
     assert log_names(positioner) == ['value', 'target_value', 'idle_flag']
 
@@ -215,12 +215,12 @@ def test_the_frame_keeps_no_transformation_for_that_axis():
     group = instrument_group(to_nexus_structure(turned('BF:Rot-01'), streams=REAL))
     frame = find_child(group, 'tank_mounting')
     assert find_child(frame, 'transformations') is None
-    assert value(frame, 'depends_on') == '/entry/instrument/tank_mounting_a4/value'
+    assert value(frame, 'depends_on') == '/entry/instrument/a4/value'
 
 
 def test_the_transformation_rides_on_the_value_log():
     group = instrument_group(to_nexus_structure(turned('BF:Rot-01'), streams=REAL))
-    log = find_child(find_child(group, 'tank_mounting_a4'), 'value')
+    log = find_child(find_child(group, 'a4'), 'value')
     attrs = {a['name']: a['values'] for a in log['attributes']}
     assert attrs['transformation_type'] == 'rotation'
     assert attrs['vector'] == [0.0, 1.0, 0.0]
@@ -235,17 +235,17 @@ def test_the_chain_threads_through_the_positioner():
     rotation = find_child(find_child(group, 'thing'), 'transformations')
     translation = find_child(rotation, 'translation')
     assert get_attribute(translation, 'depends_on') == \
-        '/entry/instrument/tank_mounting_a4/value'
+        '/entry/instrument/a4/value'
 
 
 def test_a_simulated_frame_is_the_same_shape():
     """Same groups, same depends_on targets; only the sources and log count differ."""
     group = instrument_group(to_nexus_structure(turned(), streams=SIMULATED))
-    positioner = find_child(group, 'tank_mounting_a4')
+    positioner = find_child(group, 'a4')
     assert log_names(positioner) == ['value']
     assert f144(find_child(positioner, 'value'))['config']['source'] == 'a4'
     assert value(find_child(group, 'tank_mounting'), 'depends_on') == \
-        '/entry/instrument/tank_mounting_a4/value'
+        '/entry/instrument/a4/value'
 
 
 def test_two_frames_turned_by_one_named_knob_get_two_positioners():
@@ -268,7 +268,9 @@ def test_two_frames_turned_by_one_named_knob_get_two_positioners():
         Mount(name='two', rotation=(0, motor, 0), content=held('b')),
     ))
     group = instrument_group(to_nexus_structure(instrument))
-    assert find_child(group, 'one_mounting_a4') is not None
+    # the first is named for the knob, as a facility names the positioner; the second
+    # cannot be, so it is named for its frame as well
+    assert find_child(group, 'a4') is not None
     assert find_child(group, 'two_mounting_a4') is not None
 
 
@@ -345,26 +347,26 @@ def test_the_seven_f144_logs_hang_off_one_root():
 def test_a_simulated_disc_says_only_what_it_knows():
     """No setpoint distinct from the value, and no electronics to delay anything."""
     disc = emitted_disc(chopped())
-    assert log_names(disc) == ['rotation_speed', 'top_dead_center', 'mark_delay', 'park_angle']
-    assert stream_of(find_child(disc, 'rotation_speed'))[1] == 'psc1speed'
+    assert log_names(disc) == ['rotation_speed', 'top_dead_center', 'delay', 'park_angle']
+    assert stream_of(find_child(disc, 'rotation_speed'))[1] == 'psc1_rotation_speed'
 
 
-def test_the_mccode_delay_is_never_written_as_the_ess_delay():
-    """ESS `delay` is the controller's total electronic delay, in nanoseconds. The
-    McStas one is when the disc's mark reaches the beam, in seconds. Writing the second
-    under the first's name would be read as the first by everything downstream.
+def test_the_mccode_delay_is_the_ess_delay_in_nanoseconds():
+    """ESS `delay` is the controller's total delay, in nanoseconds. A simulated disc has
+    no electronics adding to its delay, so the one knob it has is its total delay, and
+    the knob is declared in nanoseconds so that the number published is the number set.
     """
     disc = emitted_disc(chopped())
-    assert find_child(disc, 'delay') is None
-    mark = find_child(disc, 'mark_delay')
-    assert stream_of(mark)[1] == 'psc1delay'
-    assert mark['children'][0]['config']['value_units'] == 's'
+    assert find_child(disc, 'mark_delay') is None
+    delay = find_child(disc, 'delay')
+    assert stream_of(delay)[1] == 'psc1_delay'
+    assert delay['children'][0]['config']['value_units'] == 'ns'
 
 
 def test_a_declared_root_is_ignored_when_simulating():
     """A simulated file naming real PVs would claim values nothing published."""
     disc = emitted_disc(chopped(CHOPPER_ROOT), streams=SIMULATED)
-    assert log_names(disc) == ['rotation_speed', 'top_dead_center', 'mark_delay', 'park_angle']
+    assert log_names(disc) == ['rotation_speed', 'top_dead_center', 'delay', 'park_angle']
     assert CHOPPER_ROOT not in str(disc)
 
 
@@ -376,13 +378,15 @@ def test_a_real_conversion_says_so_when_a_disc_has_no_controller():
 # -- the pulse reference times ---------------------------------------------------
 
 def test_the_instrument_records_where_its_timestamps_are_measured_from():
-    """Without these a top-dead-centre time cannot be used at all."""
+    """Without these a top-dead-centre time cannot be used at all.
+
+    The accelerator's NXsource is `source` and the per-pulse log in it `current`, as
+    ECDC names them.
+    """
     inst = instrument_group(to_nexus_structure(chopped()))
-    source = find_child(inst, 'neutron_prod_info')
+    source = find_child(inst, 'source')
     assert get_attribute(source, 'NX_class') == 'NXsource'
-    # `*_log`, not a bare NXlog: NXsource allows only one of those, so a second
-    # per-pulse quantity could never join it.
-    log = find_child(source, 'current_log')
+    log = find_child(source, 'current')
     assert get_attribute(log, 'NX_class') == 'NXlog'
     assert stream_of(log)[0] == 'f144'
     assert value(source, 'depends_on') == '.'
@@ -394,7 +398,7 @@ def test_the_chopper_and_the_pulse_share_one_topic():
     structure = to_nexus_structure(chopped(CHOPPER_ROOT), streams=REAL)
     inst = instrument_group(structure)
     disc = find_child(inst, 'psc1')
-    pulse = find_child(find_child(inst, 'neutron_prod_info'), 'current_log')
+    pulse = find_child(find_child(inst, 'source'), 'current')
     topics = {c['children'][0]['config']['topic']
               for c in disc['children'] if c.get('type') == 'group' and c['name'] != 'transformations'}
     assert len(topics) == 1

@@ -21,7 +21,7 @@ def main(outdir: Path) -> None:
 
     # Positions as surveyed, in the instrument coordinate system -- no chaining
     calibration = teaching_parameters()
-    for name, z in (('source', 0.0), ('chopper', 6.76), ('jaw', 7.26),
+    for name, z in (('moderator', 0.0), ('chopper', 6.76), ('jaw', 7.26),
                     ('monitor', 7.46), ('sample_origin', 8.46)):
         calibration[name]['position'] = vector([0, 0, z], unit='m')
         calibration[name]['orientation'] = upright

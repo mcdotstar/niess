@@ -25,7 +25,7 @@ def groups(structure):
 
 def beam_groups(structure):
     """The emitted components, without the instrument's own furniture."""
-    return [n for n in groups(structure) if n != 'neutron_prod_info']
+    return [n for n in groups(structure) if n != 'source']
 
 
 def value(node, name):
@@ -76,10 +76,10 @@ def test_each_component_gets_the_class_it_should(teaching):
     assert [(name, get_attribute(find_child(instrument_group(
         to_nexus_structure(teaching)), name), 'NX_class'))
         for name in groups(to_nexus_structure(teaching))
-        # not a component of the beam: it records the pulse reference times every
-        # other timestamp in the file is measured against
-        if name != 'neutron_prod_info'] == [
-        ('source', 'NXmoderator'),
+        # not a component of the beam: the accelerator, which records the pulse
+        # reference times every other timestamp in the file is measured against
+        if name != 'source'] == [
+        ('moderator', 'NXmoderator'),
         ('unit_1', 'NXguide'),
         ('unit_2', 'NXguide'),
         ('chopper', 'NXdisk_chopper'),
@@ -159,7 +159,7 @@ def test_an_identity_placement_still_says_what_it_hangs_from():
     group = instrument_group(to_nexus_structure(instrument, registry=BIFROST_REGISTRY))
     # A motorised mounting is a positioner beside the frame, not a transformation
     # inside it, so what everything below the tank hangs from is its `value` log.
-    mounting = '/entry/instrument/tank_mounting_a4/value'
+    mounting = '/entry/instrument/a4/value'
 
     # wedge_4 is the one at zero degrees, and channel_5_arm is its cassette
     for name in ('wedge_4', 'channel_5_arm'):
@@ -395,10 +395,9 @@ def test_a_knob_is_a_link_not_a_number(teaching):
     """
     structure = to_nexus_structure(teaching)
     chopper = find_child(instrument_group(structure), 'chopper')
-    # `mark_delay`, not `delay`: ESS `delay` is the controller's total electronic delay
-    # in nanoseconds, and the McStas one is when the disc's mark reaches the beam, in
-    # seconds. Writing the second under the first's name would be read as the first.
-    for field in ('rotation_speed', 'mark_delay'):
+    # `delay` in nanoseconds: ESS `delay` is the controller's total delay, and a
+    # simulated disc has no electronics adding to the one knob it has.
+    for field in ('rotation_speed', 'delay'):
         linked = find_child(chopper, field)
         assert get_attribute(linked, 'NX_class') == 'NXlog', field
         assert linked['children'], f'{field} links nothing'
@@ -468,7 +467,7 @@ def test_a_run_time_value_is_a_log_the_file_fills_itself(teaching):
 
     assert {c['module'] for c in speed['children']} == {'f144'}
     config = speed['children'][0]['config']
-    assert config['source'] == 'chopperspeed'
+    assert config['source'] == 'chopper_rotation_speed'
     assert config['topic']
 
 def test_a_linked_log_can_carry_transformation_attributes(teaching):

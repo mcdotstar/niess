@@ -19,14 +19,14 @@ own choppers are not visible from inside it.
 ## Why this is C rather than Python
 
 The band depends on chopper speeds and delays, and those are run-time parameters — the
-whole point of emitting `chopperspeed` and `chopperdelay` rather than numbers. So the
+whole point of emitting `chopper_rotation_speed` and `chopper_delay` rather than numbers. So the
 calculation cannot happen when the instrument is built. `chopcalc` emits a call to
 [chopper-lib](https://github.com/mcdotstar/mcstas-chopper-lib) into the instrument's
 `INITIALIZE` instead, which McCode runs *before* every component's own initialisation.
 The source therefore reads the narrowed values, and
 
 ```shell
-./teaching -n 1e7 chopperdelay=0.006
+./teaching -n 1e7 chopper_delay=6e6    # nanoseconds, as ESS publishes a chopper delay
 ```
 
 recomputes the band without rebuilding anything. The instrument says what it did:

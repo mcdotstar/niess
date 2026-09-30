@@ -8,6 +8,67 @@ route -- so it is a minor bump rather than a patch; everything removed is listed
 with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+### Added — streams from a facility bindings file
+
+`niess.nexus.BoundStreams` reads each log's topic and source from a bindings file, such
+as ECDC's `bindings.yaml` (`niess.nexus.load_bindings`), instead of building them from a
+PV root. BIFROST carries a verbatim copy of ECDC's file in `niess/bifrost/ecdc/`, with
+`niess.bifrost.ecdc.bifrost_streams()` to use it:
+
+- By default it writes a simulation made to look like the real instrument. Only the
+  logs the simulation has are written. Every EPICS source is prefixed `mcstas:`, so a
+  simulated PV is never the real one. Each simulated log names its knob in a
+  `simulation_parameter` attribute.
+- `simulated=False` writes the real instrument's file, with every bound log.
+
+`tests/test_bifrost_ecdc_bindings.py` requires every binding to be written or excused
+with a reason. `src/niess/bifrost/ecdc/UPSTREAM.md` says how to refresh the file.
+
+### Changed — BIFROST takes ECDC's names
+
+ECDC controls what the real file contains, so niess adopts its names rather than
+mapping between the two:
+
+| was | is |
+| --- | --- |
+| `jaw_3`, `jaw_2`, `jaw_1` | `divergence_slit_1`, `divergence_slit_2`, `divergence_slit_3` — numbered along the beam, so the order is **reversed** |
+| `slit` | `sample_jaws` |
+| `a3`, `a4` (degree) | `sample_rotation`, `detector_tank_angle` (degrees), with positioners of the same names |
+| `a3_source`, `a4_source`, `a3_pv_root`, `a4_pv_root` | `sample_rotation_source`, … — the old keys raise, naming the new ones |
+| motor topic `bifrost_motors` | `bifrost_motion` |
+| `source` (the moderator) | `moderator` |
+
+### Changed — knobs are named and declared as ESS publishes them
+
+A knob is named for the log it is published as and declared in that log's unit. The
+conversion to what McStas wants happens where the knob is inserted into a component, so
+the number a run sets is the number the file records. This applies to every instrument:
+
+| was | is |
+| --- | --- |
+| `{disc}speed` /"Hz" | `{disc}_rotation_speed` /"Hz" |
+| `{disc}delay` /"s" | `{disc}_delay` /"ns"; McStas gets `1e-9 * {disc}_delay` |
+| `{disc}park`, `{disc}park_angle` /"deg" | `{disc}_park_angle` /"degrees" |
+| `{jaw}_l`, `_r`, `_b`, `_t` /"m" | `{jaw}_left`, `_right`, `_bottom`, `_top` /"mm"; McStas gets `0.001 * …` |
+
+A `DiscChopper` opening's start-up variable is now `{name}_opening_delay`, since for a
+single opening `{name}_delay` is the knob.
+
+### Changed — NeXus names
+
+- The accelerator's `NXsource` is `source`, not `neutron_prod_info`. Its per-pulse log is
+  `current` (in mA), not `current_log`.
+- A simulated disc writes its delay as `delay`, in ns, not as `mark_delay` in s. A
+  simulated disc has no electronics adding to its delay, so the one knob it has is its
+  total delay.
+- A motorised frame's positioner is named for its knob (`detector_tank_angle`), not
+  `{frame}_{knob}` (`tank_mounting_a4`). The frame name is kept only where two frames
+  share a knob.
+- A component emitted under a name already used directly under `NXinstrument` now
+  raises.
+
 ## 0.7.0
 
 ### Added — `niess.scaffold`, and a `.instr` migration path

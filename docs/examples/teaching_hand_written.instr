@@ -2,36 +2,39 @@
  *
  * The "Translate an existing .instr" guide turns this file into niess.teaching.
  * It is deliberately plain: no niess metadata, no generated sections.
+ *
+ * Its knobs follow the names and units ESS publishes: a chopper delay in nanoseconds,
+ * a jaw edge in millimetres. Each is converted where a component takes it.
  */
 DEFINE INSTRUMENT teaching_hand_written(
-  chopperspeed = 14.0,
-  chopperdelay = 0.0,
-  jaw_l = -0.015,
-  jaw_r = 0.015
+  chopper_rotation_speed = 14.0,
+  chopper_delay = 0.0,
+  jaw_left = -15.0,
+  jaw_right = 15.0
 )
 
 TRACE
 
-COMPONENT source = ESS_butterfly(
+COMPONENT moderator = ESS_butterfly(
   sector = "W", beamline = 4, yheight = 0.03, cold_frac = 0.5,
   Lmin = 0.75, Lmax = 5.0
 ) AT (0, 0, 0) ABSOLUTE
 
 COMPONENT unit_1 = Guide_gravity(
   l = 2.0, w1 = 0.04, h1 = 0.06, w2 = 0.04, h2 = 0.06, m = 2.0
-) AT (0, 0, 1.5) RELATIVE source
+) AT (0, 0, 1.5) RELATIVE moderator
 
 COMPONENT unit_2 = Guide_gravity(
   l = 3.0, w1 = 0.04, h1 = 0.06, w2 = 0.04, h2 = 0.06, m = 3.0
 ) AT (0, 0, 2.01) RELATIVE unit_1
 
 COMPONENT chopper = DiskChopper(
-  radius = 0.35, theta_0 = 170.0, nu = chopperspeed, delay = chopperdelay,
+  radius = 0.35, theta_0 = 170.0, nu = chopper_rotation_speed, delay = 1e-9 * chopper_delay,
   nslit = 1, yheight = 0.06
 ) AT (0, 0, 3.25) RELATIVE unit_2
 
 COMPONENT jaw = Slit(
-  xmin = jaw_l, xmax = jaw_r, yheight = 0.05
+  xmin = 0.001 * jaw_left, xmax = 0.001 * jaw_right, yheight = 0.05
 ) AT (0, 0, 3.75) RELATIVE unit_2
 
 COMPONENT monitor = TOF_monitor(

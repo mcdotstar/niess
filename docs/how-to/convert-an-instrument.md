@@ -22,8 +22,8 @@ saying it once here is better than each of them guessing.
 
     `Mount(..., rotation=(0, a4, 0))` turns a piece about the frame it hangs from, in
     degrees. The three angles may be numbers or `InstrumentParameter`s, because the
-    interesting ones are set per run: a BIFROST run turns the sample by `a3` and the
-    detector tank by `a4`. McStas emits an `Arm` turned by the named parameter; NeXus
+    interesting ones are set per run: a BIFROST run turns the sample by
+    `sample_rotation` (a3) and the detector tank by `detector_tank_angle` (a4). McStas emits an `Arm` turned by the named parameter; NeXus
     emits a transformation linking to that parameter's `NXlog`.
 
 ## Convert it

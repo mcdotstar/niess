@@ -64,36 +64,46 @@ class NexusContext(Context):
                 children=[dataset('name', self.instrument.name),
                           self.neutron_production()])
 
+    #: What the accelerator's NXsource is called, as ECDC names it. It is not the
+    #: moderator: that is a component of the instrument, written as an `NXmoderator`.
+    SOURCE_NAME = 'source'
+
+    def source_contents(self) -> list[dict]:
+        """What the NXsource holds: which facility, and where the pulse reference is.
+
+        Without the reference a top-dead-centre time cannot be used: a TDC timestamp is
+        only meaningful against the pulse it is measured from, and every other timestamp
+        in the file -- detector events, motor readbacks, chopper crossings -- has to
+        share the same reference or none of them can be compared.
+
+        So one sample per pulse, of the proton current on target, timestamped with the
+        reference time itself. It is an NXlog named `current`, which is what ECDC calls
+        it; a binder that has a binding for `source.current` supplies its stream.
+        """
+        return [dataset('name', 'ESS'), dataset('probe', 'neutron'), self.pulse_log()]
+
+    def pulse_log(self) -> dict:
+        """The per-pulse reference sample, as the binder says it is published."""
+        from .streams import bound_log, f144_log
+        bound = getattr(self.streams, 'pulse', lambda: None)()
+        if bound is not None:
+            return bound_log(bound)
+        source, topic = self.pulse_source_topic()
+        return f144_log('current', source, topic, 'mA', 'double')
+
     def neutron_production(self) -> dict:
-        """Where the pulse reference times are recorded.
-
-        Without them a top-dead-centre time cannot be used: a TDC timestamp is only
-        meaningful against the pulse it is measured from, and every other timestamp in
-        the file -- detector events, motor readbacks, chopper crossings -- has to share
-        the same reference or none of them can be compared.
-
-        So one sample per pulse, of something that looks like proton intensity on
-        target, timestamped with the reference time itself. `current_log` rather than a
-        bare `NXlog`: `NXsource` allows only one of those, while `GROUPNAME_log` --
-        NeXus' own "logged values of GROUPNAME" -- admits any number of distinctly named
-        logs, so a second per-pulse quantity can join later without displacing this one.
+        """The accelerator, as an NXsource: the facility and the pulse reference.
 
         Under `NXinstrument`, which is the only place `NXsource` is allowed; a group of
-        this class directly under `NXentry` does not validate.
+        this class directly under `NXentry` does not validate. NXsource extends
+        NXcomponent, so it is placed like one -- at the origin, since the accelerator is
+        not somewhere the instrument's frames reach.
         """
-        from .streams import f144_log
-        source, topic = self.pulse_source_topic()
-        return group('neutron_prod_info', nx_class='NXsource', children=[
-            dataset('name', 'ESS'),
-            dataset('probe', 'neutron'),
-            f144_log('current_log', source, topic, 'uA', 'double'),
-            # NXsource extends NXcomponent, so it is placed like one -- at the origin,
-            # since the accelerator is not somewhere the instrument's frames reach.
-            dataset('depends_on', '.'),
-        ])
+        return group(self.SOURCE_NAME, nx_class='NXsource', children=[
+            *self.source_contents(), dataset('depends_on', '.')])
 
     def pulse_source_topic(self) -> tuple[str, str]:
-        """Where the per-pulse reference sample is published."""
+        """Where the per-pulse reference sample is published, for an unbound binder."""
         binder = self.streams
         return (getattr(binder, 'pulse_source', None) or 'pulse',
                 getattr(binder, 'chopper_topic', None) or 'choppers')
@@ -176,11 +186,15 @@ class NexusContext(Context):
     def positioner_name(self, emitted: str, axis: str, knob) -> str:
         """What to call the positioner a motorised frame hangs from.
 
-        The name the frame is emitted under, and the axis's: `tank_mounting_a4`. Not
-        the knob's name alone -- two frames may be turned by one named knob, and they
-        cannot share a positioner because the chain each hangs from differs.
+        The knob's name -- `detector_tank_angle` -- because that is the name a facility
+        gives the positioner and binds its streams to. Two frames may be turned by one
+        knob, and they cannot share a positioner because the chain each hangs from
+        differs, so the second one is named for its frame as well:
+        `tank_mounting_detector_tank_angle`.
         """
-        return f'{emitted}_{getattr(knob, "name", None) or axis}'
+        name = getattr(knob, 'name', None) or axis
+        taken = self.placed | set(self.emitted_names.values())
+        return name if name not in taken else f'{emitted}_{name}'
 
     def motor_log(self, name: str, parameter: str, attrs: dict | None = None) -> dict:
         """An NXlog for a named run-time value that is not a positioner axis.
@@ -383,9 +397,19 @@ def _placed(visit: Visit, body: dict) -> dict:
 
 
 def emit(visit: Visit, body: dict) -> None:
-    """Put one component's group into the instrument."""
+    """Put one component's group into the instrument.
+
+    Refuses a name already used directly under NXinstrument. Two groups with one name
+    would be one group in the file, silently: the second replaces or merges into the
+    first. The accelerator's NXsource is `source`, so a component of that name would
+    collide with it.
+    """
     context = visit.context
     node = _placed(visit, body)
+    name = node_name(node)
+    if any(node_name(c) == name for c in context.instrument_group.get('children', [])):
+        raise ValueError(f'{name!r} is already directly under {INSTRUMENT_PATH}; '
+                         'rename the component')
     context.emitted_names[visit.id] = node_name(node)
     context.pending.append((visit, node))
     add_child(context.instrument_group, node)

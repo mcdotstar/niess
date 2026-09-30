@@ -197,8 +197,8 @@ def _parts(components):
 def self_declared_parameters(name: str, components) -> dict[str, str]:
     """Which run-time parameters the mapped components declare for themselves.
 
-    A `DiscChopper` declares ``{name}speed`` and ``{name}delay``; a `Jaw` declares
-    ``{name}_l`` and ``{name}_r`` -- and the original `.instr` almost certainly declared
+    A `DiscChopper` declares ``{name}_rotation_speed`` and ``{name}_delay``; a `Jaw`
+    declares ``{name}_left`` and ``{name}_right`` -- and the original `.instr` almost certainly declared
     the same knobs, under the same names, since that is what the niess class was modelled
     on. Carrying both forward is not a duplicate to tidy up later: `ensure_runtime_parameter`
     refuses an inconsistent redeclaration, so the generated module would not build.

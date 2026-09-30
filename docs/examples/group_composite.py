@@ -63,7 +63,7 @@ def main(outdir: Path) -> None:
     assert emitted == ['origin', 'pack_slit_0', 'pack_slit_1', 'pack_slit_2', 'sample']
     assert {c.group for c in instrument.components if c.name.startswith('pack')} == \
            {'pack_group'}
-    assert sorted(p.name for p in instrument.parameters) == ['packdelay', 'packspeed']
+    assert sorted(p.name for p in instrument.parameters) == ['pack_delay', 'pack_rotation_speed']
 
     # --8<-- [start:nexus]
     from niess.nexus.nodes import find_child, get_attribute
@@ -75,9 +75,9 @@ def main(outdir: Path) -> None:
               if c.get('type') == 'group']
     # --8<-- [end:nexus]
 
-    # one disc, because it never came apart. `neutron_prod_info` is the instrument's
+    # one disc, because it never came apart. `source` is the accelerator's
     # own furniture -- the pulse reference times -- rather than a component of the beam.
-    assert [g for g in groups if g != 'neutron_prod_info'] == ['origin', 'pack', 'sample']
+    assert [g for g in groups if g != 'source'] == ['origin', 'pack', 'sample']
     pack = find_child(instrument_group, 'pack')
     assert get_attribute(pack, 'NX_class') == 'NXdisk_chopper'
     assert find_child(pack, 'slits')['config']['values'] == 3

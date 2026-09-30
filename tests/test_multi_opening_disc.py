@@ -85,7 +85,8 @@ def test_each_opening_turns_to_the_beam_from_where_it_sits(assembled):
     takes is not known until the disc has a speed.
     """
     delays = [str(c.get_parameter('delay').value) for c in instances(assembled)]
-    assert delays == ['pack_slit_0_delay', 'pack_slit_1_delay', 'pack_slit_2_delay']
+    assert delays == ['pack_slit_0_opening_delay', 'pack_slit_1_opening_delay',
+                      'pack_slit_2_opening_delay']
 
 
 def test_which_way_the_disc_turns_is_decided_at_run_time(assembled):
@@ -97,12 +98,13 @@ def test_which_way_the_disc_turns_is_decided_at_run_time(assembled):
     does that -- along with dividing by a magnitude that is equally unknown.
     """
     text = str(assembled)
-    assert 'double pack_slit_0_delay;' in text
-    assert ('pack_slit_0_delay = packdelay '
-            '+ (packspeed < 0 ? 290.0 : 70.0) / (360.0 * fabs(packspeed));') in text
+    assert 'double pack_slit_0_opening_delay;' in text
+    assert ('pack_slit_0_opening_delay = 1e-9 * pack_delay '
+            '+ (pack_rotation_speed < 0 ? 290.0 : 70.0) '
+            '/ (360.0 * fabs(pack_rotation_speed));') in text
     # 330 counter-clockwise is 30 the other way; 90 is 270
-    assert '(packspeed < 0 ? 30.0 : 330.0)' in text
-    assert '(packspeed < 0 ? 270.0 : 90.0)' in text
+    assert '(pack_rotation_speed < 0 ? 30.0 : 330.0)' in text
+    assert '(pack_rotation_speed < 0 ? 270.0 : 90.0)' in text
 
 
 def test_an_opening_already_at_the_beam_needs_no_variable():
@@ -114,8 +116,8 @@ def test_an_opening_already_at_the_beam_needs_no_variable():
         assembler, at='origin', rotate='origin')
 
     only = instances(assembler.instrument)[0]
-    assert str(only.get_parameter('delay').value) == 'packdelay'
-    assert 'pack_slit_0_delay' not in str(assembler.instrument)
+    assert str(only.get_parameter('delay').value) == '1e-09*pack_delay'
+    assert 'pack_slit_0_opening_delay' not in str(assembler.instrument)
 
 
 def test_every_opening_is_in_one_group(assembled):
@@ -152,8 +154,8 @@ def test_two_discs_do_not_share_a_group():
 
 def test_the_disc_has_one_speed_and_one_delay(assembled):
     """One physical disc, so one pair of run-time parameters -- not one per opening."""
-    assert sorted(p.name for p in assembled.parameters) == ['packdelay', 'packspeed']
-    assert all(str(c.get_parameter('nu').value) == 'packspeed'
+    assert sorted(p.name for p in assembled.parameters) == ['pack_delay', 'pack_rotation_speed']
+    assert all(str(c.get_parameter('nu').value) == 'pack_rotation_speed'
                for c in instances(assembled))
 
 

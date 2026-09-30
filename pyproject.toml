@@ -31,6 +31,7 @@ dependencies = [
   "msgspec>=0.21.1",
   "networkx>=3.6.1",
   "ncrystal>=4.4.6", # required for B4C_sg166_BoronCarbide
+  "pyyaml", # reads facility stream bindings (niess.nexus.load_bindings)
 ]
 
 [project.optional-dependencies]

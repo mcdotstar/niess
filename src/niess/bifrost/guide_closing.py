@@ -147,11 +147,12 @@ def closing_guide_parameters(guide_pos, guide_rot) -> tuple[dict, Variable, Vari
     window = {'width': 60 * mm, 'height': 90 * mm}  # bigger tha the beam for sure
 
     ref_p, ref_r = guide_pos, guide_rot
-    for min_unit, max_unit, no in ((76, 85, 3), (86, 86, 2), (87, 87, 1)):
+    # Numbered along the beam, as ECDC numbers them: slit 1 is furthest from the sample.
+    for min_unit, max_unit, no in ((76, 85, 1), (86, 86, 2), (87, 87, 3)):
         d, ref_p, ref_r = guide_partial_dict(ref_p, ref_r, table, min_unit, max_unit, unit_dict)
         p.update(d)
-        # horizontal-only divergence limiting 'jaw'
-        device = (f'jaw_{no}', window.copy())
+        # horizontal-only divergence limiting jaws
+        device = (f'divergence_slit_{no}', window.copy())
         d, ref_p, ref_r = device_partial_dict(ref_p, ref_r, (device,), table, max_unit, max_unit+1,
                                               window)
         p.update(d)

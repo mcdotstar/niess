@@ -141,9 +141,13 @@ def register_bifrost() -> None:
 
         # Event streaming is what these tubes do: without an NXevent_data group the
         # filewriter has nothing to fill the detector with. Which topic and which source
-        # is the facility's business rather than the tubes', so the triplet may say;
-        # unset, these have always been BIFROST's own topic and an arc/triplet source.
+        # is the facility's business rather than the tubes', so the triplet may say, and
+        # then a bindings file may; unset, these have always been BIFROST's own topic
+        # and an arc/triplet source.
+        name = visit.emit_name('triplet')
         selection = obj.stream
+        if selection is None and hasattr(visit.context.streams, 'stream'):
+            selection = visit.context.streams.stream(name)
         if selection is None:
             selection = {'module': 'ev44',
                          'source': bifrost_detector_source(arc, triplet),
@@ -165,7 +169,7 @@ def register_bifrost() -> None:
             dataset('diameter', 2 * radius, attrs={'units': 'm'}),
             dataset('type', f'{ni} He3 tubes in series'),
             geometry,
-        ], name=visit.emit_name('triplet'),
+        ], name=name,
            position=vector([0., 0., 1.]) * visit.ancestor(_arm()).obj.analyzer_detector_distance)
 
     def collimator(visit):

@@ -36,7 +36,7 @@ def source_parameters():
     the wavelength band is selectable at run time without rebuilding the instrument.
     """
     return {
-        'name': 'source',
+        'name': 'moderator',
         'position': vector([0, 0, 0.0], unit='m'),
         'orientation': _unrotated(),
         'sector': 'W',
@@ -163,7 +163,7 @@ def teaching_parameters():
     monitor, ref_p, ref_r = monitor_parameters(ref_p, ref_r)
 
     return {
-        'source': source,
+        'moderator': source,
         'guides': guides,
         'chopper': chopper,
         'jaw': jaw,

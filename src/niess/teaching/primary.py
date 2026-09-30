@@ -26,7 +26,7 @@ class Guides(Section):
 
 class Primary(Section):
     """The whole teaching instrument, from moderator to sample position."""
-    source: ESSource
+    moderator: ESSource
     guides: Guides
     chopper: DiscChopper
     jaw: Jaw
