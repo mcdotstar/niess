@@ -3,12 +3,19 @@
 Notable changes to niess, newest first.
 
 Versions follow [semantic versioning](https://semver.org/), with the pre-1.0 caveat that a
-minor release may still remove things. 0.7.0 removes a great deal -- a whole translation
-route -- so it is a minor bump rather than a patch; everything removed is listed below
-with what replaces it.
+minor release may still remove things. 0.8.0 renames every chopper and jaw knob, and a
+good part of BIFROST, so it is a minor bump rather than a patch; everything renamed is
+listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.8.0
+
+BIFROST's NeXus file, named the way the real instrument's is. ECDC keeps the bindings
+that say which topic and source fill each log of the real file; niess now carries a copy,
+takes ECDC's names for BIFROST's components, and can write a simulation that uses the
+real topics and PV names while never being mistaken for the real thing. To make the
+number a run sets the number its file records, every chopper and jaw knob is now named
+and declared as ESS publishes it.
 
 ### Added — streams from a facility bindings file
 
@@ -71,6 +78,41 @@ single opening `{name}_delay` is the knob.
 - Every simulated NXlog fed by a parameter names it in a `simulation_parameter`
   attribute, whichever binder wrote the file: the chopper speed, delay and park angle,
   and a driven axis's `value`. Real files carry none.
+
+### Added — a dependency
+
+- `pyyaml`, to read a bindings file. mccode-antlr already required it, so nothing new
+  is installed.
+
+### Migrating from 0.7.0
+
+| 0.7.0 | 0.8.0 |
+| --- | --- |
+| `{disc}speed=14` | `{disc}_rotation_speed=14` |
+| `{disc}delay=0.0123` (s) | `{disc}_delay=12300000` (**ns**) |
+| `{jaw}_l=-0.015` (m) | `{jaw}_left=-15` (**mm**) |
+| BIFROST `a3=…`, `a4=…` | `sample_rotation=…`, `detector_tank_angle=…` (degrees) |
+| `instrument(a3_source=…, a4_pv_root=…)` | `instrument(sample_rotation_source=…, detector_tank_angle_pv_root=…)` |
+| BIFROST `jaw_3`, `jaw_2`, `jaw_1` | `divergence_slit_1`, `_2`, `_3`: **slit 1 is the old `jaw_3`** |
+| BIFROST `slit` | `sample_jaws` |
+| `primary.source`, `RELATIVE source` | `primary.moderator`, `RELATIVE moderator` |
+| `/entry/instrument/neutron_prod_info/current_log` | `/entry/instrument/source/current` |
+| `…/{disc}/mark_delay` (s) | `…/{disc}/delay` (ns) |
+| `/entry/instrument/tank_mounting_a4` | `/entry/instrument/detector_tank_angle` |
+
+**Scripts and scans need their parameter names and units changed**, not just their
+names: a chopper delay is a million times larger, a jaw edge a thousand. A name that no
+longer exists is refused by McStas; a value in the old unit is not, so check the numbers.
+
+**The tools around niess move with it.** restage sets `{disc}_rotation_speed` and
+`{disc}_delay` for an instrument that declares them, and mccode-plumber reads `delay` in
+ns, `source/current`, and each log's `simulation_parameter`. Both still accept an
+instrument or structure from 0.7.0. mccode-plumber now publishes every parameter to EPICS
+before each scan point, so a simulated instrument no longer needs an `UpdateEPICS`
+component of its own.
+
+**Regenerate any reference NeXus files and McStas instruments.** Placements are
+unchanged, but every renamed knob and group above is visible in both.
 
 ## 0.7.0
 
