@@ -36,7 +36,7 @@ from typing import Any, Callable
 from scipp import scalar
 
 from ..components import (
-    Aperture, Component, DiscChopper, ESSource, Jaw, Slit, StraightGuide, TaperedGuide,
+    Aperture, Component, DiscChopper, NXDiskChopper, ESSource, Jaw, Slit, StraightGuide, TaperedGuide,
 )
 
 #: `(niess class, calibration keys beyond name/position/orientation)`, or `None`.
@@ -235,6 +235,57 @@ def disk_chopper(instance, fold):
             zero_angle=zero_angle, beam_angle=beam_angle,
         ),
     }
+    
+
+def nxdisk_chopper(instance, fold):
+    """`NXdisk_chopper` -> `NXDiskChopper`, undoing McStas' placement convention.
+
+    `niess.scaffold.verify` is what confirms all of the above, and the reason a recipe
+    this delicate is safe to attempt at all.
+    """
+    from scipp import array
+    from ..components.chopper import disc_beam_offset
+
+    radius = _setting(instance, 'radius', fold)
+    frequency = _setting(instance, 'nu', fold, 0.0)
+    n_edges = _setting(instance, 'n_edges', fold, 2)
+    if radius is None or frequency is None or n_edges is None:
+        return None
+
+    n_edges = int(n_edges)
+
+    width = scalar(float(_setting(instance, 'xwidth', fold, 0.0) or 0.0), unit='m')
+    height = scalar(float(_setting(instance, 'yheight', fold, 0.0) or 0.0), unit='m')
+    radius = scalar(float(radius), unit='m')
+
+
+    # ideally we would extract the edges, which are defined in an instrument defined array
+    # but mccode-antlr has a hard time extracting vector values
+    slit_edges = _setting(instance, 'slit_edges', fold)
+
+    edges = list(range(n_edges))
+
+    park_angle = scalar(float(_setting(instance, 'park_angle', fold, 0.0) or 0.0), unit='deg')
+    zero_angle = scalar(float(_setting(instance, 'zero_angle', fold, 0.0) or 0.0), unit='deg')
+    beam_angle = scalar(float(_setting(instance, 'beam_angle', fold, 0.0) or 0.0), unit='deg')
+
+
+    return NXDiskChopper, {
+        'radius': radius,
+        'windows': array(values=edges, dims=['edges'], unit='deg'),
+        'height': height,
+        'width': width,
+        'park_angle': park_angle,
+        'zero_angle': zero_angle,
+        'beam_angle': beam_angle,
+        'frequency': scalar(float(frequency), unit='Hz'),
+        'delay': scalar(float(_setting(instance, 'delay', fold, 0.0) or 0.0), unit='s'),
+        # the `.instr` placed the beam crossing; `position` must be the spindle
+        'position_offset': -disc_beam_offset(
+            radius=radius, width=width, height=height,
+            zero_angle=zero_angle, beam_angle=beam_angle,
+        ),
+    }
 
 
 #: McStas component type name -> recipe. Everything absent becomes an `Opaque`.
@@ -244,6 +295,7 @@ RECIPES: dict[str, Recipe] = {
     'Guide_gravity': guide_gravity,
     'Slit': slit,
     'DiskChopper': disk_chopper,
+    'NXdisk_chopper': nxdisk_chopper,
 }
 
 
