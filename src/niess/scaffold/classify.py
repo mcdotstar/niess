@@ -136,10 +136,11 @@ def convert(instr, origin: str | None = None) -> Conversion:
         if recipe is not None:
             try:
                 result = recipe(instance, fold)
-            except Exception:
+            except Exception as ex:
                 # A recipe that cannot cope is a component that becomes an `Opaque`, not
                 # a conversion that fails. The report says which, and the instrument
                 # still converts.
+                print(f'Failed to convert {instance} because\n{ex}')
                 result = None
             if result is not None:
                 niess_class, calibration = result
