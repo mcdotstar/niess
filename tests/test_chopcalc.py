@@ -67,10 +67,10 @@ def multi_slit(edges=EDGES):
 
 def _bare_source(lmin=0.75, lmax=30.0):
     """A moderator whose band the narrowing writes through."""
-    from niess.components.source import ESSource
+    from niess.components.moderator import ESSModerator
     from scipp import vector
     from scipp.spatial import rotations_from_rotvecs
-    return ESSource.from_calibration({
+    return ESSModerator.from_calibration({
         'name': 'source',
         'position': vector([0, 0, 0.], unit='m'),
         'orientation': rotations_from_rotvecs(vector([0, 0, 0.], unit='deg')),

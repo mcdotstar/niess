@@ -93,7 +93,7 @@ constants, and each gets there differently:
 
 - `source_lambda_min` / `source_lambda_max` — passed in the calibration as McCode
   parameter specification strings (`'source_lambda_min/"angstrom" = 0.75'`), which
-  `ESSource` turns into `DEFINE INSTRUMENT` arguments.
+  `ESSModerator` turns into `DEFINE INSTRUMENT` arguments.
 - `chopper_rotation_speed` / `chopper_delay` — `DiscChopper` declares these itself, in
   Hz and nanoseconds, as ESS publishes them.
 - `jaw_left` / `jaw_right` — `Jaw` declares these itself, in millimetres.

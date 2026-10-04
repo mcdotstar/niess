@@ -72,10 +72,10 @@ def test_a_multi_opening_disc_keeps_all_its_openings():
     """Which the other route recovers by grouping components on a metadata tag."""
     from scipp import array, scalar, vector
     from scipp.spatial import rotations_from_rotvecs
-    from niess.components import DiscChopper, ESSource, Section
+    from niess.components import DiscChopper, ESSModerator, Section
     from niess.teaching.parameters import teaching_parameters
 
-    source = ESSource.from_calibration(teaching_parameters()['moderator'])
+    source = ESSModerator.from_calibration(teaching_parameters()['moderator'])
     disc = DiscChopper.from_calibration({
         'name': 'pack', 'position': vector([0, 0, 5.0], unit='m'),
         'orientation': rotations_from_rotvecs(vector([0, 0, 0.0], unit='deg')),
@@ -87,7 +87,7 @@ def test_a_multi_opening_disc_keeps_all_its_openings():
     })
 
     class Chopped(Section):
-        source: ESSource
+        source: ESSModerator
         pack: DiscChopper
         _flat: bool = True
 

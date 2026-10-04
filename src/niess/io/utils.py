@@ -40,7 +40,7 @@ from niess.components import (
     He3Monitor,
     BeamCurrentMonitor,
     GEM2D,
-    ESSource,
+    ESSModerator,
     Section,
 )
 
@@ -90,10 +90,13 @@ MODEL_ENCODE = {
     He3Monitor: 'He3Monitor',
     BeamCurrentMonitor: 'BeamCurrentMonitor',
     GEM2D: 'GEM2D',
-    ESSource: 'ESSource',
+    ESSModerator: 'ESSModerator',
     Section: 'Section',
 }
 MODEL_DECODE = {v: k for k, v in MODEL_ENCODE.items()}
+#: Names files written before a rename still carry. Decode only: a file is always
+#: written with the current name.
+MODEL_DECODE |= {'ESSource': ESSModerator}
 
 
 class Model(msgspec.Struct):

@@ -94,8 +94,8 @@ def test_niess_component():
 
 
 def test_niess_source():
-    from niess.components import ESSource
-    source = ESSource.from_calibration(
+    from niess.components import ESSModerator
+    source = ESSModerator.from_calibration(
         dict(wavelength_minimum='double minimum/"angstrom"=1.0',)
     )
     assert source == niess_round_trip(source)

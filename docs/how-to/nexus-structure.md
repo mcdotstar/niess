@@ -185,8 +185,8 @@ one sample per pulse of the proton current on target:
 ```
 
 `source` and `current` are ECDC's names, which the real instrument's file uses. The
-group describes the accelerator, not the moderator. A niess `Source` is the moderator,
-and is written as an `NXmoderator` component under its own name (`moderator` in
+group describes the accelerator, not the moderator. A niess `Moderator` is
+written as an `NXmoderator` component under its own name (`moderator` in
 BIFROST). The group hangs under `NXinstrument`: a group of this class directly under
 `NXentry` does not validate.
 

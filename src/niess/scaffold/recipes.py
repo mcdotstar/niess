@@ -36,7 +36,7 @@ from typing import Any, Callable
 from scipp import scalar
 
 from ..components import (
-    Aperture, Component, DiscChopper, NXDiskChopper, ESSource, Jaw, Slit, StraightGuide, TaperedGuide,
+    Aperture, Component, DiscChopper, NXDiskChopper, ESSModerator, Jaw, Slit, StraightGuide, TaperedGuide,
 )
 
 #: `(niess class, calibration keys beyond name/position/orientation)`, or `None`.
@@ -99,7 +99,7 @@ def ess_butterfly(instance, fold):
         value = _setting(instance, name, fold)
         if value:
             calibration[key] = scalar(float(value), unit='m')
-    return ESSource, calibration
+    return ESSModerator, calibration
 
 
 def _guide_m_values(instance, fold):

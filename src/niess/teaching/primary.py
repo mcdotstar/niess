@@ -7,7 +7,7 @@ so the declaration order here *is* the beam order, and it must match the key ord
 :func:`niess.teaching.parameters.teaching_parameters`.
 """
 from ..components import (
-    Component, DiscChopper, ESSource, FissionChamber, Jaw, Section, StraightGuide,
+    Component, DiscChopper, ESSModerator, FissionChamber, Jaw, Section, StraightGuide,
 )
 from ..utilities import calibration
 
@@ -26,7 +26,7 @@ class Guides(Section):
 
 class Primary(Section):
     """The whole teaching instrument, from moderator to sample position."""
-    moderator: ESSource
+    moderator: ESSModerator
     guides: Guides
     chopper: DiscChopper
     jaw: Jaw

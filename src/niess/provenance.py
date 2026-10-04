@@ -51,6 +51,15 @@ _RENAMED_ROLES = {
 }
 
 
+#: Classes that moved or were renamed, by the ``source_type`` older files recorded, so an
+#: instrument written before the move still resolves to the translators of the class it
+#: was written from. Read only -- emission always records the class's current name.
+_RENAMED_SOURCE_TYPES = {
+    'niess.components.source.Source': 'niess.components.moderator.Moderator',
+    'niess.components.source.ESSource': 'niess.components.moderator.ESSModerator',
+}
+
+
 @dataclass(frozen=True)
 class NiessProvenance:
     namespace: str
@@ -75,7 +84,8 @@ class NiessProvenance:
         return cls(
             namespace=payload['namespace'],
             schema_version=payload['schema_version'],
-            source_type=payload['source_type'],
+            source_type=_RENAMED_SOURCE_TYPES.get(payload['source_type'],
+                                              payload['source_type']),
             source_name=payload.get('source_name', instance.name),
             role=_RENAMED_ROLES.get(role, role),
             extra=extra,

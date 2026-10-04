@@ -108,13 +108,13 @@ def train_from_instrument(instrument, latest_emission: float | None = None,
     travels to reach one, for a disc whose route the flow graph cannot measure.
     """
 
-    from ..components.source import Source
+    from ..components.moderator import Moderator
     from ..walk import visits
 
     seen = list(visits(instrument))
-    sources = [v for v in seen if isinstance(v.obj, Source)]
+    sources = [v for v in seen if isinstance(v.obj, Moderator)]
     if not sources:
-        raise ChopcalcError('the instrument has no source, so there is no band to narrow')
+        raise ChopcalcError('the instrument has no moderator, so there is no band to narrow')
     source = sources[0]
 
     entry = _source_entry(source, latest_emission)

@@ -15,7 +15,7 @@ from math import acos, degrees, dist
 
 logger = logging.getLogger(__name__)
 
-ESS_SOURCE_DURATION = 2.857e-3  # seconds; matches niess.components.source
+ESS_SOURCE_DURATION = 2.857e-3  # seconds; matches niess.components.moderator
 
 DEFAULT_LATEST_EMISSION = 3 * ESS_SOURCE_DURATION
 

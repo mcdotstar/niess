@@ -10,7 +10,7 @@ from ..components import (
     Section, Component,
     Jaw, Slit, Filter, Attenuator, NXDiskChopper,
     EllipticGuide, StraightGuide, StraightGuides,
-    FissionChamber, BeamCurrentMonitor, GEM2D, ESSource
+    FissionChamber, BeamCurrentMonitor, GEM2D, ESSModerator
 )
 from ..utilities import calibration
 
@@ -170,7 +170,7 @@ class Closing(Section):
 class Primary(Section):
     #: The ESS butterfly moderator. Not `source`: that name is the accelerator's
     #: NXsource in a NeXus file, as ECDC names it.
-    moderator: ESSource
+    moderator: ESSModerator
     compressor: Compressor
     # pulse shaping choppers (not in a named section ...)
     pulse_shaping_chopper_1: NXDiskChopper

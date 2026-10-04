@@ -56,8 +56,8 @@ def offline_source(distance=0.0):
 
 def bare_source():
     """A moderator at the origin, which is all the model needs one for."""
-    from niess.components.source import ESSource
-    return ESSource.from_calibration({
+    from niess.components.moderator import ESSModerator
+    return ESSModerator.from_calibration({
         'name': 'source',
         'position': sc.vector([0, 0, 0.], unit='m'),
         'orientation': rotations_from_rotvecs(sc.vector([0, 0, 0.], unit='deg')),
