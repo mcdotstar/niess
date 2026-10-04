@@ -261,9 +261,9 @@ def nxdisk_chopper(instance, fold):
 
     # ideally we would extract the edges, which are defined in an instrument defined array
     # but mccode-antlr has a hard time extracting vector values
-    slit_edges = _setting(instance, 'slit_edges', fold)
-
-    edges = list(range(n_edges))
+    edges = _setting(instance, 'slit_edges', fold)
+    if not isinstance(edges, list) or len(edges) != n_edges:
+        return None
 
     park_angle = scalar(float(_setting(instance, 'park_angle', fold, 0.0) or 0.0), unit='deg')
     zero_angle = scalar(float(_setting(instance, 'zero_angle', fold, 0.0) or 0.0), unit='deg')

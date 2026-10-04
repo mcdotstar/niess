@@ -41,7 +41,8 @@ def declared_variables(instr) -> dict:
         return variables
 
     try:
-        return evaluate_c_defined_expressions(variables, initialize)
+        # Evalue the declarators not just their names to have access to, e.g., shape information
+        return evaluate_c_defined_expressions(declarations, initialize)
     except Exception as error:
         # An INITIALIZE block that the C expression evaluator cannot digest (pointer
         # arithmetic, unresolved %include, ...) is not fatal: fall back on the values
@@ -86,6 +87,9 @@ def folder(instr):
         if not isinstance(expr, Expr):
             return float(expr)
         reduced = expr if expr.is_constant else expr.evaluate(known)
+        if reduced.vector_known:
+            if all(isinstance(v, (int, float)) for v in reduced.value):
+                return [float(v) for v in reduced.value]
         if not reduced.is_constant:
             where = f' for {what}' if what else ''
             raise ValueError(
