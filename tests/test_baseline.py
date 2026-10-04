@@ -52,6 +52,7 @@ def first_difference(actual: str, expected: str) -> str:
     return 'no difference'
 
 
+@pytest.mark.regression
 @pytest.mark.parametrize('name', NAMES)
 def test_emitted_text_is_unchanged(built, name):
     expected = frozen_text(name)
@@ -59,6 +60,7 @@ def test_emitted_text_is_unchanged(built, name):
     assert actual == expected, first_difference(actual, expected)
 
 
+@pytest.mark.regression
 @pytest.mark.parametrize('name', NAMES)
 def test_structure_is_unchanged(built, name):
     """Catches what the text cannot: it flattens the nested %include sections."""
@@ -85,6 +87,7 @@ def test_niess_flow_graphs_are_unchanged():
     assert niess_flow_graphs() == frozen_json(NIESS_FLOW_GRAPHS)
 
 
+@pytest.mark.regression
 def test_niess_object_model_is_unchanged():
     """A calibration change the emission goldens could miss."""
     frozen = frozen_json(NIESS_OBJECTS)
@@ -121,6 +124,7 @@ def test_the_baseline_describes_the_instruments_we_think_it_does(built):
     ]
 
 
+@pytest.mark.regression
 def test_a_moved_component_fails_the_gate():
     """The gate has teeth.
 
@@ -147,6 +151,7 @@ def test_a_moved_component_fails_the_gate():
     )
 
 
+@pytest.mark.regression
 def test_a_flattened_section_fails_the_gate(monkeypatch):
     """Why the structure is frozen separately from the text.
 

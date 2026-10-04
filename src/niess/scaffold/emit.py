@@ -439,14 +439,16 @@ def write(conversion, outdir: Path, instr_path: Path | None = None,
     fields = {mapped.name: _identifier(mapped.name, taken)
               for mapped in conversion.components}
 
-    (package / 'parameters.py').write_text(parameters_module(conversion, fields))
-    (package / 'structure.py').write_text(structure_module(conversion, fields, section))
-    (package / 'instrument.py').write_text(instrument_module(conversion, section))
-    (package / '__init__.py').write_text(init_module(conversion, section))
+    # Python reads source as UTF-8 everywhere, but write_text's default is the locale's,
+    # which on Windows is not -- so a non-ASCII comment carried over would not import.
+    (package / 'parameters.py').write_text(parameters_module(conversion, fields), encoding='utf-8')
+    (package / 'structure.py').write_text(structure_module(conversion, fields, section), encoding='utf-8')
+    (package / 'instrument.py').write_text(instrument_module(conversion, section), encoding='utf-8')
+    (package / '__init__.py').write_text(init_module(conversion, section), encoding='utf-8')
 
     if instr_path is not None and Path(instr_path).is_file():
         instr_name = Path(instr_path).name
         copyfile(instr_path, package / instr_name)
-        (package / 'test_placement.py').write_text(test_module(conversion, instr_name))
+        (package / 'test_placement.py').write_text(test_module(conversion, instr_name), encoding='utf-8')
 
     return package

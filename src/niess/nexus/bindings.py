@@ -96,7 +96,7 @@ def load_bindings(path) -> dict[str, Binding]:
     """
     from pathlib import Path
     import yaml
-    with Path(path).open('r') as file:
+    with Path(path).open('r', encoding='utf-8') as file:
         return parse_bindings(yaml.safe_load(file) or {})
 
 
