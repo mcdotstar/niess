@@ -132,7 +132,7 @@ def test_every_registered_builder_is_reached(assembly):
             resolved[provenance.source_type.rsplit('.', 1)[-1]] += 1
 
     assert dict(resolved) == {
-        'ESSource': 1, 'EllipticGuide': 29, 'StraightGuide': 90,
+        'ESSModerator': 1, 'EllipticGuide': 29, 'StraightGuide': 90,
         'Attenuator': 3, 'Jaw': 3, 'Slit': 2, 'Component': 1,
     }
     # 129 of 158. The rest -- 19 windows, 6 discs, 4 monitors -- resolve nothing,

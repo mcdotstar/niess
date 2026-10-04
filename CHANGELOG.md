@@ -10,6 +10,33 @@ listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+### Changed — `ESSource` is `ESSModerator`
+
+The component an instrument's neutrons start from is its **moderator**. At ESS the
+*source* is the proton accelerator that drives the spallation target, and NeXus already
+uses the word that way: `/entry/instrument/source` describes the accelerator. The classes
+are renamed to match.
+
+| was | is |
+| --- | --- |
+| `niess.components.ESSource` | `niess.components.ESSModerator` |
+| `niess.components.source.Source` | `niess.components.Moderator` |
+| `niess.components.source` | `niess.components.moderator` |
+| default instance name `ESS_source` | `ESS_moderator` |
+
+`Moderator` replaces the empty stub of the same name and is now the base class that the
+McStas, NeXus, tof and chopcalc targets look for.
+
+The old names still import, with a `DeprecationWarning`, and will be removed in a later
+release. Older files keep working too:
+
+- JSON tagged `ESSource` reads as an `ESSModerator`.
+- An `.instr` whose provenance records `niess.components.source.ESSource` resolves to the
+  `ESSModerator` translators.
+
+New emissions record `niess.components.moderator.ESSModerator` in each moderator's
+`niess_provenance` block. That one line is the only change to the emitted instruments,
+and it is why the three frozen `.instr` files were re-minted.
 ### Changed — the tests run on macOS and Windows too
 
 CI now tests on Linux, macOS and Windows (#103). The **regression tests** — those that

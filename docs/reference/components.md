@@ -7,11 +7,11 @@ Every class takes at least `name`, `position` (a scipp vector) and `orientation`
 scipp quaternion), and is built from a calibration dictionary with
 `SomeClass.from_calibration({...})`.
 
-## Sources
+## Moderators
 
 | niess class | emits | calibration keys |
 | --- | --- | --- |
-| `ESSource` | `ESS_butterfly` | `sector`, `beamline`, `height`, `cold_fraction`, `focus_distance`, `focus_width`, `focus_height`, `cold_performance`, `thermal_performance`, `wavelength_minimum`, `wavelength_maximum`, `latest_emission_time`, `n_pulses`, `accelerator_power` |
+| `ESSModerator` | `ESS_butterfly` | `sector`, `beamline`, `height`, `cold_fraction`, `focus_distance`, `focus_width`, `focus_height`, `cold_performance`, `thermal_performance`, `wavelength_minimum`, `wavelength_maximum`, `latest_emission_time`, `n_pulses`, `accelerator_power` |
 
 `wavelength_minimum` and `wavelength_maximum` accept a McCode instrument-parameter
 specification string such as `'source_lambda_min/"angstrom" = 0.75'` instead of a
@@ -195,8 +195,7 @@ written as `.instr` text.
 
 | niess class | why |
 | --- | --- |
-| `Aperture`, `Chopper`, `Guide`, `Filter` | abstract bases — use a concrete subclass |
-| `Moderator` | a stub |
+| `Aperture`, `Chopper`, `Guide`, `Filter`, `Moderator` | abstract bases — use a concrete subclass |
 | `Collimator`, `SollerCollimator`, `RadialCollimator` | declared, not implemented |
 | `FermiChopper` | declared, not implemented |
 

@@ -74,7 +74,7 @@ def test_what_is_modelled_and_what_is_not(teaching):
     conversion = convert(teaching, origin='sample_origin')
     mapped = {m.name: m.niess_class.__name__ for m in conversion.components}
     assert mapped == {
-        'moderator': 'ESSource',
+        'moderator': 'ESSModerator',
         'unit_1': 'StraightGuide',
         'unit_2': 'StraightGuide',
         'chopper': 'DiscChopper',

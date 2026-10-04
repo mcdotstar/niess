@@ -15,7 +15,7 @@ from ..components.component import Component
 from ..components.aperture import Jaw, Slit
 from ..components.filter import Attenuator, NCrystalFilter, RadialFilterCollimator
 from ..components.guide import EllipticGuide, StraightGuide, TaperedGuide
-from ..components.source import ESSource
+from ..components.moderator import ESSModerator
 from .assembly import BREP_REGISTRY, Subject
 
 
@@ -232,8 +232,8 @@ def build_filter(subject):
     params = subject.params
     return _box(_param(params, 'xwidth'), _param(params, 'yheight'), _param(params, 'zdepth'))
 
-@BREP_REGISTRY.register(ESSource)
-def build_ess_source(subject):
+@BREP_REGISTRY.register(ESSModerator)
+def build_ess_moderator(subject):
     params = subject.params
     height = _param(params, 'yheight')
     width = params.get('focus_xw', height)

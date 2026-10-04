@@ -103,7 +103,7 @@ def _knobs(instrument) -> dict[str, str | None]:
     said out loud, rather than silently changing nothing.
     """
     from ..components.chopper import DISC_CHOPPERS
-    from ..components.source import Source
+    from ..components.moderator import Moderator
     from ..walk import visits
 
     known: dict[str, str | None] = {}
@@ -114,7 +114,7 @@ def _knobs(instrument) -> dict[str, str | None]:
             for which in ('speed', 'delay'):
                 name, _, unit = _knob(visit.obj, which)
                 known[name] = unit
-        elif isinstance(visit.obj, Source):
+        elif isinstance(visit.obj, Moderator):
             for field in ('wavelength_minimum', 'wavelength_maximum'):
                 knob = _band_knob(getattr(visit.obj, field, None))
                 if knob is not None:
@@ -161,7 +161,7 @@ def to_tof_model(instrument, *, source=None, values: dict | None = None,
 
     from ..components.chopper import DISC_CHOPPERS
     from ..components.monitors import FrameMonitor
-    from ..components.source import Source
+    from ..components.moderator import Moderator
     from ..walk import visits
     from .setup import _tof, _facility_for
     from .parameters import Use
@@ -171,9 +171,9 @@ def to_tof_model(instrument, *, source=None, values: dict | None = None,
     _check_knobs(instrument, values)
     seen = list(visits(instrument))
 
-    source_visit = next((v for v in seen if isinstance(v.obj, Source)), None)
+    source_visit = next((v for v in seen if isinstance(v.obj, Moderator)), None)
     if source_visit is None:
-        raise ValueError('the instrument has no source, so there is nothing to model')
+        raise ValueError('the instrument has no moderator, so there is nothing to model')
 
     band, band_used = {}, []
     for field, keyword in (('wavelength_minimum', 'wmin'),
@@ -272,11 +272,11 @@ def _as_tof_chopper(tof, spec):
 def _paths(instrument, skip=(), path_lengths=None) -> dict:
     """How far along the beam every placed thing is, from the source."""
     from ..chopcalc.paths import ChopcalcError, beam_path_length, global_position
-    from ..components.source import Source
+    from ..components.moderator import Moderator
     from ..walk import visits
 
     seen = list(visits(instrument))
-    source = next(v for v in seen if isinstance(v.obj, Source))
+    source = next(v for v in seen if isinstance(v.obj, Moderator))
     graph = instrument.to_graph()
     places = {}
     for visit in seen:

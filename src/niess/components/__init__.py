@@ -11,10 +11,9 @@ from .filter import (
     make_aluminum
 )
 from .guide import EllipticGuide, TaperedGuide, StraightGuide, Guide, StraightGuides, TaperedGuides
-from .moderator import Moderator
+from .moderator import ESSModerator, Moderator
 from .monitors import FissionChamber, He3Monitor, BeamCurrentMonitor, GEM2D
 from .opaque import Opaque
-from .source import ESSource
 from .section import Section
 
 __all__ = [
@@ -56,6 +55,19 @@ __all__ = [
     'BeamCurrentMonitor',
     'GEM2D',
     'Opaque',
-    'ESSource',
+    'ESSModerator',
     'Section',
 ]
+
+#: Renamed in 0.9.0: the component is the moderator an instrument views, not the
+#: facility's source (for ESS, the proton accelerator).
+_RENAMED = {'Source': 'Moderator', 'ESSource': 'ESSModerator'}
+
+
+def __getattr__(name):
+    if name not in _RENAMED:
+        raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+    from warnings import warn
+    warn(f'niess.components.{name} is now niess.components.{_RENAMED[name]}',
+         DeprecationWarning, stacklevel=2)
+    return globals()[_RENAMED[name]]

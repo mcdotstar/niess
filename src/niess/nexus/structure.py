@@ -529,7 +529,7 @@ def register_defaults() -> None:
     from ..components.filter import Filter
     from ..components.frame import Frame
     from ..components.monitors import FrameMonitor
-    from ..components.source import Source
+    from ..components.moderator import Moderator
 
     @translator(Component)
     def marker(visit):
@@ -541,8 +541,8 @@ def register_defaults() -> None:
         """A declared coordinate frame is a place to hang things, and nothing else."""
         return _reference_frame()
 
-    @translator(Source)
-    def source(visit):
+    @translator(Moderator)
+    def moderator(visit):
         return component_body('NXmoderator')
 
     @translator(Filter)
