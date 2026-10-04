@@ -10,6 +10,15 @@ listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+### Fixed — the teaching instrument runs
+
+The teaching calibration gave the moderator nowhere to send its rays, and `ESS_butterfly`
+needs one, so the compiled instrument stopped in INITIALIZE with *"Please choose to set
+either the dist parameter or specify a target_index"*. The moderator is now aimed at the
+first guide's opening, as BIFROST's is. The distance, width and height are taken from
+the guide's own parameters, so `dist=1.5, focus_xw=0.04, focus_yh=0.06` is emitted. The
+teaching goldens are re-minted for those three parameters.
+
 ### Added — `PolygonESSModerator`, opt-in
 
 chopper-lib's `Polygon_ESS_butterfly` as a niess moderator. It works out the exact region

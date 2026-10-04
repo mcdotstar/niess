@@ -53,7 +53,9 @@ def test_the_teaching_instrument_exports_what_it_did(assembly):
 
     found = measure(assembly(Primary.from_calibration(), name='teaching'))
     assert found['solids'] == 7
-    assert found['volume'] == pytest.approx(0.012216, rel=1e-4)
+    # 0.012216 until the moderator was aimed at the first guide: its block runs to the
+    # focus, so it grew from 30 x 30 x 30 mm to 40 x 30 x 1500 mm.
+    assert found['volume'] == pytest.approx(0.013989, rel=1e-4)
 
 
 def test_the_bifrost_primary_exports_what_it_did(assembly):
