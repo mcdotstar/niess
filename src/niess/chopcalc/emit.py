@@ -5,7 +5,9 @@ from textwrap import indent
 
 from .model import ChopperTrain, Export
 
-CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.2.1'
+#: The release fetched. 4.2.2 changes nothing niess calls -- it licenses the library and
+#: offers `Polygon_ESS_butterfly` to McCode -- so the guard below stays at 4.2.1.
+CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.2.2'
 #: 4.2.1, not 4.1.0, and the reason is `chopper_wavelength_limits` -- the one
 #: function this module calls. It goes through `range_set_sort`, which until 4.2.1
 #: "gave different answers on different platforms, which is how a chopper train's

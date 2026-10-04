@@ -89,6 +89,12 @@ def narrow_source_wavelengths(
         alongside ``export_choppers``: a component that reads the train needs it to exist,
         and the default is to warn and emit nothing.
 
+    A source that reads the train itself -- a
+    :class:`~niess.components.PolygonESSModerator` -- says under which names, and the
+    train is published there without ``export_choppers``. Naming anything else is an
+    error, and so is failing to publish it, ``strict`` or not: the instrument would read
+    a pointer nobody declared.
+
     Returns
     -------
     The train that was used, or ``None`` when nothing could be narrowed.
@@ -116,6 +122,20 @@ def narrow_source_wavelengths(
     if already_emitted(instrument):
         return _refuse('this instrument has already been narrowed; calling '
                        'narrow_source_wavelengths twice would apply two bands', strict)
+
+    wanted = chopper_train.source.reads_train
+    if wanted is not None:
+        # The source component reads the train, so emitting nothing is no longer the safe
+        # choice it is otherwise: the instrument would name a pointer nobody declared.
+        strict = True
+        if export_choppers is None and export_chopper_count is None:
+            export_choppers, export_chopper_count = wanted
+        elif (export_choppers, export_chopper_count or f'{export_choppers}_count') != wanted:
+            raise ChopcalcError(
+                f'source {chopper_train.source.name!r} reads the train as {wanted[0]} / '
+                f'{wanted[1]}, so it has to be published under those names; leave '
+                f'export_choppers and export_chopper_count unset to use them'
+            )
 
     try:
         export = _export_names(instrument, export_choppers, export_chopper_count, chopper_train)

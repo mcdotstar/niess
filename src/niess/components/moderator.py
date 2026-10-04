@@ -124,3 +124,89 @@ class ESSModerator(Moderator):
                 ensure_runtime_parameter(assembler, p)
         return super().to_mccode(assembler, at, rotate, insert_provenance_metadata=insert_provenance_metadata)
 
+
+
+class PolygonESSModerator(ESSModerator):
+    """The ESS butterfly moderator, emitting only what the chopper train can pass.
+
+    chopper-lib's ``Polygon_ESS_butterfly``: an ``ESS_butterfly`` that works out, at run
+    time, the exact region of (inverse velocity, emission time) the chopper train
+    transmits, and absorbs -- or with ``resample``, redraws -- every ray outside it.
+    Nothing reaching the sample changes; the rays that would have died on a disc are
+    simply not spent.
+
+    The component reads the train as a pointer and a count, which `niess.chopcalc`
+    publishes under `train_identifier`. So an instrument with this moderator has to be
+    narrowed::
+
+        to_mccode(instrument, assembler=assembler)
+        narrow_source_wavelengths(assembler, train_from_instrument(instrument))
+
+    which finds the names here and exports under them; without that the instrument does
+    not compile.
+
+    https://github.com/mcdotstar/mcstas-chopper-lib/blob/main/Polygon_ESS_butterfly.comp
+    """
+    chopper_train: Optional[str] = None
+    """The C name the train is published under; ``None`` is ``{name}_choppers``."""
+    path_spread_fraction: float = 0.0
+    """Extra flight path a ray may have taken, as a fraction of each disc's own path."""
+    noise_fraction: float = 0.0
+    """Accept a ray outside the region with this probability."""
+    use_region: bool = True
+    """Limit emission to the transmitted region. False makes this an `ESSModerator`."""
+    resample: bool = False
+    """Redraw a ray outside the region from inside it, correcting its weight."""
+    save_polygons: bool = True
+    """Write the transmitted region to ``{filename}.json``."""
+    verify_acceptance: bool = True
+    """Count rays drawn and rays in the region, and report their ratio."""
+    filename: Optional[str] = None
+    """The base name of the output file; ``None`` is the component's own name."""
+
+    #: The component's own defaults, so only what differs is emitted.
+    _COMPONENT_DEFAULTS = {
+        'path_spread_fraction': 0.0, 'noise_fraction': 0.0, 'use_region': True,
+        'resample': False, 'save_polygons': True, 'verify_acceptance': True,
+    }
+
+    @classmethod
+    def from_calibration(cls, cal: dict):
+        from msgspec.structs import replace
+        moderator = super().from_calibration(cal)
+        return replace(moderator, **{key: cal[key] for key in (
+            'chopper_train', 'filename', *cls._COMPONENT_DEFAULTS) if key in cal})
+
+    def train_identifier(self) -> str:
+        """The train's pointer in DECLARE; its count is this with ``_count`` added."""
+        return self.chopper_train or f'{self.name}_choppers'
+
+    def __chopcalc_reads_train__(self) -> tuple[str, str]:
+        """The names `niess.chopcalc` has to publish the train under for this to compile."""
+        return self.train_identifier(), f'{self.train_identifier()}_count'
+
+    def __mccode__(self) -> tuple[str, dict]:
+        _, pars = super().__mccode__()
+        choppers, count = self.__chopcalc_reads_train__()
+        pars['choppers'] = f'(double *) {choppers}'
+        pars['chopper_count'] = count
+        for field, default in self._COMPONENT_DEFAULTS.items():
+            value = getattr(self, field)
+            if value != default:
+                pars[field] = int(value) if isinstance(value, bool) else value
+        if self.filename is not None:
+            pars['filename'] = '"' + self.filename.strip('"') + '"'
+        return 'Polygon_ESS_butterfly', pars
+
+    def to_mccode(
+            self, assembler: Assembler,
+            at: Instance | str | None = None, rotate: Instance | str | None = None,
+            insert_provenance_metadata: bool = True,
+    ):
+        from ..assembler import ensure_registry
+        # Polygon_ESS_butterfly is chopper-lib's, pinned in one place with the guard
+        # that refuses an older library.
+        from ..chopcalc.emit import CHOPPER_LIB_REGISTRY
+        ensure_registry(assembler, CHOPPER_LIB_REGISTRY)
+        return super().to_mccode(assembler, at, rotate,
+                                 insert_provenance_metadata=insert_provenance_metadata)

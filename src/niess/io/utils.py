@@ -41,6 +41,7 @@ from niess.components import (
     BeamCurrentMonitor,
     GEM2D,
     ESSModerator,
+    PolygonESSModerator,
     Section,
 )
 
@@ -91,6 +92,7 @@ MODEL_ENCODE = {
     BeamCurrentMonitor: 'BeamCurrentMonitor',
     GEM2D: 'GEM2D',
     ESSModerator: 'ESSModerator',
+    PolygonESSModerator: 'PolygonESSModerator',
     Section: 'Section',
 }
 MODEL_DECODE = {v: k for k, v in MODEL_ENCODE.items()}
