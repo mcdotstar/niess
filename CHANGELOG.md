@@ -3,21 +3,19 @@
 Notable changes to niess, newest first.
 
 Versions follow [semantic versioning](https://semver.org/), with the pre-1.0 caveat that a
-minor release may still remove things. 0.8.0 renames every chopper and jaw knob, and a
-good part of BIFROST, so it is a minor bump rather than a patch; everything renamed is
-listed below with what replaces it.
+minor release may still remove things. 0.9.0 renames the moderator classes, so it is a
+minor bump rather than a patch; the old names still work for now, and everything renamed
+is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.9.0
 
-### Fixed — the teaching instrument runs
-
-The teaching calibration gave the moderator nowhere to send its rays, and `ESS_butterfly`
-needs one, so the compiled instrument stopped in INITIALIZE with *"Please choose to set
-either the dist parameter or specify a target_index"*. The moderator is now aimed at the
-first guide's opening, as BIFROST's is. The distance, width and height are taken from
-the guide's own parameters, so `dist=1.5, focus_xw=0.04, focus_yh=0.06` is emitted. The
-teaching goldens are re-minted for those three parameters.
+A moderator that only emits what the choppers pass, and the moderator called by its name.
+chopper-lib's `Polygon_ESS_butterfly` arrives as `PolygonESSModerator`, opt-in: given the
+same chopper train it reaches the same answer as the ordinary moderator, but no longer spends
+rays the first disc would absorb. To make room for it, `ESSource` becomes `ESSModerator`:
+at ESS the source is the accelerator, and NeXus already says so. The teaching instrument
+now runs, and the tests now run on macOS and Windows as well as Linux.
 
 ### Added — `PolygonESSModerator`, opt-in
 
@@ -35,12 +33,6 @@ parameters['moderator'] = PolygonESSModerator.from_calibration(
 The component reads the train, so `narrow_source_wavelengths` now publishes it under the
 names the moderator asks for, without `export_choppers`. Naming different ones is refused,
 and failing to publish raises even without `strict`.
-
-### Changed — chopper-lib 4.2.2
-
-The registry is pinned at `mcdotstar/mcstas-chopper-lib@v4.2.2`, which ships
-`Polygon_ESS_butterfly` to McCode under a BSD-3-Clause licence. The version guard stays
-at 4.2.1, because nothing niess calls changed.
 
 ### Changed — `ESSource` is `ESSModerator`
 
@@ -69,6 +61,13 @@ release. Older files keep working too:
 New emissions record `niess.components.moderator.ESSModerator` in each moderator's
 `niess_provenance` block. That one line is the only change to the emitted instruments,
 and it is why the three frozen `.instr` files were re-minted.
+
+### Changed — chopper-lib 4.2.2
+
+The registry is pinned at `mcdotstar/mcstas-chopper-lib@v4.2.2`, which ships
+`Polygon_ESS_butterfly` to McCode under a BSD-3-Clause licence. The version guard stays
+at 4.2.1, because nothing niess calls changed.
+
 ### Changed — the tests run on macOS and Windows too
 
 CI now tests on Linux, macOS and Windows (#103). The **regression tests** — those that
@@ -81,9 +80,31 @@ graphs, field order, counts — stay unmarked and run everywhere.
 
 ### Fixed
 
+- **The teaching instrument runs.** Its calibration gave the moderator nowhere to send
+  its rays, which `ESS_butterfly` needs, so the compiled instrument stopped in INITIALIZE
+  with *"Please choose to set either the dist parameter or specify a target_index"*. The
+  moderator is now aimed at the first guide's opening, as BIFROST's is, with the
+  distance, width and height taken from that guide's own parameters: `dist=1.5,
+  focus_xw=0.04, focus_yh=0.06`. The teaching goldens are re-minted for those three
+  parameters.
 - `niess-scaffold` writes the modules it generates as UTF-8. On Windows they were written
   in the locale's encoding, which Python does not read source in.
 - `niess.nexus.load_bindings` reads the bindings file as UTF-8 on every platform.
+
+### Migrating from 0.8.0
+
+| 0.8.0 | 0.9.0 |
+| --- | --- |
+| `from niess.components import ESSource` | `from niess.components import ESSModerator` |
+| `niess.components.source.Source` | `niess.components.Moderator` |
+| `ESSource.from_calibration({...})` with no `name` | named `ESS_moderator`, not `ESS_source` |
+| chopper-lib fetched at 4.2.1 | fetched at 4.2.2; 4.2.1 is still accepted |
+
+**Nothing has to change straight away.** The old names import with a
+`DeprecationWarning`, and JSON or `.instr` files written by 0.8.0 still load. The one
+behavioural difference is the default instance name, which matters only to a moderator
+built without a `name` and then referred to by it. restage and mccode-plumber need no
+release for this one: neither uses the renamed classes.
 
 ## 0.8.0
 
