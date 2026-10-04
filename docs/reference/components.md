@@ -12,10 +12,15 @@ scipp quaternion), and is built from a calibration dictionary with
 | niess class | emits | calibration keys |
 | --- | --- | --- |
 | `ESSModerator` | `ESS_butterfly` | `sector`, `beamline`, `height`, `cold_fraction`, `focus_distance`, `focus_width`, `focus_height`, `cold_performance`, `thermal_performance`, `wavelength_minimum`, `wavelength_maximum`, `latest_emission_time`, `n_pulses`, `accelerator_power` |
+| `PolygonESSModerator` | chopper-lib `Polygon_ESS_butterfly` | everything `ESSModerator` takes, and `chopper_train`, `path_spread_fraction`, `noise_fraction`, `use_region`, `resample`, `save_polygons`, `verify_acceptance`, `filename` |
 
 `wavelength_minimum` and `wavelength_maximum` accept a McCode instrument-parameter
 specification string such as `'source_lambda_min/"angstrom" = 0.75'` instead of a
 value, which turns them into run-time arguments of the generated instrument.
+
+`PolygonESSModerator` is opt-in. It emits only rays the chopper train can pass, so it
+reads the train, and an instrument with it has to be narrowed with `niess.chopcalc` —
+see [handing the train to a component](../how-to/narrow-the-wavelength-band.md#the-polygon-moderator).
 
 ## Guides
 

@@ -51,9 +51,14 @@ def _source_entry(visit, latest_emission: float | None) -> SourceEntry:
             emission = f'{_c_double(factor)} * {ESS_SOURCE_DURATION:g}'
             note = 'tmax_multiplier * ESS_SOURCE_DURATION'
 
+    # A source that reads the train -- chopper-lib's Polygon_ESS_butterfly -- says what it
+    # reads it as, so the narrowing can publish it there without being told.
+    reads = getattr(obj, '__chopcalc_reads_train__', None)
+
     return SourceEntry(name=visit.name, lambda_min=names['Lmin'],
                        lambda_max=names['Lmax'], latest_emission=emission,
-                       latest_emission_note=note)
+                       latest_emission_note=note,
+                       reads_train=None if reads is None else tuple(reads()))
 
 
 def _speed(obj) -> str:

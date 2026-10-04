@@ -10,6 +10,29 @@ listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+### Added — `PolygonESSModerator`, opt-in
+
+chopper-lib's `Polygon_ESS_butterfly` as a niess moderator. It works out the exact region
+of (inverse velocity, emission time) the chopper train transmits and emits only inside
+it. With `resample` it draws every ray from inside the region instead, so a run's whole
+`ncount` reaches the sample. It is an `ESSModerator` with the component's options added,
+and the BIFROST and teaching instruments do not use it unless asked:
+
+```python
+parameters['moderator'] = PolygonESSModerator.from_calibration(
+    parameters['moderator'] | {'resample': True})
+```
+
+The component reads the train, so `narrow_source_wavelengths` now publishes it under the
+names the moderator asks for, without `export_choppers`. Naming different ones is refused,
+and failing to publish raises even without `strict`.
+
+### Changed — chopper-lib 4.2.2
+
+The registry is pinned at `mcdotstar/mcstas-chopper-lib@v4.2.2`, which ships
+`Polygon_ESS_butterfly` to McCode under a BSD-3-Clause licence. The version guard stays
+at 4.2.1, because nothing niess calls changed.
+
 ### Changed — `ESSource` is `ESSModerator`
 
 The component an instrument's neutrons start from is its **moderator**. At ESS the

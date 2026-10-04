@@ -53,6 +53,10 @@ class SourceEntry:
     """Seconds, as a C expression, so the arithmetic stays visible in the instrument."""
     latest_emission_note: str
     """Where that expression came from, for the generated comment."""
+    reads_train: tuple[str, str] | None = None
+    """The names the source component itself reads the train under -- pointer, then
+    count -- when it reads it at all. The narrowing must then publish under exactly
+    these, or the instrument does not compile."""
 
 
 @dataclass(frozen=True)

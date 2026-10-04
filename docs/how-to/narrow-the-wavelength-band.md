@@ -110,6 +110,39 @@ to warn and emit nothing, which for the narrowing alone is safe — the instrume
 samples the band it was given. A component that reads the train instead gets a NULL
 pointer and a count of zero, so you want the exception.
 
+### The polygon moderator
+
+chopper-lib's `Polygon_ESS_butterfly` is the component this was made for. It works out,
+at run time, the exact region of inverse velocity and emission time the train transmits,
+and only emits rays inside it — so a ray the discs would absorb is never made. In niess
+it is `PolygonESSModerator`, an `ESSModerator` that says which names it reads the train
+under. Narrowing finds them, so nothing has to be passed:
+
+```python
+from niess.components import PolygonESSModerator
+
+parameters = teaching_parameters()
+parameters['moderator'] = PolygonESSModerator.from_calibration(
+    parameters['moderator'] | {'resample': True})
+teaching = Instrument(name='teaching', origin='sample_origin', parts=(
+    Mount(name='primary', content=Primary.from_calibration(parameters)),))
+
+to_mccode(teaching, assembler=assembler)
+narrow_source_wavelengths(assembler, train_from_instrument(teaching))
+```
+
+The train goes out as `moderator_choppers` and `moderator_choppers_count`, from the
+moderator's name; set `chopper_train` to choose another. Passing a different
+`export_choppers` is refused. Failing to publish the train raises whatever `strict`
+says, because the component would read a pointer nobody declared.
+
+By default a ray outside the region is absorbed, which gives exactly the result an
+`ESSModerator` would — the same rays reach the sample. `resample=True` draws it again
+from inside the region instead and carries the region's share of the plane in its weight,
+so the whole `ncount` is spent on rays that can arrive. See the component's own
+documentation for `path_spread_fraction`, for a guide that is not a straight line, and
+for why `resample` is refused under time focusing.
+
 ## Discs with several openings
 
 Every disc is described to chopper-lib by its **slit edges**, as a `chopper_parameters`

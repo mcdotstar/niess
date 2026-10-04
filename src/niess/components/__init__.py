@@ -11,7 +11,7 @@ from .filter import (
     make_aluminum
 )
 from .guide import EllipticGuide, TaperedGuide, StraightGuide, Guide, StraightGuides, TaperedGuides
-from .moderator import ESSModerator, Moderator
+from .moderator import ESSModerator, Moderator, PolygonESSModerator
 from .monitors import FissionChamber, He3Monitor, BeamCurrentMonitor, GEM2D
 from .opaque import Opaque
 from .section import Section
@@ -56,6 +56,7 @@ __all__ = [
     'GEM2D',
     'Opaque',
     'ESSModerator',
+    'PolygonESSModerator',
     'Section',
 ]
 
