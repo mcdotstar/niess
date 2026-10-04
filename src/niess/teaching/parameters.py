@@ -11,7 +11,7 @@ reference for whatever comes next. That is the direct analogue of a McStas
 ``AT (0, 0, d) RELATIVE previous`` chain, and it means a change upstream moves
 everything downstream without any number being written twice.
 """
-from scipp import scalar, vector
+from scipp import norm, scalar, vector
 from scipp.spatial import rotations_from_rotvecs
 
 from ..components.chopper import disc_beam_offset
@@ -158,6 +158,14 @@ def teaching_parameters():
     ref_p, ref_r = source['position'], source['orientation']
 
     guides, ref_p, ref_r = guide_parameters(ref_p, ref_r)
+    # Aim the moderator at the first guide's opening, as BIFROST does. ESS_butterfly has
+    # to be told where to send its rays; without it the instrument stops in INITIALIZE.
+    entrance = guides['unit_1']
+    source |= {
+        'focus_distance': norm(entrance['position'] - source['position']),
+        'focus_width': entrance['width'],
+        'focus_height': entrance['height'],
+    }
     chopper, ref_p, ref_r = chopper_parameters(ref_p, ref_r)
     jaw, ref_p, ref_r = jaw_parameters(ref_p, ref_r)
     monitor, ref_p, ref_r = monitor_parameters(ref_p, ref_r)
