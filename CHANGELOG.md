@@ -8,6 +8,24 @@ good part of BIFROST, so it is a minor bump rather than a patch; everything rena
 listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+### Changed — the tests run on macOS and Windows too
+
+CI now tests on Linux, macOS and Windows (#103). The **regression tests** — those that
+compare floats against files frozen under `tests/data/baseline` — are marked
+`@pytest.mark.regression` and run on Linux only, where the files were minted: another
+platform may round the last bit of a computed rotation differently, and an exact
+comparison cannot tell that from a real change. Everywhere else they are skipped, and
+`pytest --regression` runs them anyway. Frozen comparisons with no floats in them — flow
+graphs, field order, counts — stay unmarked and run everywhere.
+
+### Fixed
+
+- `niess-scaffold` writes the modules it generates as UTF-8. On Windows they were written
+  in the locale's encoding, which Python does not read source in.
+- `niess.nexus.load_bindings` reads the bindings file as UTF-8 on every platform.
+
 ## 0.8.0
 
 BIFROST's NeXus file, named the way the real instrument's is. ECDC keeps the bindings

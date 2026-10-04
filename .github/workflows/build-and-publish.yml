@@ -11,7 +11,13 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Every platform runs the tests; only Linux runs the regression tests, whose frozen
+    # files were minted there (tests/conftest.py, #103), and only Linux publishes.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     permissions:
       id-token: write
     steps:
@@ -36,8 +42,16 @@ jobs:
         run: pipx install hatch
       - name: Run tests
         run: hatch test
+      # Reported, never failing: shows how far this platform's floats are from the
+      # frozen ones, which is the evidence for whether the regression tests could compare
+      # with a tolerance instead of being Linux-only.
+      - name: Regression tests, for information
+        if: runner.os != 'Linux'
+        continue-on-error: true
+        run: hatch test -- --regression -m regression
       - name: Build dist
+        if: runner.os == 'Linux'
         run: hatch build
       - name: Publish artifacts to PyPI
-        if: ${{ github.event.action == 'published' }}
+        if: ${{ runner.os == 'Linux' && github.event.action == 'published' }}
         uses: pypa/gh-action-pypi-publish@release/v1

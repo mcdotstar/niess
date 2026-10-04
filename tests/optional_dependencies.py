@@ -35,7 +35,7 @@ def optional_modules() -> frozenset[str]:
     dashes become underscores. A distribution that does not would simply never match, and
     the test would fail as it does today rather than skip wrongly.
     """
-    project = tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']
+    project = tomllib.loads((ROOT / 'pyproject.toml').read_text(encoding='utf-8'))['project']
     names = set()
     for requirements in project.get('optional-dependencies', {}).values():
         for requirement in requirements:

@@ -24,7 +24,8 @@ instrument, because no one of them is sufficient:
     out path lengths, so it is a real contract and not merely a view of declaration order.
 
 Re-mint with ``python tests/baseline.py`` after a *deliberate* change, and say in the
-commit message why the emission moved.
+commit message why the emission moved. Mint on Linux: the tests comparing floats against
+these files are regression tests, which run only there (``tests/conftest.py``).
 """
 from __future__ import annotations
 
