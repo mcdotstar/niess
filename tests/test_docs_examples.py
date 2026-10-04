@@ -101,11 +101,11 @@ def test_the_changelog_names_the_version_being_released():
     release, so the number at its top is the one users will read as theirs. Nothing else
     checks that it moved when `__about__.py` did.
     """
-    changelog = (ROOT / 'CHANGELOG.md').read_text()
+    changelog = (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8')
     latest = re.search(r'^## (\d+\.\d+\.\d+)', changelog, re.M)
     assert latest, 'the changelog has no released version'
 
-    about = (ROOT / 'src' / 'niess' / '__about__.py').read_text()
+    about = (ROOT / 'src' / 'niess' / '__about__.py').read_text(encoding='utf-8')
     version = re.search(r'__version__ = "([^"]+)"', about)
     assert latest.group(1) == version.group(1), (
         f'changelog is headed {latest.group(1)}, niess is {version.group(1)}'
@@ -127,7 +127,7 @@ def resolve_snippet(reference: str) -> Path | None:
 
 def snippet_references():
     for markdown in sorted(DOCS.rglob('*.md')):
-        for match in SNIPPET.finditer(markdown.read_text()):
+        for match in SNIPPET.finditer(markdown.read_text(encoding='utf-8')):
             yield markdown, match['path'], match['region']
 
 
@@ -141,7 +141,7 @@ def test_every_snippet_reference_resolves():
             continue
         if region is None:
             continue
-        text = target.read_text()
+        text = target.read_text(encoding='utf-8')
         if f'[start:{region}]' not in text or f'[end:{region}]' not in text:
             missing.append(
                 f'{markdown.relative_to(ROOT)}: {reference} has no region {region!r}'
@@ -155,7 +155,7 @@ def test_every_example_region_is_used():
     referenced = {(resolve_snippet(r), g) for _, r, g in snippet_references()}
     unused = []
     for path in example_paths():
-        for region in re.findall(r'--8<--\s+\[start:([\w-]+)\]', path.read_text()):
+        for region in re.findall(r'--8<--\s+\[start:([\w-]+)\]', path.read_text(encoding='utf-8')):
             if (path, region) not in referenced:
                 unused.append(f'{path.name}:{region}')
 
@@ -173,11 +173,11 @@ def test_readme_quickstart_matches_the_tested_example():
     """
     import textwrap
 
-    readme = (ROOT / 'README.md').read_text()
+    readme = (ROOT / 'README.md').read_text(encoding='utf-8')
     block = re.search(r'```python\n(.*?)```', readme, re.S)
     assert block, 'the README no longer has a python example'
 
-    example = (EXAMPLES / 'quickstart.py').read_text()
+    example = (EXAMPLES / 'quickstart.py').read_text(encoding='utf-8')
     region = example.split('# --8<-- [start:quickstart]\n')[1]
     region = region.split('    # --8<-- [end:quickstart]')[0]
 

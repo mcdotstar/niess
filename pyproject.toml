@@ -96,6 +96,11 @@ extra-dependencies = [
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/niess tests}"
 
+[tool.pytest.ini_options]
+markers = [
+  "regression: compares floats against a file frozen on Linux; skipped on other platforms unless --regression is given (tests/conftest.py)",
+]
+
 [tool.coverage.run]
 source_pkgs = ["niess", "tests"]
 branch = true

@@ -47,6 +47,7 @@ def bifrost():
     ('bifrost_primary', 'bifrost_primary'),
     ('bifrost', 'bifrost'),
 ])
+@pytest.mark.regression
 def test_the_walk_emits_the_same_instrument(request, fixture, golden):
     built = instrument_text(to_mccode(request.getfixturevalue(fixture)))
     expected = frozen_text(golden)
@@ -94,6 +95,7 @@ def test_the_tree_is_unchanged_by_being_emitted(bifrost_primary):
 
 # -- the tank -----------------------------------------------------------------
 
+@pytest.mark.regression
 def test_the_whole_instrument_matches_structurally(bifrost):
     """What the text cannot show: the %include sections it renders inline.
 
@@ -248,7 +250,7 @@ def test_the_target_module_names_no_component():
     from pathlib import Path
     import niess.mccode as module
 
-    source = Path(module.__file__).read_text()
+    source = Path(module.__file__).read_text(encoding='utf-8')
     for name in ('Tank', 'Channel', 'DiscChopper', 'Analyzer', 'Triplet',
                  'Slit_radial_multi', 'secondary_cassette'):
         assert name not in source, f'{name} leaked into the target module'

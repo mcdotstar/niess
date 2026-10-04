@@ -316,6 +316,7 @@ def test_no_aperture_is_written_for_the_cassette_tagging(bifrost):
     assert all(w is not None for w in written)
     assert not any(get_attribute(w, 'NX_class') == 'NXslit' for w in written)
 
+@pytest.mark.regression
 def test_the_frozen_structure_changes_only_as_declared(bifrost):
     """Not "is unchanged": the format is being brought into line with a static checker.
 

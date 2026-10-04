@@ -37,6 +37,21 @@ release. Older files keep working too:
 New emissions record `niess.components.moderator.ESSModerator` in each moderator's
 `niess_provenance` block. That one line is the only change to the emitted instruments,
 and it is why the three frozen `.instr` files were re-minted.
+### Changed — the tests run on macOS and Windows too
+
+CI now tests on Linux, macOS and Windows (#103). The **regression tests** — those that
+compare floats against files frozen under `tests/data/baseline` — are marked
+`@pytest.mark.regression` and run on Linux only, where the files were minted: another
+platform may round the last bit of a computed rotation differently, and an exact
+comparison cannot tell that from a real change. Everywhere else they are skipped, and
+`pytest --regression` runs them anyway. Frozen comparisons with no floats in them — flow
+graphs, field order, counts — stay unmarked and run everywhere.
+
+### Fixed
+
+- `niess-scaffold` writes the modules it generates as UTF-8. On Windows they were written
+  in the locale's encoding, which Python does not read source in.
+- `niess.nexus.load_bindings` reads the bindings file as UTF-8 on every platform.
 
 ## 0.8.0
 

@@ -227,7 +227,7 @@ def test_the_generated_module_keeps_the_instr_and_a_test_beside_it(teaching, tmp
 def test_a_folded_parameter_comes_back_as_a_named_constant(foreign, tmp_path):
     """The number is the calibration; the name is the structure the author meant."""
     package = write(convert(foreign), tmp_path)
-    text = (package / 'parameters.py').read_text()
+    text = (package / 'parameters.py').read_text(encoding='utf-8')
     assert 'GUI_start = 2.0' in text
     assert "vector([0.0, 0.0, GUI_start], unit='m')" in text
 
@@ -240,7 +240,7 @@ def test_the_chain_hangs_off_the_instrs_placement_not_the_niess_one(teaching, tm
     transcription *can* make once a recipe introduces a reference-point offset.
     """
     package = write(convert(teaching, origin='sample_origin'), tmp_path)
-    text = (package / 'parameters.py').read_text()
+    text = (package / 'parameters.py').read_text(encoding='utf-8')
     assert "at_relative(at['unit_2']" in text
     assert "'position': at['chopper'] + vector(" in text
 
