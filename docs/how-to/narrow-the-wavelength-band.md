@@ -147,7 +147,7 @@ for why `resample` is refused under time focusing.
 
 Every disc is described to chopper-lib by its **slit edges**, as a `chopper_parameters`
 row pointing at a flat, increasing array of angles in degrees, two per opening — the same
-array the `CollectorDiskChopper` component and the NeXus `NXdisk_chopper` standard use.
+array chopper-lib's `NXdisk_chopper` component and the NeXus `NXdisk_chopper` standard use.
 
 There is no conversion. The angles are the disc's own, measured from its top-dead-centre
 mark in the order `slits()` gives them, and where the beam crosses the disc travels
