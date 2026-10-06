@@ -53,6 +53,9 @@ class NexusContext(Context):
     #: Names already used directly under NXinstrument, so a positioner placed beside
     #: one component cannot silently overwrite one placed beside another.
     placed: set = field(default_factory=set)
+    #: Whether a monitor with a cbm channel is described by what the cbm EFU publishes
+    #: rather than by the histogram McStas produces. See :mod:`niess.cbm`.
+    efu_monitors: bool = False
 
     def __post_init__(self):
         if self.streams is None:
@@ -416,19 +419,23 @@ def emit(visit: Visit, body: dict) -> None:
 
 
 def to_nexus_structure(instrument, registry=None, nxlog_root: str | None = None,
-                       streams=None) -> dict:
+                       streams=None, efu_monitors: bool = False) -> dict:
     """Convert ``instrument`` to ESS NeXus Structure JSON.
 
     ``streams`` says where a driven axis's numbers come from: ``SIMULATED`` (the
     default) writes the simulation's own parameter names, ``REAL`` writes the EPICS
     positioners the components declare. One tree, two files; see
     :mod:`niess.nexus.bindings`.
+
+    ``efu_monitors`` describes every monitor that has a cbm channel by the stream its
+    EFU publishes -- for a simulation whose monitor rays are collected and replayed to
+    that EFU. Otherwise a monitor describes the histogram McStas produces.
     """
     from .bindings import as_streams
     context = NexusContext(
         instrument=instrument,
         nxlog_root=DEFAULT_NXLOG_ROOT if nxlog_root is None else nxlog_root,
-        streams=as_streams(streams))
+        streams=as_streams(streams), efu_monitors=efu_monitors)
     walk(instrument, NEXUS_REGISTRY if registry is None else registry, context=context)
     # once, at the end: what feeds what is not known until everything has a name
     for visit, node in context.pending:
@@ -579,13 +586,16 @@ def register_defaults() -> None:
 
         The choice is the instrument's -- histograms or events -- and it is recorded on
         the monitor. Left unset, a frame monitor histograms, which is what these have
-        always done.
+        always done. A monitor whose rays are replayed to its cbm EFU publishes what
+        that EFU does.
         """
+        from ..components.monitors import beam_monitor_topic
         obj, context = visit.obj, visit.context
         children = [dataset('description', visit.name)]
         selection = obj.stream
+        if selection is None and context.efu_monitors and obj.readout is not None:
+            selection = obj.readout.stream(beam_monitor_topic(context.instrument.name))
         if selection is None:
-            from ..components.monitors import beam_monitor_topic
             topic = beam_monitor_topic(context.instrument.name)
             selection = {'module': 'da00', 'topic': topic, 'source': visit.name,
                          'config': _da00_config(topic, visit.name, obj.time_bins())}

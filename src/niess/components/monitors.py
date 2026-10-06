@@ -1,6 +1,7 @@
 from mccode_antlr.assembler import Assembler
 from mccode_antlr.instr.instance import Instance
 from scipp import Variable
+from ..cbm import CbmChannel, as_channel
 from .component import Component
 
 # Monitors used on BIFROST, which are limited within McStas to always produce histograms
@@ -59,8 +60,26 @@ class FrameMonitor(Component, kw_only=True):
     the instrument and recorded here. It used to be an argument to ``to_mccode``, which
     meant a target reading the tree could not see it, and a target reading the emitted
     instrument had to find it in a metadata blob.
+
+    ``readout`` is the cbm EFU channel the real monitor is read through, if it is one.
+    It is a fact about the instrument and changes nothing on its own: emitting with
+    ``to_mccode(..., collect=...)`` records the monitor's rays for replay to that EFU,
+    and ``to_nexus_structure(..., efu_monitors=True)`` describes what the EFU publishes.
+    See :mod:`niess.cbm`.
     """
     stream: dict | None = None
+    readout: CbmChannel | None = None
+
+    def __mccode_leaf__(self, visit):
+        """Emitted as any component is, then followed by its collector if collecting."""
+        from ..cbm import emit_collector
+        from ..mccode import ComponentTranslator
+        instance = ComponentTranslator.leaf(visit)
+        collect = getattr(visit.context, 'collect', None)
+        if collect is not None and self.readout is not None:
+            emitted = instance if isinstance(instance, (list, tuple)) else [instance]
+            emit_collector(visit.context, emitted[-1], self.readout, visit.name)
+        return instance
 
     @staticmethod
     def time_bins():
@@ -136,6 +155,7 @@ class FissionChamber(FrameMonitor, kw_only=True):
         height = cal['height']
         thickness = cal.get('thickness', cal.get('length'))
         return cls(
+            readout=as_channel(cal.get('readout')),
             name=name,
             position=position,
             orientation=orientation,
@@ -170,6 +190,7 @@ class He3Monitor(FrameMonitor, kw_only=True):
         length = cal['length']
         pressure = cal['pressure']
         return cls(
+            readout=as_channel(cal.get('readout')),
             name=name, position=position, orientation=orientation,
             radius=radius, length=length, pressure=pressure
         )
@@ -204,6 +225,7 @@ class BeamCurrentMonitor(FrameMonitor, kw_only=True):
         if sample_rate is None:
             raise ValueError(f'The sample rate for {name} must be defined')
         return cls(
+            readout=as_channel(cal.get('readout')),
             name=name, position=position, orientation=orientation,
             width=width, height=height, thickness=thickness, sample_rate=sample_rate
         )
@@ -246,6 +268,7 @@ class GEM2D(FrameMonitor, kw_only=True):
         x_strips = cal.get('x_strips', cal.get('nx', 1))
         y_strips = cal.get('y_strips', cal.get('ny', 1))
         return cls(
+            readout=as_channel(cal.get('readout')),
             name=name, position=position, orientation=orientation,
             width=width, height=height, thickness=thickness,
             x_strips=x_strips, y_strips=y_strips

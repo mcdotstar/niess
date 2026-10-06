@@ -8,6 +8,25 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+### Added — beam monitors read out through the cbm EFU
+
+A monitor can say which cbm Event Formation Unit channel the real one is read through:
+`FrameMonitor.readout`, a `niess.cbm.CbmChannel` with the FEN, channel, readout type and
+Kafka source. BIFROST's five monitors carry ECDC's (`niess.bifrost.parameters.cbm_channels`),
+every one histogrammed over 14 pulses. The real cbm4 and cbm5 publish events, which a
+simulation has no use for. On its own a channel changes nothing. It is used three ways:
+
+- `to_mccode(..., collect=Collect(...))` follows each such monitor with a
+  mcstas-readout-master `CollectorBM0` or `CollectorBMI`, recording the rays it counted
+  for `readout-replay` to send to the EFU. `Collect` names the file, the monitor ring, an
+  unbiased per-monitor `keep_probability`, and optionally where the collectors are found.
+- `niess.cbm.efu_config(instrument)` writes the cbm EFU's JSON configuration. For BIFROST,
+  cbm1–cbm3 come out exactly as ECDC's.
+- `to_nexus_structure(..., efu_monitors=True)` describes each monitor by the da00 stream
+  its EFU publishes rather than by the histogram McStas produces.
+
 ## 0.9.0
 
 A moderator that only emits what the choppers pass, and the moderator called by its name.

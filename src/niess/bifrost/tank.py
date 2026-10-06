@@ -25,7 +25,7 @@ def _origin():
 def _elastic_monitor_from_params(params):
     from scipp import vector
     from scipp.spatial import rotations_from_rotvecs
-    from .parameters import tank_parameters
+    from .parameters import tank_parameters, with_cbm_channel
     tp = tank_parameters()
     def par_or(par):
         return tp[par] if par not in params else params[par]
@@ -39,6 +39,7 @@ def _elastic_monitor_from_params(params):
 
     cal = par_or('elastic_monitor')
     cal['name'] = cal.get('name', 'elastic_monitor')
+    with_cbm_channel('elastic_monitor', cal)
     cal['position'] = cal.get('position', ori * (z * distance))
     cal['orientation'] = cal.get('orientation', ori)
 

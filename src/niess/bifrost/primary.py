@@ -193,6 +193,8 @@ class Primary(Section):
     @calibration
     def from_calibration(cls, parameters: dict):
         from .parameters import primary_parameters
+        from .parameters import with_cbm_channels
         if len(parameters) == 0:
             parameters = primary_parameters()
+        with_cbm_channels(parameters)
         return super().from_calibration(parameters)
