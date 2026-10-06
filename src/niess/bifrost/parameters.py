@@ -55,6 +55,46 @@ def known_channel_params():
 
     return known
 
+def cbm_channels():
+    """How BIFROST's beam monitors are read out, as ECDC's cbm EFU configuration says.
+
+    By monitor name; the sources are those ECDC binds the monitors' data to. Every one
+    is histogrammed over 14 pulses, which is what the real EFU does for cbm1-cbm3. The
+    real cbm4 and cbm5 publish events instead, and cbm4 is a 2-D GEM whose firmware
+    can also report positions; simulated, all five count neutrons into histograms.
+    """
+    from ..cbm import CbmChannel
+    readouts = (
+        ('psc_monitor', 'EVENT_0D'),
+        ('overlap_monitor', 'IBM'),
+        ('bandwidth_monitor', 'IBM'),
+        ('normalization_monitor', 'EVENT_0D'),
+        ('elastic_monitor', 'EVENT_0D'),
+    )
+    return {name: CbmChannel(fen=fen, type=kind, source=f'cbm{fen + 1}',
+                             title=f'BIFROST Beam Monitor {fen + 1}')
+            for fen, (name, kind) in enumerate(readouts)}
+
+
+def with_cbm_channel(name: str, cal: dict) -> dict:
+    """``cal`` with BIFROST's cbm channel for monitor ``name``, unless it names one."""
+    if 'readout' not in cal:
+        cal['readout'] = cbm_channels()[name]
+    return cal
+
+
+def with_cbm_channels(parameters: dict) -> dict:
+    """Give every monitor's calibration in ``parameters``, at any depth, its cbm channel."""
+    channels = cbm_channels()
+    for name, value in parameters.items():
+        if isinstance(value, dict):
+            if name in channels:
+                with_cbm_channel(name, value)
+            else:
+                with_cbm_channels(value)
+    return parameters
+
+
 def tank_parameters():
     from scipp import scalar
     known = dict()
@@ -67,6 +107,7 @@ def tank_parameters():
         'length': scalar(3.2, unit='inch').to(unit='mm'),
         'pressure': scalar(0.2, unit='atm'),
     }
+    with_cbm_channel('elastic_monitor', known['elastic_monitor'])
     return known
 
 

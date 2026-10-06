@@ -36,7 +36,8 @@ NOT_SIMULATED: dict[str, str] = {
     '.potentiometer_value': 'a second readback of the same edge; a simulation has one',
     '_monitor.data': 'the simulated monitors publish McStas histograms, whose streams '
                      'must describe what McStas produces rather than what the cbm EFU '
-                     'would',
+                     'would; with efu_monitors=True each publishes what its CbmChannel '
+                     'configures the EFU to',
 }
 
 

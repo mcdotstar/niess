@@ -64,6 +64,9 @@ class McCodeContext(Context):
     #: whose only dependent sits at its origin unturned says nothing the dependent
     #: cannot say itself, so the dependent says it.
     turns: dict = field(default_factory=dict)
+    #: Set, every monitor with a cbm channel is followed by a collector recording its
+    #: rays for replay to the EFU. See :mod:`niess.cbm`.
+    collect: Any = None
 
     def push(self, opened) -> Any:
         """Open a nested `%include` and emit into it until it is closed."""
@@ -149,7 +152,7 @@ class ComponentTranslator:
 
 
 def to_mccode(instrument, registry=None, assembler=None,
-              insert_provenance_metadata: bool = True):
+              insert_provenance_metadata: bool = True, collect=None):
     """Emit ``instrument`` as a McStas instrument.
 
     Pass an ``assembler`` to build into an existing one; otherwise one is made from the
@@ -160,6 +163,10 @@ def to_mccode(instrument, registry=None, assembler=None,
     came from. Nothing in niess reads them any more -- every target reads the tree -- but
     they are what lets anything *outside* niess know what it is looking at, so turning
     them off is for producing a file to hand to McStas and nothing else.
+
+    ``collect``, a :class:`niess.cbm.Collect`, follows every monitor that has a cbm
+    channel with a ``Collector*`` component recording the rays it counted, so that
+    ``readout-replay`` can later send them to the cbm EFU.
     """
     from mccode_antlr.assembler import Assembler
 
@@ -175,7 +182,8 @@ def to_mccode(instrument, registry=None, assembler=None,
     for parameter in instrument.parameters:
         ensure_runtime_parameter(assembler, parameter)
     context = McCodeContext(instrument=instrument, assembler=assembler,
-                            provenance=insert_provenance_metadata)
+                            provenance=insert_provenance_metadata,
+                            collect=collect)
     walk(instrument, MCCODE_REGISTRY if registry is None else registry, context=context)
     if context.scopes:
         raise RuntimeError(
