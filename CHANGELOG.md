@@ -8,6 +8,19 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+### Added — split points for restage
+
+`Mount(split_before=True)` says a simulation may be split into two stages just before
+that piece, and McStas gets an `Arm` named `split_before_<mount>` there, at the frame the
+piece hangs from. Pass the names to restage's `--split-at`, which splits at the latest one
+a scan's points still share a primary at. It is the author's statement because only the
+author knows it is safe: the MCPL file between stages keeps no USERVARS. BIFROST declares
+one, before the sample -- which makes the normalization monitor part of the shared primary
+in a sample-rotation scan -- and none before the tank, whose readout reads the
+`event_time_zero` the sample sets.
+
 ## 0.9.1
 
 ### Added — beam monitors read out through the cbm EFU
