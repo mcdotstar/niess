@@ -8,13 +8,13 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.9.2
 
 ### Added — split points for restage
 
 `Mount(split_before=True)` says a simulation may be split into two stages just before
 that piece, and McStas gets an `Arm` named `split_before_<mount>` there, at the frame the
-piece hangs from. Pass the names to restage's `--split-at`, which splits at the latest one
+piece hangs from. Pass the names to restage's `--split-at` (0.15.1 or later), which splits at the latest one
 a scan's points still share a primary at. It is the author's statement because only the
 author knows it is safe: the MCPL file between stages keeps no USERVARS. BIFROST declares
 one, before the sample -- which makes the normalization monitor part of the shared primary
@@ -27,12 +27,13 @@ A monitor's calibration may give its `efficiency`, the fraction of the neutrons 
 it that the real monitor counts. It becomes `FrameMonitor.efficiency` and the collector's
 `efficiency`, which scales every recorded weight, so a replay that samples counts by
 weight (`readout-replay --counting-time`) sends the EFU what the real monitor would see.
-It defaults to 1; the McStas histogram is unchanged either way.
-BIFROST's monitors get their design efficiencies (`niess.bifrost.parameters.monitor_efficiencies`):
-psc 1e-7, overlap and bandwidth 1e-5, normalization 1e-5, and 0.23 for the elastic monitor's
-0.2 atm 3He tube, an estimate until it is measured. Thinning stays where it
+It defaults to 1; the McStas histogram is unchanged either way. Thinning stays where it
 was, `Collect(keep_probability=...)`, one value or one per monitor; both are now checked
 when the instrument is emitted rather than when the simulation starts.
+
+BIFROST's monitors get their design efficiencies (`niess.bifrost.parameters.monitor_efficiencies`):
+psc 1e-7, overlap and bandwidth 1e-5, normalization 1e-5, and 0.23 for the elastic monitor's
+0.2 atm 3He tube, an estimate until it is measured.
 
 ## 0.9.1
 
