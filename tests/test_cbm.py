@@ -146,7 +146,10 @@ def test_collector_types_and_parameters(collecting):
     assert float(value(collector('psc_monitor'), 'keep_probability')) == 0.25
     assert float(value(collector('elastic_monitor'), 'keep_probability')) == 1.0
     assert value(collector('overlap_monitor'), 'adc_value') == '1'
-    assert float(value(collector('psc_monitor'), 'efficiency')) == 1.0
+    efficiencies = {name: float(value(collector(name), 'efficiency')) for name in MONITORS}
+    assert efficiencies == {'psc_monitor': 1e-7, 'overlap_monitor': 1e-5,
+                            'bandwidth_monitor': 1e-5, 'normalization_monitor': 1e-5,
+                            'elastic_monitor': 0.23}
 
 
 def test_a_monitor_efficiency_scales_its_collector(collectors):
