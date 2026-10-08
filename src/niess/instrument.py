@@ -110,6 +110,14 @@ class Mount(msgspec.Struct):
     The name is the path label its contents appear under, so a blade deep inside BIFROST
     is ``tank/channels[2]/pairs[0]/analyzer/blades[3]`` rather than starting at
     ``channels[2]``.
+
+    ``split_before`` says a simulation may be split into two stages just before this
+    piece, and McStas gets an ``Arm`` there named ``split_before_<name>`` for restage's
+    ``--split-at``. It is the author's statement, because nothing else can make it: the
+    intermediate MCPL file carries a ray but none of its USERVARS, so the split is only
+    safe where no per-particle variable set upstream is still read downstream. BIFROST's
+    sample qualifies -- each beam monitor's collector resets what the monitor set -- but
+    its tank does not, since the sample stamps ``event_time_zero`` for the readout.
     """
 
     def is_turned(self) -> bool:
@@ -184,6 +192,7 @@ class Mount(msgspec.Struct):
     content: Any
     relative_to: Optional[str] = None
     rotation: Optional[tuple[float|int|Motor, float|int|Motor, float|int|Motor]] = None
+    split_before: bool = False
 
 
 class Instrument(Base):
@@ -249,6 +258,29 @@ class Instrument(Base):
         if frame is None:
             return mount.relative_to or default
         return f'{visit.id}/{frame.name}' if visit.id else frame.name
+
+    def __mccode_enter__(self, visit):
+        """The pieces, each preceded by its split point if its Mount asks for one.
+
+        A McStas-only thing: no other target has stages to split, so the Arm is emitted
+        here between the pieces rather than placed in the tree for every target to read.
+        It sits where the piece hangs from and is not turned; where it sits changes
+        nothing, since neither MCPL component moves a ray, but it is the frame both
+        stages' rays are recorded in.
+        """
+        from .walk import SKIP, drive
+        context = visit.context
+        split = set()
+        for child in visit.children():
+            mount = self._mount_for(child.path[-1])
+            if mount is not None and mount.split_before and mount.name not in split:
+                split.add(mount.name)
+                reference = context.reference(mount.relative_to) if mount.relative_to else None
+                context.assembler.component(f'split_before_{mount.name}', 'Arm',
+                                            at=((0, 0, 0), reference),
+                                            rotate=((0, 0, 0), reference))
+            drive(child, context.registry)
+        return SKIP
 
     def __mccode_collapsed__(self, frame_name: str):
         """The turn and reference a collapsed mounting hands to its contents.

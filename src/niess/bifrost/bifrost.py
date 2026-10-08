@@ -52,7 +52,9 @@ def instrument(params: dict):
     return Instrument(
         name='bifrost', origin=origin, parts=(
             Mount(name='primary', content=primary),
-            Mount(name='sample', rotation=(0, a3, 0), relative_to=origin, content=sample),
+            # the latest place a scan of a3 or a4 can split the simulation; see Mount
+            Mount(name='sample', rotation=(0, a3, 0), relative_to=origin, content=sample,
+                  split_before=True),
             Mount(name='tank', rotation=(0, a4, 0), relative_to=origin, content=tank),
         ), motors=(a3, a4), parameters=())
 

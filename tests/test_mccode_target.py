@@ -412,3 +412,31 @@ def test_it_reaches_every_instance_a_component_emitted():
     # two openings, so two components, and the extend is on both
     assert text.count('EXTEND') == 2
     assert text.count('seen = 1;') == 2
+
+
+def test_a_split_point_precedes_the_mount_that_asks_for_it():
+    """BIFROST may split before the sample, which a3 turns, and nowhere else."""
+    from niess.bifrost.bifrost import instrument
+    components = to_mccode(instrument()).components
+    names = [c.name for c in components]
+    assert [n for n in names if n.startswith('split_before_')] == ['split_before_sample']
+    split = names.index('split_before_sample')
+    assert names[split + 1] == 'sample'
+    arm = components[split]
+    assert arm.type.name == 'Arm'
+    assert arm.at_relative[1].name == 'sample_origin'
+    assert arm.rotate_relative[1].name == 'sample_origin'
+
+
+def test_a_turned_mount_is_split_before_its_frame(bifrost_primary):
+    """A frame that does not collapse is the mount's first component, so the split precedes it."""
+    from niess.bifrost import Tank
+    from niess.bifrost.parameters import tank_parameters
+    from niess.instrument import Motor
+    a4 = Motor(name='a4', unit='degrees', source='a4', topic='motion', default=0.0)
+    tree = Instrument(name='bifrost', origin='sample_origin', parts=bifrost_primary.parts + (
+        Mount(name='tank', content=Tank.from_calibration(tank_parameters()),
+              relative_to='sample_origin', rotation=(0, a4, 0), split_before=True),
+    ))
+    names = [c.name for c in to_mccode(tree).components]
+    assert names[names.index('split_before_tank') + 1] == 'tank_mounting'
