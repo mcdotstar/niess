@@ -21,6 +21,19 @@ one, before the sample -- which makes the normalization monitor part of the shar
 in a sample-rotation scan -- and none before the tank, whose readout reads the
 `event_time_zero` the sample sets.
 
+### Added — monitor efficiencies for replay
+
+A monitor's calibration may give its `efficiency`, the fraction of the neutrons crossing
+it that the real monitor counts. It becomes `FrameMonitor.efficiency` and the collector's
+`efficiency`, which scales every recorded weight, so a replay that samples counts by
+weight (`readout-replay --counting-time`) sends the EFU what the real monitor would see.
+It defaults to 1; the McStas histogram is unchanged either way.
+BIFROST's monitors get their design efficiencies (`niess.bifrost.parameters.monitor_efficiencies`):
+psc 1e-7, overlap and bandwidth 1e-5, normalization 1e-5, and 0.23 for the elastic monitor's
+0.2 atm 3He tube, an estimate until it is measured. Thinning stays where it
+was, `Collect(keep_probability=...)`, one value or one per monitor; both are now checked
+when the instrument is emitted rather than when the simulation starts.
+
 ## 0.9.1
 
 ### Added — beam monitors read out through the cbm EFU

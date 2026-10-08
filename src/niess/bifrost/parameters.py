@@ -76,10 +76,26 @@ def cbm_channels():
             for fen, (name, kind) in enumerate(readouts)}
 
 
+def monitor_efficiencies():
+    """The fraction of the neutrons crossing each BIFROST beam monitor that it counts.
+
+    psc, overlap, bandwidth and normalization are the project's design values. The
+    elastic monitor is a 3He tube, 0.2 atm of 3He and an inch in radius (its calibration
+    in `tank_parameters`): at the 4-5 Å it sees, absorption over its ~4 cm mean chord
+    takes 21-25 % of what enters, and 0.23 stands for that until it is measured.
+    """
+    return {'psc_monitor': 1e-7, 'overlap_monitor': 1e-5, 'bandwidth_monitor': 1e-5,
+            'normalization_monitor': 1e-5, 'elastic_monitor': 0.23}
+
+
 def with_cbm_channel(name: str, cal: dict) -> dict:
-    """``cal`` with BIFROST's cbm channel for monitor ``name``, unless it names one."""
+    """``cal`` with BIFROST's cbm channel and efficiency for monitor ``name``.
+
+    Either is left alone if ``cal`` already gives it.
+    """
     if 'readout' not in cal:
         cal['readout'] = cbm_channels()[name]
+    cal.setdefault('efficiency', monitor_efficiencies()[name])
     return cal
 
 

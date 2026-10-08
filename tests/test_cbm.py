@@ -76,7 +76,7 @@ def test_a_calibration_may_give_the_channel_as_fields():
 
 STUB = """DEFINE COMPONENT {name}
 SETTING PARAMETERS (string ring=0, int fen_value=0, int channel_value=0,
-                    keep_probability=1, string filename=0{extra})
+                    keep_probability=1, efficiency=1, string filename=0{extra})
 TRACE
 %{{
 %}}
@@ -146,6 +146,33 @@ def test_collector_types_and_parameters(collecting):
     assert float(value(collector('psc_monitor'), 'keep_probability')) == 0.25
     assert float(value(collector('elastic_monitor'), 'keep_probability')) == 1.0
     assert value(collector('overlap_monitor'), 'adc_value') == '1'
+    efficiencies = {name: float(value(collector(name), 'efficiency')) for name in MONITORS}
+    assert efficiencies == {'psc_monitor': 1e-7, 'overlap_monitor': 1e-5,
+                            'bandwidth_monitor': 1e-5, 'normalization_monitor': 1e-5,
+                            'elastic_monitor': 0.23}
+
+
+def test_a_monitor_efficiency_scales_its_collector(collectors):
+    """Given in the monitor's calibration, as the rest of what describes it is."""
+    from niess.bifrost import Primary
+    from niess.bifrost.parameters import primary_parameters
+    from niess.instrument import Instrument, Mount
+    parameters = primary_parameters()
+    parameters['normalization_monitor']['efficiency'] = 1e-4
+    primary = Primary.from_calibration(parameters)
+    instr = _emit(Instrument(name='bifrost', parts=(Mount(name='primary', content=primary),)),
+                  Collect(registry=collectors))
+    recorder = next(c for c in instr.components if c.name == 'normalization_monitor_collector')
+    efficiency = next(p.value for p in recorder.parameters if p.name == 'efficiency')
+    assert float(str(efficiency)) == 1e-4
+
+
+@pytest.mark.parametrize('keep, efficiency', [(0, 1), (1.5, 1), (1, -0.1), (1, 2)])
+def test_impossible_thinning_or_efficiency_is_refused(keep, efficiency):
+    from niess.cbm import collector
+    channel = CbmChannel(fen=0, source='cbm1')
+    with pytest.raises(ValueError, match='psc_monitor'):
+        collector(channel, Collect(keep_probability=keep), 'psc_monitor', efficiency)
 
 
 def test_the_elastic_monitor_keeps_its_group_and_cassette(collecting):

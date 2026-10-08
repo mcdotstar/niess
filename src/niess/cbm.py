@@ -139,11 +139,20 @@ HIT = 'cbm_hit'
 FIBRE = 'cbm_fibre'
 
 
-def collector(channel: CbmChannel, collect: Collect, name: str) -> tuple[str, dict]:
-    """The ``Collector*`` component, and its parameters, recording one monitor's rays."""
+def collector(channel: CbmChannel, collect: Collect, name: str,
+              efficiency: float = 1.0) -> tuple[str, dict]:
+    """The ``Collector*`` component, and its parameters, recording one monitor's rays.
+
+    ``efficiency`` scales every recorded weight; ``collect`` decides how many rays are
+    recorded at all. The component checks both, but only once the simulation runs.
+    """
+    keep = collect.keep(name)
+    if not 0 < keep <= 1 or not 0 <= efficiency <= 1:
+        raise ValueError(f'{name}: keep_probability must be in (0, 1] and efficiency in '
+                         f'[0, 1]; got {keep} and {efficiency}')
     common = dict(ring=f'"{FIBRE}"', fen_value=channel.fen,
                   channel_value=channel.channel,
-                  keep_probability=collect.keep(name))
+                  keep_probability=keep, efficiency=efficiency)
     if collect.filename is not None:
         common['filename'] = f'"{collect.filename}"'
     if channel.type == 'EVENT_0D':
@@ -154,7 +163,8 @@ def collector(channel: CbmChannel, collect: Collect, name: str) -> tuple[str, di
     raise NotImplementedError(f'{name}: collecting {channel.type} monitor readouts')
 
 
-def emit_collector(context, instance, channel: CbmChannel, name: str):
+def emit_collector(context, instance, channel: CbmChannel, name: str,
+                   efficiency: float = 1.0):
     """Follow a just-emitted monitor ``instance`` with the collector recording its rays.
 
     The monitor's EXTEND marks a ray it counted, after whatever EXTEND the monitor was
@@ -174,7 +184,7 @@ def emit_collector(context, instance, channel: CbmChannel, name: str):
     mark = f'if (SCATTERED) {{ {HIT} = 1; {FIBRE} = {2 * collect.monitor_ring}; }}'
     instance.EXTEND(*instance.extend, mark)
 
-    comp, parameters = collector(channel, collect, name)
+    comp, parameters = collector(channel, collect, name, efficiency)
     recorder = assembler.component(f'{name}_collector', comp,
                                    at=((0, 0, 0), instance.name),
                                    rotate=((0, 0, 0), instance.name),
