@@ -55,7 +55,7 @@ def bindings():
 
 
 #: Bindings niess writes although a prefix above would exclude them.
-SIMULATED_ANYWAY = ('source.current',)
+SIMULATED_ANYWAY = ('source.pulse_charge',)
 
 
 def not_simulated(key: str) -> str | None:

@@ -150,7 +150,7 @@ def test_the_bound_axes_are_the_ones_ecdc_names(simulated):
     written = streams_by_key(simulated)
     for key in ('divergence_slit_1.left.value', 'divergence_slit_3.right.value',
                 'sample_jaws.top.value', 'sample_rotation.value',
-                'detector_tank_angle.value', 'source.current',
+                'detector_tank_angle.value', 'source.pulse_charge',
                 'channel_9_5_triplet.data'):
         assert key in written, key
 
@@ -195,7 +195,7 @@ def test_each_simulated_log_names_a_parameter_in_the_published_unit(simulated, e
 
 def test_the_tdc_and_pulse_are_published_by_the_clock_not_a_parameter(simulated):
     written = streams_by_key(simulated)
-    for key in ('pulse_shaping_chopper_1.top_dead_center', 'source.current'):
+    for key in ('pulse_shaping_chopper_1.top_dead_center', 'source.pulse_charge'):
         assert get_attribute(written[key]['node'], 'simulation_parameter') is None, key
 
 

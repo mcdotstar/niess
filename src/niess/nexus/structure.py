@@ -79,9 +79,10 @@ class NexusContext(Context):
         in the file -- detector events, motor readbacks, chopper crossings -- has to
         share the same reference or none of them can be compared.
 
-        So one sample per pulse, of the proton current on target, timestamped with the
-        reference time itself. It is an NXlog named `current`, which is what ECDC calls
-        it; a binder that has a binding for `source.current` supplies its stream.
+        So one sample per pulse, of the proton charge on target in that pulse, timestamped
+        with the reference time itself. It is an NXlog named `pulse_charge`, in uC, which
+        is what ECDC calls it and what a reduction normalizes by; a binder that has a
+        binding for `source.pulse_charge` supplies its stream.
         """
         return [dataset('name', 'ESS'), dataset('probe', 'neutron'), self.pulse_log()]
 
@@ -92,7 +93,7 @@ class NexusContext(Context):
         if bound is not None:
             return bound_log(bound)
         source, topic = self.pulse_source_topic()
-        return f144_log('current', source, topic, 'mA', 'double')
+        return f144_log('pulse_charge', source, topic, 'uC', 'double')
 
     def neutron_production(self) -> dict:
         """The accelerator, as an NXsource: the facility and the pulse reference.

@@ -404,12 +404,12 @@ class BoundStreams:
         return AxisBinding(**common, logs=tuple(logs))
 
     def pulse(self) -> Optional[LogBinding]:
-        """The per-pulse reference sample, if ``source.current`` is bound.
+        """The per-pulse reference sample, if ``source.pulse_charge`` is bound.
 
         No simulation parameter feeds it. Whatever serves the simulation's pulse clock
         publishes it, one sample per pulse.
         """
-        binding = self.bindings.get('source.current')
+        binding = self.bindings.get('source.pulse_charge')
         return None if binding is None else self.log(binding)
 
     def stream(self, name: str, log: str = 'data') -> Optional[dict]:
