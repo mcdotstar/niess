@@ -294,10 +294,17 @@ def _transformations(visit: Visit, position, rotation_deg, name: str) -> tuple[l
     """
     from scipp import norm
     from mccode_antlr.common import InstrumentParameter
+    from ..components.frame import Frame
     from ..components.motor import Motor
 
     context = visit.context
-    parent = context.depends_on(visit.frame)
+    frame = visit.frame
+    if isinstance(visit.obj, Frame) and visit.obj.relative_to is not None:
+        # Measured from a sibling rather than from what encloses it, as the McStas
+        # target places it too: BIFROST's detector angle turns from the analyzer, so
+        # hung from the arm instead every detector sat in the analyzer's plane.
+        frame = f'{visit.parent.id}/{visit.obj.relative_to}'
+    parent = context.depends_on(frame)
     children = []
     previous = parent
 

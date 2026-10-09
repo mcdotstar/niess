@@ -635,3 +635,18 @@ def test_a_turned_mounting_hangs_from_the_component_it_names():
     for name in ('sample_rotation', 'detector_tank_angle'):
         assert (value(find_child(inst, name), 'depends_on')
                 == '/entry/instrument/sample_origin/transformations/rotation_y'), name
+
+
+def test_a_frame_relative_to_a_sibling_hangs_from_it(bifrost):
+    """BIFROST's detector angle is measured from the analyzer, not from the arm.
+
+    Hung from the arm, the detector-angle turn happened in the horizontal plane and
+    every triplet sat level with its analyzer; a reduction then read each analyzer as
+    reflecting a final energy it does not.
+    """
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    inst = instrument_group(to_nexus_structure(bifrost, registry=BIFROST_REGISTRY))
+    turn = find_child(find_child(find_child(inst, 'channel_1_5_detector_angle'),
+                                 'transformations'), 'rotation_y')
+    assert (get_attribute(turn, 'depends_on')
+            == '/entry/instrument/channel_1_5_monochromator/transformations/rotation_y')
