@@ -668,8 +668,12 @@ def test_pixels_are_numbered_as_the_efu_numbers_them(bifrost):
     assert numbers[-1][-1] == 5 * 3 * 9 * 100       # the last pixel of the last arc
 
 
-def _position(structure, component):
-    """Where a component's chain puts its origin, following depends_on through the JSON."""
+def _position(structure, component, knobs=None):
+    """Where a component's chain puts its origin, following depends_on through the JSON.
+
+    A link that is a streamed log -- a positioner's ``value`` -- has no number in the
+    structure; ``knobs`` gives one by its simulation parameter's name.
+    """
     import numpy as np
     index = {}
 
@@ -685,7 +689,10 @@ def _position(structure, component):
     path = value(index[f'/entry/instrument/{component}'], 'depends_on')
     while path != '.':
         link = index[path]
-        amount = float(link['config']['values'])
+        if 'config' in link:
+            amount = float(link['config']['values'])
+        else:
+            amount = float((knobs or {})[get_attribute(link, 'simulation_parameter')])
         axis = np.asarray(get_attribute(link, 'vector'), dtype=float)
         if get_attribute(link, 'transformation_type') == 'translation':
             point = point + amount * axis

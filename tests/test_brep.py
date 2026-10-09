@@ -165,3 +165,118 @@ def test_a_frame_relative_to_a_sibling_is_placed_from_it():
     assert sc.allclose(turned, analyzer, atol=sc.scalar(1e-9, unit='m'))
     sample, _ = context.placements['primary/sample_origin']
     assert sc.norm(turned - sample).value > 1.0
+
+
+def _bifrost_placements():
+    from niess.bifrost.bifrost import instrument
+    from niess.brep.assembly import BRepContext, _local_placement
+    from niess.walk import visits
+    inst = instrument()
+    context = BRepContext(instrument=inst)
+    for visit in visits(inst):
+        visit.context = context
+        context.place(visit, *_local_placement(visit))
+    return context.placements
+
+
+def test_each_analyzer_and_triplet_reflect_their_arcs_final_energy():
+    """Bragg's law at every analyzer, from where CAD puts the sample, analyzer and triplet.
+
+    Target-independent: the scattering angle at the analyzer, with PG(002), has to give
+    the arc's nominal final energy. A triplet hung from the arm instead of the analyzer,
+    or left at the analyzer without its distance, fails this.
+    """
+    import numpy as np
+    placed = _bifrost_placements()
+    sample = placed['primary/sample_origin'][0].to(unit='m').values
+    nominal = [2.7, 3.2, 3.8, 4.4, 5.0]   # meV, arcs 1-5
+    for channel in range(9):
+        for arc in range(5):
+            arm = f'tank/channels[{channel}]/pairs[{arc}]'
+            analyzer = placed[f'{arm}/analyzer'][0].to(unit='m').values
+            triplet = placed[f'{arm}/detector'][0].to(unit='m').values
+            incoming, outgoing = analyzer - sample, triplet - analyzer
+            two_theta = np.arccos(np.dot(incoming, outgoing)
+                                  / np.linalg.norm(incoming) / np.linalg.norm(outgoing))
+            wavelength = 2 * 3.355 * np.sin(two_theta / 2)
+            energy = 81.8042 / wavelength ** 2
+            assert energy == approx(nominal[arc], rel=0.01), arm
+            # BIFROST's analyzers scatter vertically
+            assert abs(outgoing[1]) > 0.5, arm
+
+
+def test_analyzers_and_triplets_are_drawn_where_they_are_placed():
+    importorskip('build123d')
+    import numpy as np
+    from niess.bifrost.bifrost import instrument
+    from niess.brep.assembly import BREP_REGISTRY, Subject, _located, mccode_parameters
+    from niess.walk import visits
+    placed = _bifrost_placements()
+    arm = 'tank/channels[2]/pairs[3]'
+    nodes = {v.id: v.obj for v in visits(instrument())}
+    for node, solids in ((f'{arm}/analyzer', nodes[f'{arm}/analyzer'].count),
+                         (f'{arm}/detector', 3)):
+        obj = nodes[node]
+        builder = BREP_REGISTRY.resolve_for_object(obj)
+        shape = builder(Subject(name=node, obj=obj, params=mccode_parameters(obj)))
+        assert len(shape.solids()) == solids, node
+        located = _located(shape, *placed[node])
+        centre = np.array(tuple(located.bounding_box().center()))
+        assert np.allclose(centre, placed[node][0].to(unit='m').values, atol=0.02), node
+
+
+def test_a_radial_collimator_fans_out_in_front_of_the_sample():
+    """On its vertical axis, at its own radii, centred on the beam -- as Radial_col_filter.
+
+    build123d's defaults stood the arc on the beam axis and centred its bounding box on
+    the axis, which halved its radii and pointed it sideways.
+    """
+    importorskip('build123d')
+    import numpy as np
+    from niess.brep.assembly import BREP_REGISTRY, Subject, mccode_parameters
+    from niess.components.filter import RadialFilterCollimator
+    from niess.bifrost.bifrost import instrument
+    from niess.walk import visits
+    obj = next(v.obj for v in visits(instrument()) if isinstance(v.obj, RadialFilterCollimator))
+    params = mccode_parameters(obj)
+    shape = BREP_REGISTRY.resolve_for_object(obj)(Subject(name='wedge', obj=obj, params=params))
+    points = np.array([tuple(p) for p in shape.vertices()])
+    radii = np.hypot(points[:, 0], points[:, 2])
+    assert radii.min() == approx(min(params['filter_minimum_radius'],
+                                     params['collimator_minimum_radius']), abs=1e-6)
+    assert radii.max() == approx(max(params['filter_maximum_radius'],
+                                     params['collimator_maximum_radius']), abs=1e-6)
+    assert points[:, 2].min() > 0                                   # in front, along the beam
+    assert np.abs(points[:, 1]).max() == approx(params['yheight'] / 2 + 5e-5, abs=1e-4)
+    angles = np.degrees(np.arctan2(points[:, 0], points[:, 2]))
+    assert angles.min() == approx(-params['angle_width'] / 2, abs=1e-6)
+    assert angles.max() == approx(params['angle_width'] / 2, abs=1e-6)
+
+
+def test_cad_and_nexus_put_every_analyzer_and_triplet_in_the_same_place():
+    """The CAD placement and the NeXus depends_on chain agree, measured from the sample.
+
+    Every geometry bug found in the NeXus target so far was a disagreement between two
+    targets describing one tree; this catches the next one in either. NeXus is written
+    in the sample origin's frame, so the CAD positions are taken into it.
+    """
+    import numpy as np
+    from scipp.spatial import inv
+    from niess.bifrost.bifrost import instrument
+    from niess.nexus import to_nexus_structure
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    from .test_nexus_target import _position
+    placed = _bifrost_placements()
+    origin_position, origin_rotation = placed['primary/sample_origin']
+    undo = inv(origin_rotation)
+    inst = instrument()
+    structure = to_nexus_structure(inst, registry=BIFROST_REGISTRY)
+    # CAD draws a knob at its declared default; give NeXus the same values
+    knobs = {motor.name: motor.default for motor in inst.motors}
+    for channel in range(9):
+        for arc in range(5):
+            arm = f'tank/channels[{channel}]/pairs[{arc}]'
+            for node, emitted in (('analyzer', 'monochromator'), ('detector', 'triplet')):
+                cad = (undo * (placed[f'{arm}/{node}'][0] - origin_position)).to(unit='m').values
+                nexus = _position(structure, f'channel_{channel + 1}_{arc + 1}_{emitted}', knobs)
+                assert np.allclose(cad, nexus, atol=1e-9), (arm, node, cad, nexus)
