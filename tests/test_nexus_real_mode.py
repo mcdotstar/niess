@@ -380,15 +380,17 @@ def test_a_real_conversion_says_so_when_a_disc_has_no_controller():
 def test_the_instrument_records_where_its_timestamps_are_measured_from():
     """Without these a top-dead-centre time cannot be used at all.
 
-    The accelerator's NXsource is `source` and the per-pulse log in it `current`, as
-    ECDC names them.
+    The accelerator's NXsource is `source` and the per-pulse log in it `pulse_charge`,
+    in uC, as ECDC names them -- the charge each pulse put on target, which is what a
+    reduction normalizes by.
     """
     inst = instrument_group(to_nexus_structure(chopped()))
     source = find_child(inst, 'source')
     assert get_attribute(source, 'NX_class') == 'NXsource'
-    log = find_child(source, 'current')
+    log = find_child(source, 'pulse_charge')
     assert get_attribute(log, 'NX_class') == 'NXlog'
     assert stream_of(log)[0] == 'f144'
+    assert log['children'][0]['config']['value_units'] == 'uC'
     assert value(source, 'depends_on') == '.'
 
 
@@ -398,7 +400,7 @@ def test_the_chopper_and_the_pulse_share_one_topic():
     structure = to_nexus_structure(chopped(CHOPPER_ROOT), streams=REAL)
     inst = instrument_group(structure)
     disc = find_child(inst, 'psc1')
-    pulse = find_child(find_child(inst, 'source'), 'current')
+    pulse = find_child(find_child(inst, 'source'), 'pulse_charge')
     topics = {c['children'][0]['config']['topic']
               for c in disc['children'] if c.get('type') == 'group' and c['name'] != 'transformations'}
     assert len(topics) == 1
