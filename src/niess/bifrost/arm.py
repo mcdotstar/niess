@@ -78,6 +78,51 @@ class Arm(Base):
         """Half the scattering angle: how far the analyzer is turned to reflect."""
         return self.scattering_angle / 2
 
+    def local_blades(self):
+        """The analyzer's blades in its own frame: centres, normals, and their size.
+
+        The analyzer frame is the one McStas's Monochromator_Rowland and the NeXus
+        NXcrystal sit in: crystal plane y-z, the Rowland circle in the x-z plane. The
+        blades are the tree's own -- each on the Rowland circle through the sample, the
+        analyzer centre and the detector centre, its normal bisecting the directions to
+        the two -- carried out of the calibration's z-up frame by the rotation that takes
+        the sample and detector-centre directions onto where the arm's frames put them.
+
+        Returns ``(centres, normals, width, height, thickness)``: two (N, 3) arrays in
+        metres and unit vectors, and the blade size in metres.
+        """
+        import numpy as np
+        from scipp import vector
+        from scipp.spatial import inv, rotations_from_rotvecs
+
+        def frame(u, v):
+            e1 = u / np.linalg.norm(u)
+            e3 = np.cross(u, v)
+            e3 = e3 / np.linalg.norm(e3)
+            return np.stack([e1, np.cross(e3, e1), e3], axis=1)
+
+        # where the arm's frames put the sample and the detector centre, seen from the
+        # analyzer: the analyzer point's quarter turn, then the analyzer angle
+        turn = (rotations_from_rotvecs(vector([0., 0., 90.], unit='degree'))
+                * rotations_from_rotvecs(vector([0., 1., 0.]) * self.analyzer_theta))
+        sample_local = (inv(turn) * (vector([0., 0., -1.]) * self.sample_analyzer_distance)
+                        ).to(unit='m').values
+        detector_local = (rotations_from_rotvecs(vector([0., 1., 0.]) * self.analyzer_theta)
+                          * (vector([0., 0., 1.]) * self.analyzer_detector_distance)
+                          ).to(unit='m').values
+        # the same two directions in the calibration's frame, sample at its origin
+        centre = self.sample_analyzer_vector.to(unit='m').values
+        detector = self.analyzer_detector_vector.to(unit='m').values
+        rotation = frame(sample_local, detector_local) @ frame(-centre, detector).T
+
+        blades = self.analyzer.blades
+        centres = np.array([rotation @ (b.position.to(unit='m').values - centre) for b in blades])
+        normals = np.array([rotation @ b.tau.values for b in blades])
+        normals /= np.linalg.norm(normals, axis=1)[:, None]
+        width, height, thickness = (float(v) for v in
+                                    self.analyzer.central_blade.shape.to(unit='m').value)
+        return centres, normals, width, height, thickness
+
     @classmethod
     def from_dict(cls, data):
         from .analyzer import Analyzer

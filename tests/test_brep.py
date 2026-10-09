@@ -213,12 +213,13 @@ def test_analyzers_and_triplets_are_drawn_where_they_are_placed():
     from niess.walk import visits
     placed = _bifrost_placements()
     arm = 'tank/channels[2]/pairs[3]'
-    nodes = {v.id: v.obj for v in visits(instrument())}
-    for node, solids in ((f'{arm}/analyzer', nodes[f'{arm}/analyzer'].count),
+    nodes = {v.id: v for v in visits(instrument())}
+    for node, solids in ((f'{arm}/analyzer', nodes[f'{arm}/analyzer'].obj.count),
                          (f'{arm}/detector', 3)):
-        obj = nodes[node]
+        obj = nodes[node].obj
         builder = BREP_REGISTRY.resolve_for_object(obj)
-        shape = builder(Subject(name=node, obj=obj, params=mccode_parameters(obj)))
+        shape = builder(Subject(name=node, obj=obj, params=mccode_parameters(obj),
+                                visit=nodes[node]))
         assert len(shape.solids()) == solids, node
         located = _located(shape, *placed[node])
         centre = np.array(tuple(located.bounding_box().center()))
@@ -280,3 +281,37 @@ def test_cad_and_nexus_put_every_analyzer_and_triplet_in_the_same_place():
                 cad = (undo * (placed[f'{arm}/{node}'][0] - origin_position)).to(unit='m').values
                 nexus = _position(structure, f'channel_{channel + 1}_{arc + 1}_{emitted}', knobs)
                 assert np.allclose(cad, nexus, atol=1e-9), (arm, node, cad, nexus)
+
+
+def test_every_analyzer_blade_sits_on_its_rowland_circle_and_focuses():
+    """In each analyzer's frame: blades in the Rowland plane, on the circle through the
+    sample, the analyzer centre and the triplet, each normal bisecting the directions to
+    the sample and the triplet -- what Monochromator_Rowland simulates.
+
+    The sample and triplet are taken from where CAD places them, not from the blades'
+    own calibration, so this also checks the frame the blades are carried into.
+    """
+    import numpy as np
+    from scipp.spatial import inv
+    from niess.bifrost.bifrost import instrument
+    from niess.walk import visits
+    placed = _bifrost_placements()
+    arms = {v.id: v.obj for v in visits(instrument()) if type(v.obj).__name__ == 'Arm'}
+    for arm_id, arm in arms.items():
+        a_pos, a_rot = placed[f'{arm_id}/analyzer']
+        local = lambda key: (inv(a_rot) * (placed[key][0] - a_pos)).to(unit='m').values
+        sample, triplet = local('primary/sample_origin'), local(f'{arm_id}/detector')
+        centres, normals, *_ = arm.local_blades()
+        assert np.abs(centres[:, 1]).max() < 1e-9 and np.abs(normals[:, 1]).max() < 1e-9
+        # the circle through the origin, the sample and the triplet, in the x-z plane
+        (sx, _, sz), (tx, _, tz) = sample, triplet
+        det = sx * tz - sz * tx
+        r0, r1 = (sx * sx + sz * sz) / 2, (tx * tx + tz * tz) / 2
+        circle = np.array([(r0 * tz - r1 * sz) / det, 0., (sx * r1 - tx * r0) / det])
+        radius = np.linalg.norm(circle)
+        assert np.allclose(np.linalg.norm(centres - circle, axis=1), radius, atol=1e-6), arm_id
+        for centre, normal in zip(centres, normals):
+            bisector = ((sample - centre) / np.linalg.norm(sample - centre)
+                        + (triplet - centre) / np.linalg.norm(triplet - centre))
+            bisector /= np.linalg.norm(bisector)
+            assert abs(normal @ bisector) == approx(1.0, abs=1e-9), arm_id
