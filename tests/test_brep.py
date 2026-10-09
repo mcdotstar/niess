@@ -251,3 +251,32 @@ def test_a_radial_collimator_fans_out_in_front_of_the_sample():
     angles = np.degrees(np.arctan2(points[:, 0], points[:, 2]))
     assert angles.min() == approx(-params['angle_width'] / 2, abs=1e-6)
     assert angles.max() == approx(params['angle_width'] / 2, abs=1e-6)
+
+
+def test_cad_and_nexus_put_every_analyzer_and_triplet_in_the_same_place():
+    """The CAD placement and the NeXus depends_on chain agree, measured from the sample.
+
+    Every geometry bug found in the NeXus target so far was a disagreement between two
+    targets describing one tree; this catches the next one in either. NeXus is written
+    in the sample origin's frame, so the CAD positions are taken into it.
+    """
+    import numpy as np
+    from scipp.spatial import inv
+    from niess.bifrost.bifrost import instrument
+    from niess.nexus import to_nexus_structure
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    from .test_nexus_target import _position
+    placed = _bifrost_placements()
+    origin_position, origin_rotation = placed['primary/sample_origin']
+    undo = inv(origin_rotation)
+    inst = instrument()
+    structure = to_nexus_structure(inst, registry=BIFROST_REGISTRY)
+    # CAD draws a knob at its declared default; give NeXus the same values
+    knobs = {motor.name: motor.default for motor in inst.motors}
+    for channel in range(9):
+        for arc in range(5):
+            arm = f'tank/channels[{channel}]/pairs[{arc}]'
+            for node, emitted in (('analyzer', 'monochromator'), ('detector', 'triplet')):
+                cad = (undo * (placed[f'{arm}/{node}'][0] - origin_position)).to(unit='m').values
+                nexus = _position(structure, f'channel_{channel + 1}_{arc + 1}_{emitted}', knobs)
+                assert np.allclose(cad, nexus, atol=1e-9), (arm, node, cad, nexus)
