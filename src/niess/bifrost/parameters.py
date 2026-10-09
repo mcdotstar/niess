@@ -40,6 +40,10 @@ def known_channel_params():
     known['resistance'] = scalar(380., unit='Ohm')
     known['contact_resistance'] = scalar(88.0/2, unit='Ohm')
     known['resistivity'] = scalar(185., unit='Ohm/in').to(unit='Ohm/m')
+    # Pixels along one tube, as the EFU numbers them (ICD 01, BifrostGeometry's
+    # UNIT_PIXELLATION). McStas never sees it -- the readout carries charges -- but the
+    # NeXus detector_number, the tube mesh and the pixel positions all follow it.
+    known['elements'] = 100
 
     known['beryllium_filter_ncrystal_cfg'] = 'Be_sg194'
     known['beryllium_filter_temperature'] = scalar(77., unit='K')
