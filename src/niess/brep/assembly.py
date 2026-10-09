@@ -140,6 +140,10 @@ def _local_placement(visit: Visit):
     from ..components.frame import Frame
 
     obj = visit.obj
+    hook = getattr(obj, '__brep_placement__', None)
+    if hook is not None:
+        # a piece whose own coordinates are not measured in its frame says where it sits
+        return hook(visit)
     if isinstance(obj, Frame):
         return obj.position, obj.orientation()
     if hasattr(obj, 'position') and hasattr(obj, 'orientation'):

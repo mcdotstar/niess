@@ -258,14 +258,56 @@ def build_radial_filter_collimator(subject):
         outer = _param(params, outer_key)
         if outer <= 0:
             continue
-        outer_shape = bd.Cylinder(outer, height, arc_size=angle)
+        # on its axis, centred in height: build123d's default centres the bounding box,
+        # which slides a thin arc in onto the axis and halves its radii
+        on_axis = (bd.Align.NONE, bd.Align.NONE, bd.Align.CENTER)
+        outer_shape = bd.Cylinder(outer, height, arc_size=angle, align=on_axis)
         if inner > 0:
-            outer_shape = outer_shape - bd.Cylinder(inner, height + _APERTURE_THICKNESS, arc_size=angle)
+            outer_shape = outer_shape - bd.Cylinder(inner, height + _APERTURE_THICKNESS,
+                                                    arc_size=angle, align=on_axis)
         shapes.append(outer_shape)
 
     if not shapes:
         return None
-    return bd.Compound(shapes)
+    # build123d's arc turns from +x about z; Radial_col_filter's is centred on the beam
+    # (+z) about the vertical (y). Centre the arc on +x, stand the axis up, face the beam.
+    turn = bd.Rot(0, -90, 0) * bd.Rot(-90, 0, 0) * bd.Rot(0, 0, -angle / 2)
+    return bd.Compound([turn * shape for shape in shapes])
+
+def _register_bifrost() -> None:
+    """BIFROST's analyzers and triplets, drawn in the frames the tree places them in.
+
+    Their blades and tubes are not drawn one by one: those carry positions measured from
+    the sample in the calibration's frame, which composing onto their frames would place
+    twice. The analyzer and the triplet describe them in their own frames instead, which
+    is what the NeXus target writes too.
+    """
+    from ..bifrost.analyzer import Analyzer
+    from ..bifrost.triplet import Triplet
+
+    @BREP_REGISTRY.register(Analyzer)
+    def build_analyzer(subject):
+        bd = _bd()
+        centres, width, height, thickness = subject.obj.local_blades()
+        blades = [bd.Pos(0.0, 0.0, z) * _box(thickness, height, width) for z in centres]
+        shape = bd.Compound(children=blades, label=subject.name)
+        shape.color = bd.Color('steelblue')
+        return shape
+
+    @BREP_REGISTRY.register(Triplet)
+    def build_triplet(subject):
+        bd = _bd()
+        offsets, length, radius = subject.obj.local_tubes()
+        # build123d's cylinders run along z; these tubes run along y
+        tubes = [bd.Pos(x, 0.0, 0.0) * bd.Rot(90, 0, 0) * bd.Cylinder(radius, length)
+                 for x in offsets]
+        shape = bd.Compound(children=tubes, label=subject.name)
+        shape.color = bd.Color('goldenrod')
+        return shape
+
+
+_register_bifrost()
+
 
 @BREP_REGISTRY.register(Component)
 def build_arm(subject):

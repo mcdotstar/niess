@@ -80,14 +80,13 @@ def register_bifrost() -> None:
         """
         obj = visit.obj
         blade = obj.central_blade
-        perp_q, perp_plane, _ = blade.shape.to(unit='m').value
         mosaic = float(blade.mosaic.to(unit='arcminute').value)
-        count = int(obj.count)
+        centres, perp_q, perp_plane, _ = obj.local_blades()
+        count = len(centres)
 
-        half_width, half_height = float(perp_q) / 2, float(perp_plane) / 2
+        half_width, half_height = perp_q / 2, perp_plane / 2
         vertices, faces = [], []
-        for i in range(count):
-            x0 = (i - count // 2) * (2 * half_width)
+        for i, x0 in enumerate(centres):
             vertices.extend([
                 [0, -half_height, x0 - half_width], [0, -half_height, x0 + half_width],
                 [0, half_height, x0 + half_width], [0, half_height, x0 - half_width],
@@ -111,22 +110,15 @@ def register_bifrost() -> None:
     def detector(visit):
         """A triplet of He3 tubes: one shared cylinder, repositioned per pixel."""
         import numpy as np
-        from scipp import dot, sqrt, vector
+        from scipp import vector
 
         obj = visit.obj
         arc, triplet = arc_and_triplet(visit)
         tubes = obj.tubes
-        ni = len(tubes)
         nj = int(tubes[0].elements)
-        radius = float(sum(t.radius.to(unit='m').value for t in tubes) / ni)
-        lengths = [sqrt(dot(t.to - t.at, t.to - t.at)).to(unit='m').value for t in tubes]
-        height = float(sum(lengths) / ni)
-        centres = [(t.to + t.at) / 2 for t in tubes]
-        span = centres[-1] - centres[0]
-        width = float(sqrt(dot(span, span)).to(unit='m').value) + 2 * radius
-
-        half_i = (width - 2 * radius) / 2
-        di = np.linspace(-half_i, half_i, ni)
+        offsets, height, radius = obj.local_tubes()
+        ni = len(offsets)
+        di = np.asarray(offsets)
         half_pixel = height / nj / 2
         dj = -np.linspace(-height / 2 + half_pixel, height / 2 - half_pixel, nj)
         grid_j, grid_i = np.meshgrid(dj, di)

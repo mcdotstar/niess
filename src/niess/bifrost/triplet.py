@@ -127,6 +127,39 @@ class Triplet(Base):
 
         return Triplet(tuple(tubes), resistance, stream=params.get('stream'))
 
+    def local_tubes(self) -> tuple[list[float], float, float]:
+        """The tubes in the triplet's own frame: axis offsets along x, and length and radius.
+
+        Each tube runs along y, centred on y = 0; the three sit side by side along x,
+        centred on the frame's origin -- the frame McStas's Detector_tubes and the NeXus
+        NXdetector sit in. All in metres. The NeXus pixel offsets and the CAD solid are
+        both drawn from this. The tubes' own ends are not used directly: they are
+        measured from the sample in the calibration's z-up frame.
+        """
+        from numpy import linspace
+        from scipp import dot, sqrt
+        tubes = self.tubes
+        count = len(tubes)
+        radius = float(sum(t.radius.to(unit='m').value for t in tubes) / count)
+        length = float(sum(sqrt(dot(t.to - t.at, t.to - t.at)).to(unit='m').value
+                           for t in tubes) / count)
+        centres = [(t.to + t.at) / 2 for t in tubes]
+        span = centres[-1] - centres[0]
+        # outer width less the end radii, as the NeXus pixel layout has always computed
+        # it: equal to |span| / 2, but rounded as the frozen files were
+        width = float(sqrt(dot(span, span)).to(unit='m').value) + 2 * radius
+        half = (width - 2 * radius) / 2
+        return [float(x) for x in linspace(-half, half, count)], length, radius
+
+    def __brep_placement__(self, visit):
+        """Along the detector-angle frame's z, the analyzer-detector distance away."""
+        from scipp import vector
+        from scipp.spatial import rotations_from_rotvecs
+        from .arm import Arm
+        distance = visit.ancestor(Arm).obj.analyzer_detector_distance
+        return (vector([0., 0., 1.]) * distance,
+                rotations_from_rotvecs(vector([0., 0., 0.], unit='degree')))
+
     def triangulate(self, unit=None):
         from ..spatial import combine_triangulations
         vts = [tube.triangulate(unit=unit) for tube in self.tubes]
