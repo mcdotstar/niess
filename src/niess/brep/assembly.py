@@ -59,11 +59,24 @@ class BRepContext(Context):
         """
         if frame is None:
             return _identity_placement()
-        return self.placements.get(frame, _identity_placement())
+        if frame not in self.placements:
+            # Falling back to the origin would draw everything hung from it there, which
+            # is how a frame nobody placed goes unnoticed.
+            raise ValueError(f'Nothing placed is called {frame!r}, which a node hangs from')
+        return self.placements[frame]
 
     def place(self, visit: Visit, position, orientation):
-        """Compose a local placement onto the frame it sits in, and record it."""
-        base_position, base_rotation = self.placement_of(visit.frame)
+        """Compose a local placement onto the frame it sits in, and record it.
+
+        A Frame declared ``relative_to`` a sibling is measured from that sibling, as the
+        McStas and NeXus targets place it: BIFROST's detector angle turns from the
+        analyzer, not from the arm.
+        """
+        from ..components.frame import Frame
+        frame = visit.frame
+        if isinstance(visit.obj, Frame) and visit.obj.relative_to is not None:
+            frame = f'{visit.parent.id}/{visit.obj.relative_to}'
+        base_position, base_rotation = self.placement_of(frame)
         composed = (base_position + base_rotation * position.to(unit='m'),
                     base_rotation * orientation)
         self.placements[visit.id] = composed

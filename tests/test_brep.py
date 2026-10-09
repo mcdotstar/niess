@@ -142,3 +142,26 @@ def test_a_filter_is_drawn_at_its_own_size():
     assert size.X == approx(0.4)
     assert size.Y == approx(0.2)
     assert size.Z == approx(0.1)
+
+
+def test_a_frame_relative_to_a_sibling_is_placed_from_it():
+    """BIFROST's detector angle starts at its analyzer, not at the arm's origin (the sample).
+
+    Placement only, so no CAD kernel is needed: nothing in the tank that hangs from this
+    frame has a shape yet, which is why drawing it never showed the frame in the wrong place.
+    """
+    import scipp as sc
+    from niess.bifrost.bifrost import instrument
+    from niess.brep.assembly import BRepContext, _local_placement
+    from niess.walk import visits
+    inst = instrument()
+    context = BRepContext(instrument=inst)
+    for visit in visits(inst):
+        visit.context = context
+        context.place(visit, *_local_placement(visit))
+    arm = 'tank/channels[0]/pairs[4]'
+    analyzer, _ = context.placements[f'{arm}/analyzer']
+    turned, _ = context.placements[f'{arm}/detector_angle']
+    assert sc.allclose(turned, analyzer, atol=sc.scalar(1e-9, unit='m'))
+    sample, _ = context.placements['primary/sample_origin']
+    assert sc.norm(turned - sample).value > 1.0
