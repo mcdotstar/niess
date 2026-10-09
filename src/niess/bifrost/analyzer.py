@@ -104,6 +104,30 @@ class Analyzer(Base):
         x, y, a = [concat(x, dim='blades') for x in zip(*[b.rtp_parameters(sample, p0, oop) for b in self.blades])]
         return x, y, a
 
+    def rowland_angle_h(self, gap: float) -> float:
+        """Monochromator_Rowland's ``angle_h`` for these blades, in degrees.
+
+        The component spaces its slabs around the Rowland circle's centre by
+        ``a_width + a_gap``, where ``a_gap = gap / R`` and the slabs and gaps together
+        fill ``2 angle_h``. These blades are spaced the same way, so the step between
+        neighbouring centres gives the total exactly: ``N step - gap / R``. That is the
+        design coverage the blades were built with -- four times the half-angle seen
+        from the sample -- and with it McStas puts its slabs where these blades are.
+        """
+        import numpy as np
+        from .rowland import three_point_circle
+        positions = [blade.position.to(unit='m') for blade in self.blades]
+        count = len(positions)
+        if count < 2:
+            raise ValueError('A Rowland analyzer needs at least two blades')
+        centre, radius, _ = three_point_circle(positions[0], positions[count // 2],
+                                               positions[-1])
+        radius = float(radius.value)
+        spokes = [(p - centre).values / radius for p in positions]
+        step = np.mean([np.arccos(np.clip(spokes[i] @ spokes[i + 1], -1.0, 1.0))
+                        for i in range(count - 1)])
+        return float(np.degrees(count * step - gap / radius) / 2)
+
     def mcstas_parameters(self, sample: Variable, source: str, sink: str) -> dict:
         from mccode_antlr.instr import Instance
         from ..spatial import is_scipp_vector
@@ -114,16 +138,16 @@ class Analyzer(Base):
             raise ValueError(f'The source and sink are expected to be str values not {type(source)} and {type(sink)}')
 
         perp_q, perp_plane, parallel_q = self.central_blade.shape.to(unit='m').value
-        hor_cov, ver_cov = self.coverage(sample)
+        gap = 0.002
         params = dict(
             NH=self.count,
             zwidth=perp_q,
             yheight=perp_plane,
             mosaic=self.central_blade.mosaic.to(unit='arcminute').value,
             DM=3.355,
-            gap=0.002,
+            gap=gap,
             show_construction='showconstruction',
-            angle_h=ver_cov.to(unit='degree').value,
+            angle_h=self.rowland_angle_h(gap),
             source=f'"{source}"',
             sink=f'"{sink}"',
             focush='"exact"',
