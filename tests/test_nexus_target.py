@@ -128,8 +128,10 @@ def test_a_thing_at_the_origin_needs_no_transformation(teaching):
     structure = to_nexus_structure(teaching)
     source = find_child(instrument_group(structure), 'source')
     assert find_child(source, 'transformations') is None
-    # but it still says what it hangs from -- '.' being how NeXus spells "nothing"
-    assert value(source, 'depends_on') == '.'
+    # but it still says what it hangs from: the McStas origin, which the file reaches
+    # by undoing where the instrument's origin sits
+    assert value(source, 'depends_on').startswith(
+        '/entry/instrument/sample_origin/transformations/inverse_')
 
 
 def test_an_identity_placement_still_says_what_it_hangs_from():
@@ -664,3 +666,45 @@ def test_pixels_are_numbered_as_the_efu_numbers_them(bifrost):
                     'detector_number')
     assert [len(row) for row in numbers] == [100, 100, 100]
     assert numbers[-1][-1] == 5 * 3 * 9 * 100       # the last pixel of the last arc
+
+
+def _position(structure, component):
+    """Where a component's chain puts its origin, following depends_on through the JSON."""
+    import numpy as np
+    index = {}
+
+    def collect(node, path):
+        for child in node.get('children', []) or []:
+            name = child.get('name') or (child.get('config') or {}).get('name')
+            if name:
+                index[f'{path}/{name}'] = child
+                collect(child, f'{path}/{name}')
+
+    collect(instrument_group(structure), '/entry/instrument')
+    point = np.zeros(3)
+    path = value(index[f'/entry/instrument/{component}'], 'depends_on')
+    while path != '.':
+        link = index[path]
+        amount = float(link['config']['values'])
+        axis = np.asarray(get_attribute(link, 'vector'), dtype=float)
+        if get_attribute(link, 'transformation_type') == 'translation':
+            point = point + amount * axis
+        else:
+            k, t = axis / np.linalg.norm(axis), np.radians(amount)
+            point = (point * np.cos(t) + np.cross(k, point) * np.sin(t)
+                     + k * np.dot(k, point) * (1 - np.cos(t)))
+        path = get_attribute(link, 'depends_on')
+    return point
+
+
+def test_the_origin_is_where_the_instrument_says():
+    """The sample position is (0, 0, 0), as at ESS; the moderator is upstream on -z."""
+    import numpy as np
+    from niess.bifrost.bifrost import instrument
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    structure = to_nexus_structure(instrument(), registry=BIFROST_REGISTRY)
+    assert np.allclose(_position(structure, 'sample_origin'), 0, atol=1e-9)
+    moderator = _position(structure, 'moderator')
+    assert np.isclose(np.linalg.norm(moderator), 162.0, atol=0.1)
+    # upstream, level, and off to the side by what the curved guide bends away
+    assert moderator[2] < -161.9 and abs(moderator[1]) < 1e-6 and abs(moderator[0]) < 0.2
