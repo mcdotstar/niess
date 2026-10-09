@@ -287,9 +287,18 @@ def _register_bifrost() -> None:
 
     @BREP_REGISTRY.register(Analyzer)
     def build_analyzer(subject):
+        """Each blade at its place on the Rowland circle, turned to focus, as the arm says."""
+        import numpy as np
+        from ..bifrost.arm import Arm
         bd = _bd()
-        centres, width, height, thickness = subject.obj.local_blades()
-        blades = [bd.Pos(0.0, 0.0, z) * _box(thickness, height, width) for z in centres]
+        centres, normals, width, height, thickness = \
+            subject.visit.ancestor(Arm).obj.local_blades()
+        up = np.array([0., 1., 0.])
+        blades = []
+        for centre, normal in zip(centres, normals):
+            along = np.cross(normal, up)
+            plane = bd.Plane(origin=tuple(centre), x_dir=tuple(normal), z_dir=tuple(along))
+            blades.append(bd.Location(plane) * _box(thickness, height, width))
         shape = bd.Compound(children=blades, label=subject.name)
         shape.color = bd.Color('steelblue')
         return shape

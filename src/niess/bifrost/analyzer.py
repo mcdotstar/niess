@@ -31,20 +31,6 @@ class Analyzer(Base):
     def count(self):
         return len(self.blades)
 
-    def local_blades(self) -> tuple[list[float], float, float, float]:
-        """The blades in the analyzer's own frame: centres along z, and width, height, thickness.
-
-        Side by side along z, height along y, faces normal to x, centred on the frame's
-        origin -- the frame McStas's Monochromator_Rowland and the NeXus NXcrystal sit
-        in. All in metres. The NeXus OFF geometry and the CAD solid are both drawn from
-        this, so the two cannot disagree. The blades' own positions are not used: they
-        are measured from the sample in the calibration's z-up frame.
-        """
-        width, height, thickness = (float(v) for v in
-                                    self.central_blade.shape.to(unit='m').value)
-        count = self.count
-        return [(i - count // 2) * width for i in range(count)], width, height, thickness
-
     def __brep_placement__(self, visit):
         """At the analyzer point, turned by the arm's analyzer angle, as McStas places it."""
         from scipp import vector

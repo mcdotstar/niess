@@ -76,21 +76,23 @@ def register_bifrost() -> None:
 
         The blade count, shape and mosaic are the analyzer's own fields. The other way
         round they are McStas component parameters -- NH, zwidth, yheight, mosaic --
-        read back out of a component call.
+        read back out of a component call. Each blade is one face of the OFF geometry,
+        at its own place on the Rowland circle and turned to focus, as the arm says.
         """
+        import numpy as np
         obj = visit.obj
         blade = obj.central_blade
         mosaic = float(blade.mosaic.to(unit='arcminute').value)
-        centres, perp_q, perp_plane, _ = obj.local_blades()
+        centres, normals, perp_q, perp_plane, _ = visit.ancestor(_arm()).obj.local_blades()
         count = len(centres)
 
+        up = np.array([0., 1., 0.])      # the Rowland cylinder's axis
         half_width, half_height = perp_q / 2, perp_plane / 2
         vertices, faces = [], []
-        for i, x0 in enumerate(centres):
-            vertices.extend([
-                [0, -half_height, x0 - half_width], [0, -half_height, x0 + half_width],
-                [0, half_height, x0 + half_width], [0, half_height, x0 - half_width],
-            ])
+        for i, (centre, normal) in enumerate(zip(centres, normals)):
+            along = np.cross(normal, up)  # across the blade, in the Rowland plane
+            for h, w in ((-1, -1), (-1, 1), (1, 1), (1, -1)):
+                vertices.append((centre + h * half_height * up + w * half_width * along).tolist())
             faces.append([4 * i, 4 * i + 1, 4 * i + 2, 4 * i + 3])
 
         return component_body('NXcrystal', [

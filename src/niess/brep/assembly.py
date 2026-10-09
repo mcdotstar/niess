@@ -95,6 +95,9 @@ class Subject:
     name: str
     params: dict
     obj: Any = None
+    #: the walk's visit, for a builder that needs more than the object -- what it hangs
+    #: in, or an ancestor that knows where its neighbours are
+    visit: Any = None
 
 
 def mccode_parameters(obj) -> dict[str, float]:
@@ -170,7 +173,7 @@ def to_assembly(instrument, registry=None):
         if builder is None:
             continue
         shape = builder(Subject(name=visit.name, obj=visit.obj,
-                                params=mccode_parameters(visit.obj)))
+                                params=mccode_parameters(visit.obj), visit=visit))
         if shape is None:
             continue
         shape.label = visit.name
