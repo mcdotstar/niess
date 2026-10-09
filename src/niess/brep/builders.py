@@ -9,6 +9,7 @@ does not publish, like `substrate`, are read off the object.
 """
 from __future__ import annotations
 
+import logging
 from math import sqrt
 
 from ..components.component import Component
@@ -17,6 +18,8 @@ from ..components.filter import Attenuator, NCrystalFilter, RadialFilterCollimat
 from ..components.guide import EllipticGuide, StraightGuide, TaperedGuide
 from ..components.moderator import ESSModerator
 from .assembly import BREP_REGISTRY, Subject
+
+logger = logging.getLogger(__name__)
 
 
 _APERTURE_THICKNESS = 1e-4
@@ -153,7 +156,6 @@ def _elliptic_guide_ellipse_parameters(params: dict[str, float]):
     if len(undef := [x for x in pars.values() if x is None]) == 0:
         pars['l'] = params.get('l')
     elif len(undef) < len(pars):
-        from loguru import logger
         msg = f'Only {len(pars)-len(undef)} of {len(pars)} best parameters are defined'
         logger.warning(f'Likely error state in Elliptic guide brep: {msg}')
 
