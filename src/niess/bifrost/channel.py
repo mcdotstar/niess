@@ -125,6 +125,7 @@ class Channel(Base):
                 detector_orient=idx_or(detector_orient, idx),
                 resistance=idx_or(resistance, idx),
                 resistivity=idx_or(resistivity, idx),
+                elements=vp['elements'],
                 gap=gp,
                 # this dict is an allow-list -- anything the calibration says that is
                 # not named here stops at this channel and never reaches the detector

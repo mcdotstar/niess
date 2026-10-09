@@ -650,3 +650,17 @@ def test_a_frame_relative_to_a_sibling_hangs_from_it(bifrost):
                                  'transformations'), 'rotation_y')
     assert (get_attribute(turn, 'depends_on')
             == '/entry/instrument/channel_1_5_monochromator/transformations/rotation_y')
+
+
+def test_pixels_are_numbered_as_the_efu_numbers_them(bifrost):
+    """100 pixels a tube, as the EFU numbers them -- set in the BIFROST parameters.
+
+    The events in a file carry the EFU's pixel ids. With the tubes' default 10
+    elements, not one of them matched a `detector_number`.
+    """
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    structure = to_nexus_structure(bifrost, registry=BIFROST_REGISTRY)
+    numbers = value(find_child(instrument_group(structure), 'channel_9_5_triplet'),
+                    'detector_number')
+    assert [len(row) for row in numbers] == [100, 100, 100]
+    assert numbers[-1][-1] == 5 * 3 * 9 * 100       # the last pixel of the last arc
