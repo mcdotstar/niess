@@ -267,7 +267,16 @@ class NexusContext(Context):
         """
         if frame is None:
             return '.'
-        return self.paths.get(frame, '.')
+        if frame in self.paths:
+            return self.paths[frame]
+        # A reference that is not a tree path is a component name -- what a Mount's
+        # `relative_to` gives, as `McCodeContext.reference` reads it too. Falling
+        # back to '.' left BIFROST's sample and tank mountings, which hang off the
+        # primary's `sample_origin`, at the origin of the instrument.
+        for key, emitted in self.emitted_names.items():
+            if emitted == frame and key in self.paths:
+                return self.paths[key]
+        raise ValueError(f'Nothing written is called {frame!r}, which a frame hangs from')
 
 
 def _transformations(visit: Visit, position, rotation_deg, name: str) -> tuple[list, str]:

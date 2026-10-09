@@ -620,3 +620,18 @@ def test_taking_the_default_emits_the_instrument_it_always_did():
     plain = Tank.from_calibration(tank_parameters())
     assert emitted(plain) == emitted(msgspec.structs.replace(plain))
     assert 'nexus_stream' not in emitted(plain)
+
+
+def test_a_turned_mounting_hangs_from_the_component_it_names():
+    """A Mount's `relative_to` names a component, not a tree path.
+
+    BIFROST mounts the sample and the tank relative to `sample_origin`, which is written
+    from inside the primary. Looked up as a tree path it was not found, and both
+    positioners hung from nothing: the sample and every detector sat at the origin.
+    """
+    from niess.bifrost.bifrost import instrument
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    inst = instrument_group(to_nexus_structure(instrument(), registry=BIFROST_REGISTRY))
+    for name in ('sample_rotation', 'detector_tank_angle'):
+        assert (value(find_child(inst, name), 'depends_on')
+                == '/entry/instrument/sample_origin/transformations/rotation_y'), name
