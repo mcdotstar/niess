@@ -8,6 +8,23 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## 0.10.0
+
+Many corrections and improvements, mostly geared toward / enabled by producing simulated BIFROST output
+which can be read by ess.reduce / ess.spectroscopy.
+
+Generally, the niess refactor previously did not correctly place components defined relative to another
+for NeXus Stucture JSON output nor BREP output.
+
+The source component inserted into NeXus was configured to specify a beam current parameter but
+the reduction routines expect beam charge depositited per pulse.
+
+The NeXus origin was not set properly previously; the standard origin location is the sample position.
+
+The BIFROST detector tubes exported to NeXus appeared with 10 pixels per tube while, presently, the
+EFU pixelates each into 100 pixels.
+
+
 ## 0.9.2
 
 ### Added — split points for restage
