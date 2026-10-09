@@ -464,9 +464,82 @@ def to_nexus_structure(instrument, registry=None, nxlog_root: str | None = None,
                 # what the standard and every reader of these files expect.
                 add_child(node, dataset(direction,
                                         names[0] if len(names) == 1 else names))
+    if getattr(instrument, 'origin', None):
+        _rebase_on_origin(context.instrument_group, instrument.origin)
     entry = group('entry', nx_class='NXentry',
                   children=[context.instrument_group])
     return {'children': [entry]}
+
+
+def _rebase_on_origin(instrument_group: dict, origin: str) -> None:
+    """Make ``origin`` the file's (0, 0, 0), with its axes, as NeXus files at ESS have it.
+
+    The tree places things in the McStas frame, whose origin is the moderator. Every
+    chain that ends there -- `depends_on` of '.' -- is continued through the inverse of
+    the origin's own placement instead, written once beside it. The origin then sits at
+    (0, 0, 0) facing along the beam, the moderator ~162 m upstream for BIFROST, and
+    whatever hangs from the origin is unchanged. A missing NXsample still means the
+    sample is at the origin, which is where it is.
+    """
+    from .nodes import add_child, children_of, dataset, find_child, get_attribute, is_group
+
+    index = {}
+
+    def collect(node, path):
+        for child in children_of(node):
+            name = node_name(child)
+            if name is None:
+                continue
+            index[f'{path}/{name}'] = child
+            if is_group(child):
+                collect(child, f'{path}/{name}')
+
+    collect(instrument_group, INSTRUMENT_PATH)
+    holder = find_child(instrument_group, origin)
+    if holder is None:
+        raise ValueError(f'The instrument origin {origin!r} was not written')
+    start = find_child(holder, 'depends_on')
+    path = start['config']['values'] if start is not None else '.'
+
+    links = []                                    # from the origin out to the root
+    while path != '.':
+        link = index[path]
+        offset = get_attribute(link, 'offset')
+        if link.get('module') != 'dataset' or (offset and any(offset)):
+            raise ValueError(f'{path} is not a plain number; the origin cannot be undone')
+        links.append((path, link))
+        path = get_attribute(link, 'depends_on')
+    if not links:
+        return                                    # already at the root's origin
+
+    transformations = find_child(holder, 'transformations')
+    if transformations is None:
+        transformations = group('transformations', nx_class='NXtransformations')
+        add_child(holder, transformations)
+    where = f'{INSTRUMENT_PATH}/{origin}/transformations'
+    inverse = [f"{where}/inverse_{p.split('/')[-3]}_{p.split('/')[-1]}" for p, _ in links]
+    written = set()
+    # Applied in the reverse order with negated values: the root link is undone first.
+    for i, (path, link) in reversed(list(enumerate(links))):
+        attrs = {a['name']: a['values'] for a in link.get('attributes', [])
+                 if a['name'] != 'depends_on'}
+        attrs['depends_on'] = inverse[i - 1] if i > 0 else '.'
+        node = dataset(inverse[i].split('/')[-1], -float(link['config']['values']),
+                       dtype='double', attrs=attrs)
+        add_child(transformations, node)
+        written.add(id(node))
+
+    head = inverse[-1]
+    for node in index.values():
+        if id(node) in written:
+            continue
+        for attr in node.get('attributes') or []:
+            if attr.get('name') == 'depends_on' and attr.get('values') == '.':
+                attr['values'] = head
+        config = node.get('config')
+        if (node.get('module') == 'dataset' and isinstance(config, dict)
+                and config.get('name') == 'depends_on' and config.get('values') == '.'):
+            config['values'] = head
 
 
 def translator(*classes):
