@@ -315,3 +315,31 @@ def test_every_analyzer_blade_sits_on_its_rowland_circle_and_focuses():
                         + (triplet - centre) / np.linalg.norm(triplet - centre))
             bisector /= np.linalg.norm(bisector)
             assert abs(normal @ bisector) == approx(1.0, abs=1e-9), arm_id
+
+
+def test_a_knob_a_mount_turns_by_can_be_set():
+    """A tank angle set by name moves what the tank holds; a misspelt one is refused."""
+    importorskip('build123d')
+    import scipp as sc
+    from pytest import raises
+    from niess.brep import to_assembly
+    from niess.components import NCrystalFilter
+    from niess.instrument import Instrument, Motor, Mount
+
+    a4 = Motor(name='detector_tank_angle', unit='degrees', source='a4', topic='t', default=0.0)
+    filt = NCrystalFilter(
+        name='f1', position=sc.vector([0.0, 0.0, 1.0], unit='m'), orientation=_identity(),
+        width=sc.scalar(0.1, unit='m'), height=sc.scalar(0.1, unit='m'),
+        length=sc.scalar(0.1, unit='m'), composition='Al_sg225',
+        temperature=sc.scalar(300.0, unit='K'))
+    instrument = Instrument(name='turned', motors=(a4,), parts=(
+        Mount(name='tank', rotation=(0, a4, 0), content=filt),))
+
+    def centre(**parameters):
+        return _assembly_child(to_assembly(instrument, parameters=parameters)).center()
+
+    assert (centre().X, centre().Z) == (approx(0.0, abs=1e-9), approx(1.0))
+    turned = centre(detector_tank_angle=90)
+    assert (turned.X, turned.Z) == (approx(1.0), approx(0.0, abs=1e-9))
+    with raises(ValueError, match='detector_tank_ange'):
+        centre(detector_tank_ange=90)
