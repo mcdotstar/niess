@@ -343,3 +343,27 @@ def test_a_knob_a_mount_turns_by_can_be_set():
     assert (turned.X, turned.Z) == (approx(1.0), approx(0.0, abs=1e-9))
     with raises(ValueError, match='detector_tank_ange'):
         centre(detector_tank_ange=90)
+
+
+def test_the_assembly_has_a_labelled_child_per_component():
+    """One child per drawn component, named as the component is, grouped as the tree is."""
+    importorskip('build123d')
+    import scipp as sc
+    from niess.brep import to_assembly
+    from niess.components import NCrystalFilter
+    from niess.instrument import Instrument, Mount
+
+    def block(name, z):
+        return NCrystalFilter(
+            name=name, position=sc.vector([0.0, 0.0, z], unit='m'), orientation=_identity(),
+            width=sc.scalar(0.1, unit='m'), height=sc.scalar(0.1, unit='m'),
+            length=sc.scalar(0.1, unit='m'), composition='Al_sg225',
+            temperature=sc.scalar(300.0, unit='K'))
+
+    assembly = to_assembly(Instrument(name='two', parts=(
+        Mount(name='first', content=block('f1', 1.0)),
+        Mount(name='second', content=block('f2', 2.0)))))
+
+    assert assembly.label == 'two'
+    assert [child.label for child in assembly.children] == ['f1', 'f2']
+    assert [child.center().Z for child in assembly.children] == [approx(1.0), approx(2.0)]

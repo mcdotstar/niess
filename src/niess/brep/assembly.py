@@ -155,7 +155,12 @@ def _local_placement(visit: Visit, values: dict | None = None):
 
 
 def to_assembly(instrument, registry=None, parameters: dict | None = None):
-    """Build a labelled ``build123d`` Compound of everything with a shape.
+    """Build a labelled ``build123d`` assembly of everything with a shape.
+
+    The assembly follows the tree: each component is a child labelled with its emitted
+    name, inside a group for each node that holds more than one shaped thing --
+    ``tank`` > ``channel_3`` > ``channel_3_1_analyzer`` -- so a viewer can show, hide
+    and pick them one at a time. A node holding just one is not a group of its own.
 
     Every node is placed, whether or not it has a shape: a frame draws nothing and is
     still what the things hanging from it are measured against.
@@ -165,28 +170,47 @@ def to_assembly(instrument, registry=None, parameters: dict | None = None):
     given is drawn at its declared default; a name no frame turns by is an error.
     """
     import build123d as bd
-    from ..walk import visits
+    from ..walk import Visit
 
     resolver = BREP_REGISTRY if registry is None else registry
     context = BRepContext(instrument=instrument)
-
     _check_knobs(instrument, parameters)
-    for visit in visits(instrument):
-        visit.context = context
-        position, orientation = context.place(visit, *_local_placement(visit, parameters))
-        builder = resolver.resolve_for_object(visit.obj)
-        if builder is None:
-            continue
-        shape = builder(Subject(name=visit.name, obj=visit.obj,
-                                params=mccode_parameters(visit.obj), visit=visit))
-        if shape is None:
-            continue
-        shape.label = visit.name
-        context.shapes.append(_located(shape, position, orientation))
 
-    if not context.shapes:
-        return bd.Compound([bd.Box(1e-3, 1e-3, 1e-3)])
-    return bd.Compound(context.shapes)
+    def descend(visit):
+        # placed before its children, in declaration order, as a frame they name must be
+        position, orientation = context.place(visit, *_local_placement(visit, parameters))
+        own = None
+        builder = resolver.resolve_for_object(visit.obj)
+        shape = None if builder is None else builder(Subject(
+            name=visit.name, obj=visit.obj, params=mccode_parameters(visit.obj), visit=visit))
+        if shape is not None:
+            shape.label = _label(visit)
+            own = _located(shape, position, orientation)
+            context.shapes.append(own)
+        parts = [] if own is None else [own]
+        parts.extend(p for p in map(descend, visit.children()) if p is not None)
+        if len(parts) < 2:
+            return parts[0] if parts else None
+        return bd.Compound(children=parts, label=_label(visit))
+
+    built = descend(Visit(context=context, obj=instrument))
+    name = getattr(instrument, 'name', None) or 'instrument'
+    if built is None:
+        return bd.Compound(children=[bd.Box(1e-3, 1e-3, 1e-3)], label=name)
+    if built in context.shapes:
+        # a lone shape is still one child of the instrument, not the instrument itself
+        return bd.Compound(children=[built], label=name)
+    built.label = name
+    return built
+
+
+def _label(visit):
+    """What a node is called in the assembly: its emitted name, or -- for a node that
+    contributes none, like an arc's analyzer and triplet, which would otherwise share
+    the arc's -- that name with its own path label after it."""
+    if visit.own_label:
+        return visit.name
+    return visit.emit_name(visit.label) if visit.label else visit.name
 
 
 def _check_knobs(instrument, parameters):
