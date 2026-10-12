@@ -295,10 +295,12 @@ def _register_bifrost() -> None:
             subject.visit.ancestor(Arm).obj.local_blades()
         up = np.array([0., 1., 0.])
         blades = []
-        for centre, normal in zip(centres, normals):
+        for index, (centre, normal) in enumerate(zip(centres, normals)):
             along = np.cross(normal, up)
             plane = bd.Plane(origin=tuple(centre), x_dir=tuple(normal), z_dir=tuple(along))
-            blades.append(bd.Location(plane) * _box(thickness, height, width))
+            blade = bd.Location(plane) * _box(thickness, height, width)
+            blade.label = f'blade_{index}'
+            blades.append(blade)
         shape = bd.Compound(children=blades, label=subject.name)
         shape.color = bd.Color('steelblue')
         return shape
@@ -310,6 +312,8 @@ def _register_bifrost() -> None:
         # build123d's cylinders run along z; these tubes run along y
         tubes = [bd.Pos(x, 0.0, 0.0) * bd.Rot(90, 0, 0) * bd.Cylinder(radius, length)
                  for x in offsets]
+        for index, tube in enumerate(tubes):
+            tube.label = f'tube_{index}'
         shape = bd.Compound(children=tubes, label=subject.name)
         shape.color = bd.Color('goldenrod')
         return shape
@@ -338,4 +342,5 @@ def build_arm(subject):
     ez = bd.extrude(bd.Circle(width / 2), length)
     ex = bd.Plane(origin=(0,0,0), z_dir=(1,0,0)) * bd.extrude(bd.Circle(width / 2), length)
     ey = bd.Plane(origin=(0,0,0), z_dir=(0,1,0)) * bd.extrude(bd.Circle(width / 2), length)
+    ex.label, ey.label, ez.label = 'x', 'y', 'z'
     return bd.Compound(children=[ez, ex, ey], label=subject.name)
