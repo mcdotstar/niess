@@ -227,13 +227,17 @@ def build_aperture(subject):
             height = params['yheight']
         else:
             height = params.get('ymax', 0.0) - params.get('ymin', 0.0)
-    return _box(float(width), float(height), _APERTURE_THICKNESS)
+    shape = _box(float(width), float(height), _APERTURE_THICKNESS)
+    shape.color = _bd().Color('sienna')  # an absorber, boron-carbide brown
+    return shape
 
 @BREP_REGISTRY.register(NCrystalFilter)
 @BREP_REGISTRY.register(Attenuator)
 def build_filter(subject):
     params = subject.params
-    return _box(_param(params, 'xwidth'), _param(params, 'yheight'), _param(params, 'zdepth'))
+    shape = _box(_param(params, 'xwidth'), _param(params, 'yheight'), _param(params, 'zdepth'))
+    shape.color = _bd().Color('mediumseagreen')
+    return shape
 
 # ESS_butterfly's outline, from McCode's share/ESS_butterfly-geometry.c: the moderator in
 # the target's (z, x) plane, metres, closed (the last point is the first).
