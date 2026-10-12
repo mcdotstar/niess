@@ -367,3 +367,24 @@ def test_the_assembly_has_a_labelled_child_per_component():
     assert assembly.label == 'two'
     assert [child.label for child in assembly.children] == ['f1', 'f2']
     assert [child.center().Z for child in assembly.children] == [approx(1.0), approx(2.0)]
+def test_the_butterfly_moderator_is_drawn_as_mcstas_draws_it():
+    """ESS_butterfly's outline for sector W, beamline 4 -- BIFROST's -- where McStas's
+    MCDISPLAY puts it (three segments from a trace run), as tall as the moderator."""
+    importorskip('build123d')
+    from niess.bifrost.primary import Primary
+    from niess.brep import to_assembly
+    from niess.brep.builders import butterfly_outline
+    from niess.instrument import Instrument, Mount
+
+    outline = butterfly_outline('W', 4)
+    assert outline[0] == outline[-1]
+    for index, (x, z) in ((0, (0.124614, -0.156099)), (19, (0.062713, 0.0453581)),
+                          (62, (0.0627578, -0.154148))):
+        assert outline[index] == (approx(x, abs=1e-6), approx(z, abs=1e-6))
+
+    moderator = Primary.from_calibration().moderator
+    solid = _assembly_child(to_assembly(Instrument(
+        name='m', parts=(Mount(name='m', content=moderator),))))
+    assert solid.is_valid
+    assert solid.bounding_box().size.Y == approx(0.03)
+    assert solid.volume == approx(1.627e-3, rel=1e-3)

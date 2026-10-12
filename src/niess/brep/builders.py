@@ -234,13 +234,74 @@ def build_filter(subject):
     params = subject.params
     return _box(_param(params, 'xwidth'), _param(params, 'yheight'), _param(params, 'zdepth'))
 
+# ESS_butterfly's outline, from McCode's share/ESS_butterfly-geometry.c: the moderator in
+# the target's (z, x) plane, metres, closed (the last point is the first).
+_BUTTERFLY_Z = (
+    -0.19922764, -0.18484553, -0.20252845, -0.20795122, -0.21054471, -0.21030894,
+    -0.20889431, -0.20535772, -0.20134959, -0.19639837, -0.19026829, -0.18390244,
+    -0.17565041, -0.17093496, -0.14617886, -0.12873171, -0.092658537, -0.040552845,
+    -0.017682927, -0.0091951221, -0.0023577231, 0.0051869889, 0.011788619, 0.017918699,
+    0.023105689, 0.024991869, 0.024756099, 0.022162599, 0.018154469, 0.012731709,
+    0.0056585389, -0.00023577214, 0.014146339, -0.029707317, 0.014146339,
+    -0.00047154514, 0.015325199, 0.021691059, 0.024991869, 0.024991869, 0.022634149,
+    0.018154469, 0.011552849, 0.0033008089, -0.0061300811, -0.0091951221, -0.060593496,
+    -0.092658537, -0.17541463, -0.1850813, -0.19309756, -0.19899187, -0.20182114,
+    -0.20582927, -0.20913008, -0.21078049, -0.21007317, -0.20630081, -0.20229268,
+    -0.19828455, -0.18484553, -0.19922764, -0.15584553, -0.19922764,
+)
+_BUTTERFLY_X = (
+    0.014279319, 3.1692034e-10, -0.017654432, -0.0259624, -0.034789615, -0.043876452,
+    -0.051665172, -0.058934642, -0.064646372, -0.069059982, -0.072694722, -0.075031332,
+    -0.076589082, -0.076589082, -0.076848702, -0.076589082, -0.076589082, -0.076589082,
+    -0.076589082, -0.076848702, -0.075290962, -0.072694722, -0.068281112, -0.061790512,
+    -0.053482542, -0.044136082, -0.033491495, -0.025443152, -0.019212176, -0.0129812,
+    -0.0062309757, -0.00025962368, 0.014538943, 0.058415398, 0.10229185, 0.11709042,
+    0.13266786, 0.14149508, 0.15213966, 0.16200537, 0.17135184, 0.17888093, 0.18589078,
+    0.19082364, 0.19290063, 0.19341988, 0.19341988, 0.19341988, 0.19341988, 0.19186213,
+    0.1882274, 0.18459266, 0.1806983, 0.17602507, 0.16849597, 0.15811101, 0.1492838,
+    0.13993733, 0.13370636, 0.129812, 0.11709042, 0.10229185, 0.058415398, 0.014279319,
+)
+# ESS_butterfly's beamline angles and sector centres, from its DECLARE and INITIALIZE
+_BUTTERFLY_BEAMLINES = {
+    'N': (30.0, 36.0, 42.0, 48.0, 54.0, 60.0, 66.0, 72.0, 78.0, 84.0, 90.0),
+    'E': (-30.0, -36.0, -42.0, -48.0, -54.0, -60.0, -66.0, -72.0, -78.0, -84.0, -90.0),
+    'W': (150.0, 144.7, 138.0, 132.7, 126.0, 120.7, 114.0, 108.7, 102.0, 96.7, 90.0, 84.0),
+    'S': (-150.0, -144.7, -138.0, -132.7, -126.0, -120.7, -114.0, -108.7, -102.0, -96.7,
+          -90.0, -84.0),
+}
+_BUTTERFLY_CENTRES = {'N': (0.117, 0.0), 'W': (0.0, 0.0), 'S': (0.0, -0.185), 'E': (0.117, -0.185)}
+
+
+def butterfly_outline(sector: str, beamline: int):
+    """The moderator's outline in ESS_butterfly's own frame, as (x, z) pairs in metres.
+
+    What its MCDISPLAY draws at the top and bottom of the moderator: the table, moved to
+    the sector's centre and turned to the beamline's angle. Sector W beamline 11, the
+    Test Beamline, is centred on its thermal face instead.
+    """
+    from math import cos, radians, sin
+    sector = sector.strip().upper()[:1]
+    angle = radians(_BUTTERFLY_BEAMLINES[sector][int(beamline) - 1])
+    cx, cz = _BUTTERFLY_CENTRES[sector]
+    if sector == 'W' and int(beamline) == 11:
+        cx = 0.5 * 1.1 * 10.5e-2  # half the oversampled ThermalWidthSW[10]
+    r11, r12, r21, r22 = cos(angle), -sin(angle), sin(angle), cos(angle)
+    return [(r11 * (z - cz) + r12 * (x - cx), r21 * (z - cz) + r22 * (x - cx))
+            for z, x in zip(_BUTTERFLY_Z, _BUTTERFLY_X)]
+
+
 @BREP_REGISTRY.register(ESSModerator)
 def build_ess_moderator(subject):
-    params = subject.params
-    height = _param(params, 'yheight')
-    width = params.get('focus_xw', height)
-    length = params.get('dist', height)
-    return _box(float(width), float(height), float(length))
+    """The butterfly's outline, as tall as the moderator -- not the monolith, target or
+    beam ports, which its MCDISPLAY draws as well."""
+    bd = _bd()
+    obj = subject.obj
+    height = float(obj.height.to(unit='m').value)
+    outline = butterfly_outline(obj.sector, obj.beamline)[:-1]
+    wire = bd.Wire.make_polygon([(x, -height / 2, z) for x, z in outline], close=True)
+    shape = bd.extrude(bd.Face(wire), amount=height, dir=(0, 1, 0))
+    shape.color = bd.Color('lightskyblue')
+    return shape
 
 @BREP_REGISTRY.register(RadialFilterCollimator)
 def build_radial_filter_collimator(subject):
