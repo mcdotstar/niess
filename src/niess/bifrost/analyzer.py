@@ -123,10 +123,15 @@ class Analyzer(Base):
         centre, radius, _ = three_point_circle(positions[0], positions[count // 2],
                                                positions[-1])
         radius = float(radius.value)
-        spokes = [(p - centre).values / radius for p in positions]
-        step = np.mean([np.arccos(np.clip(spokes[i] @ spokes[i + 1], -1.0, 1.0))
-                        for i in range(count - 1)])
-        return float(np.degrees(count * step - gap / radius) / 2)
+        spokes = [(p - centre).values for p in positions]
+        spokes = [u / np.linalg.norm(u) for u in spokes]
+        # atan2 of sine and cosine, not arccos of a cosine near one: for a step of a
+        # fraction of a degree arccos turns rounding noise into nano-degrees
+        step = np.mean([np.arctan2(np.linalg.norm(np.cross(u, v)), u @ v)
+                        for u, v in zip(spokes[:-1], spokes[1:])])
+        # to a nano-degree: the digits beyond are the arithmetic's, not the geometry's, and
+        # differ between numpy builds -- enough to change an emitted instrument's text
+        return round(float(np.degrees(count * step - gap / radius) / 2), 9)
 
     def mcstas_parameters(self, sample: Variable, source: str, sink: str) -> dict:
         from mccode_antlr.instr import Instance

@@ -92,7 +92,10 @@ def register_bifrost() -> None:
         for i, (centre, normal) in enumerate(zip(centres, normals)):
             along = np.cross(normal, up)  # across the blade, in the Rowland plane
             for h, w in ((-1, -1), (-1, 1), (1, 1), (1, -1)):
-                vertices.append((centre + h * half_height * up + w * half_width * along).tolist())
+                # to a nanometre: the digits beyond are the arithmetic's, and differ
+                # between numpy builds -- enough to change a written structure
+                corner = centre + h * half_height * up + w * half_width * along
+                vertices.append([round(float(v), 9) for v in corner])
             faces.append([4 * i, 4 * i + 1, 4 * i + 2, 4 * i + 3])
 
         return component_body('NXcrystal', [
