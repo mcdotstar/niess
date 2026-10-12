@@ -82,11 +82,13 @@ path = ".venv"
 features = ["tof", "brep"]
 
 [tool.hatch.envs.docs]
-features = ["docs", "test"]
+# brep: the CAD gallery's models are drawn when the site is built
+features = ["docs", "test", "brep"]
 
 [tool.hatch.envs.docs.scripts]
-build = "zensical build --clean --strict"
-serve = "zensical serve"
+gallery = "python docs/examples/cad_gallery.py docs/assets/cad-gallery"
+build = ["gallery", "zensical build --clean --strict"]
+serve = ["gallery", "zensical serve"]
 check = "pytest tests/test_docs_examples.py -q"
 
 [tool.hatch.envs.types]

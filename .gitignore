@@ -189,3 +189,6 @@ uv.lock
 .idea/misc.xml
 .idea/modules.xml
 .idea/vcs.xml
+
+# drawn by docs/examples/cad_gallery.py when the site is built
+docs/assets/cad-gallery/

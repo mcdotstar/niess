@@ -19,21 +19,31 @@ nav = [
     { "Translate a McStas .instr" = "how-to/translate-an-instr.md" },
     { "Build a new instrument submodule" = "how-to/new-instrument-submodule.md" },
     { "Produce NeXus Structure JSON" = "how-to/nexus-structure.md" },
+    { "Export an instrument to CAD (STEP)" = "how-to/export-to-cad.md" },
     { "Narrow the wavelength band" = "how-to/narrow-the-wavelength-band.md" },
     { "Simulate a chopper cascade" = "how-to/simulate-a-chopper-cascade.md" },
     { "Write NeXus translators" = "how-to/custom-nexus-registry.md" },
   ] },
   { "Reference" = [
     { "Components" = "reference/components.md" },
+    { "CAD gallery" = "reference/cad-gallery.md" },
     { "Command line" = "reference/cli.md" },
     { "API: niess.nexus" = "reference/api/nexus.md" },
     { "API: niess.dispatch" = "reference/api/dispatch.md" },
     { "API: niess.tof" = "reference/api/tof.md" },
+    { "API: niess.brep" = "reference/api/brep.md" },
   ] },
   { "Release notes" = "release-notes.md" },
   { "Explanation" = [
     { "moreniius parity" = "explanation/moreniius-parity.md" },
   ] },
+]
+
+# <model-viewer> for the CAD gallery's glTF models; a module, so it is a script tag of
+# its own rather than part of the theme's bundle
+extra_javascript = [
+  { path = "https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js", type = "module" },
+  "javascripts/model-viewer.js",
 ]
 
 [project.theme]

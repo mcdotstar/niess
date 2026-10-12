@@ -182,3 +182,14 @@ def test_readme_quickstart_matches_the_tested_example():
     region = region.split('    # --8<-- [end:quickstart]')[0]
 
     assert block.group(1).strip() == textwrap.dedent(region).strip()
+
+
+def test_the_cad_gallery_shows_what_the_gallery_script_draws():
+    """The gallery page is written by hand and its models drawn by a script: a model the
+    page names and the script does not draw is a blank viewer in a site that builds."""
+    spec = importlib.util.spec_from_file_location('cad_gallery', EXAMPLES / 'cad_gallery.py')
+    gallery = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gallery)
+    page = (DOCS / 'reference' / 'cad-gallery.md').read_text(encoding='utf-8')
+    shown = set(re.findall(r'assets/cad-gallery/([\w-]+)\.glb', page))
+    assert shown == {entry[0] for entry in gallery.GALLERY}

@@ -25,13 +25,17 @@ jobs:
       - uses: actions/configure-pages@v6
 
       - name: Install niess and the documentation toolchain
-        run: pip install -e ".[docs,test,examples]"
+        run: pip install -e ".[docs,test,examples,brep]"
 
       # The site's examples are executable modules asserting their own claims. Running
       # them here as well as in the test job means broken documentation fails the job
       # that publishes documentation, not only the one that runs tests.
       - name: Verify the examples
         run: pytest tests/test_docs_examples.py -q
+
+      # The CAD gallery's glTF models are drawn from the instruments, not committed
+      - name: Draw the CAD gallery
+        run: python docs/examples/cad_gallery.py docs/assets/cad-gallery
 
       # --strict turns link and reference warnings into a non-zero exit
       - name: Build the site
