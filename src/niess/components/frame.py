@@ -36,8 +36,12 @@ def _no_turn():
     return vector([0., 0., 0.], unit='degree')
 
 
-def _default_angle(angle: int|float|Motor) -> float:
-    """A declared angle as a number: a knob contributes the value it is declared with."""
+def _default_angle(angle: int|float|Motor, values: dict | None = None) -> float:
+    """A declared angle as a number: a knob contributes ``values[name]`` if given, else
+    the value it is declared with."""
+    name = getattr(angle, 'name', None)
+    if values and name in values:
+        return float(values[name])
     if isinstance(angle, Motor):
         return float(angle.default)
     # `angles` and `mccode_angles` both take a bare InstrumentParameter as well as a
@@ -145,12 +149,13 @@ class Frame(Base):
         from mccode_antlr.common import InstrumentParameter
         return tuple(a.name if isinstance(a, (InstrumentParameter, Motor)) else a for a in self.angles())
 
-    def orientation(self):
+    def orientation(self, values: dict | None = None):
         """The turn as a scipp rotation, for anything that wants to compose it.
 
-        A knob has no one value, so this uses the one it is declared with -- which is
-        what a drawing needs and what a run that sets nothing would get. Anything that
-        can express the knob itself should read `angles` and not this.
+        A knob has no one value, so this uses ``values[name]`` when given, else the one
+        it is declared with -- which is what a drawing needs and what a run that sets
+        nothing would get. Anything that can express the knob itself should read
+        `angles` and not this.
         """
         from scipp import vector
         from scipp.spatial import rotations_from_rotvecs
@@ -158,7 +163,7 @@ class Frame(Base):
         declared = self.declared_angles()
         if declared is None:
             return rotations_from_rotvecs(self.rotation)
-        numbers = [_default_angle(a) for a in declared]
+        numbers = [_default_angle(a, values) for a in declared]
         turning = [i for i, v in enumerate(numbers) if v]
         if len(turning) <= 1:
             axis = [1.0 if i == (turning[0] if turning else 0) else 0.0

@@ -134,7 +134,7 @@ def _located(shape, position, orientation):
     return shape.locate(bd.Location(bd.Plane(origin=origin, x_dir=x_dir, z_dir=z_dir)))
 
 
-def _local_placement(visit: Visit):
+def _local_placement(visit: Visit, values: dict | None = None):
     """Where a node sits within the frame it hangs from.
 
     A frame states its own offset and turn; a component carries a measured position and
@@ -148,17 +148,21 @@ def _local_placement(visit: Visit):
         # a piece whose own coordinates are not measured in its frame says where it sits
         return hook(visit)
     if isinstance(obj, Frame):
-        return obj.position, obj.orientation()
+        return obj.position, obj.orientation(values)
     if hasattr(obj, 'position') and hasattr(obj, 'orientation'):
         return obj.position, obj.orientation
     return _identity_placement()
 
 
-def to_assembly(instrument, registry=None):
+def to_assembly(instrument, registry=None, parameters: dict | None = None):
     """Build a labelled ``build123d`` Compound of everything with a shape.
 
     Every node is placed, whether or not it has a shape: a frame draws nothing and is
     still what the things hanging from it are measured against.
+
+    ``parameters`` sets the run-time knobs frames turn by, by name -- BIFROST's
+    ``{'detector_tank_angle': 60, 'sample_rotation': 30}``, in degrees. A knob not
+    given is drawn at its declared default; a name no frame turns by is an error.
     """
     import build123d as bd
     from ..walk import visits
@@ -166,9 +170,10 @@ def to_assembly(instrument, registry=None):
     resolver = BREP_REGISTRY if registry is None else registry
     context = BRepContext(instrument=instrument)
 
+    _check_knobs(instrument, parameters)
     for visit in visits(instrument):
         visit.context = context
-        position, orientation = context.place(visit, *_local_placement(visit))
+        position, orientation = context.place(visit, *_local_placement(visit, parameters))
         builder = resolver.resolve_for_object(visit.obj)
         if builder is None:
             continue
@@ -184,7 +189,21 @@ def to_assembly(instrument, registry=None):
     return bd.Compound(context.shapes)
 
 
-def save_step(instrument, path, registry=None) -> None:
+def _check_knobs(instrument, parameters):
+    """Refuse a parameter no frame turns by: a misspelt one would silently draw nothing."""
+    if not parameters:
+        return
+    from ..components.frame import Frame
+    from ..walk import visits
+    knobs = {p.name for v in visits(instrument) if isinstance(v.obj, Frame)
+             for p in v.obj.parameters()}
+    unknown = sorted(set(parameters) - knobs)
+    if unknown:
+        raise ValueError(f'No frame turns by {", ".join(unknown)}; '
+                         f'the knobs are {", ".join(sorted(knobs)) or "none"}')
+
+
+def save_step(instrument, path, registry=None, parameters: dict | None = None) -> None:
     """Write an instrument to a STEP file."""
     from mccode_antlr.display.render.brep import save_step as write
-    write(to_assembly(instrument, registry=registry), path)
+    write(to_assembly(instrument, registry=registry, parameters=parameters), path)
