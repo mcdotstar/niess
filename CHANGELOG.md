@@ -8,6 +8,29 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## 0.11.0
+
+The CAD (BREP) export becomes usable on its own, and is documented. Nothing is removed or
+renamed; the CAD output itself changes, which is why this is a minor release.
+
+`to_assembly` and `save_step` take `parameters`, the values of the run-time knobs frames turn
+by, in degrees -- `{'detector_tank_angle': 60, 'sample_rotation': 30}` for BIFROST -- which were
+always drawn at their defaults. A name no frame turns by is refused.
+
+The assembly follows the instrument's tree, with one child per drawn component named as it is
+in McStas and NeXus (`tank` > `channel_3` > `channel_3_1` > `channel_3_1_analyzer` > `blade_0`),
+where it used to be a single unlabelled compound. A viewer can show, hide and pick each part, and
+a STEP file keeps the names.
+
+The ESS moderator is drawn as ESS_butterfly's own outline for its sector and beamline, as tall as
+the moderator, in place of a box reaching to its focus. Disc choppers (`DiscChopper`,
+`NXDiskChopper`), which were not drawn, are discs about their spindle with their openings cut as
+NXdisk_chopper describes them. Apertures and filters are coloured.
+
+New documentation: a how-to for exporting an instrument to STEP, a CAD gallery with an
+interactive model of each kind of solid niess draws, and an API page for `niess.brep`.
+
+
 ## 0.10.1
 
 Corrections to BIFROST's secondary spectrometer in the CAD (BREP) output, and agreement between
