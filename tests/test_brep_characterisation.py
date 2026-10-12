@@ -54,8 +54,9 @@ def test_the_teaching_instrument_exports_what_it_did(assembly):
     found = measure(assembly(Primary.from_calibration(), name='teaching'))
     assert found['solids'] == 7
     # 0.012216 until the moderator was aimed at the first guide: its block runs to the
-    # focus, so it grew from 30 x 30 x 30 mm to 40 x 30 x 1500 mm.
-    assert found['volume'] == pytest.approx(0.013989, rel=1e-4)
+    # focus, so it grew from 30 x 30 x 30 mm to 40 x 30 x 1500 mm. 0.013989 until the
+    # moderator was drawn as ESS_butterfly's outline instead, 1.627 litres to the block's 1.8.
+    assert found['volume'] == pytest.approx(0.0138156, rel=1e-4)
 
 
 def test_the_bifrost_primary_exports_what_it_did(assembly):
@@ -72,7 +73,9 @@ def test_the_bifrost_primary_exports_what_it_did(assembly):
     found = measure(assembly(Primary.from_calibration(primary_parameters()),
                              name='bifrost'))
     assert found['solids'] == 131
-    assert found['volume'] == pytest.approx(0.493015, rel=1e-4)
+    # 0.493015 until the moderator was drawn as ESS_butterfly's outline, not a block
+    # reaching to its focus
+    assert found['volume'] == pytest.approx(0.489255, rel=1e-4)
 
 
 def test_the_instrument_is_as_long_as_the_instrument(assembly):
