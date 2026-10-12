@@ -50,3 +50,43 @@ def test_mcstas_puts_its_slabs_on_the_blades():
                                             params['NH'], params['gap'], params['angle_h'])
         blades, *_ = arm.local_blades()
         assert np.abs(slabs - blades).max() == approx(0.0, abs=1e-9), arm_id
+
+
+def test_emitted_analyzer_numbers_carry_no_arithmetic_noise(monkeypatch):
+    """A different numpy build changing the last bits must not change what is written.
+
+    The frozen McStas text and NeXus structure compare written numbers exactly; CI once
+    computed angle_h as 4.000000000002278 where a developer's machine gave
+    4.000000000002096. Perturbing the arithmetic by ~1e-14 must leave both untouched.
+    """
+    import niess.bifrost.arm as arm_module
+    import niess.bifrost.rowland as rowland
+    from scipp import vector
+    from niess.bifrost.bifrost import instrument
+    from niess.nexus import to_nexus_structure
+    from niess.nexus.bifrost import BIFROST_REGISTRY
+    from niess.walk import visits
+
+    def emitted():
+        inst = instrument()
+        arms = [v.obj for v in visits(inst) if type(v.obj).__name__ == 'Arm']
+        origin = vector([0., 0., 0.], unit='m')
+        angles = [a.analyzer.mcstas_parameters(origin, 's', 'k')['angle_h'] for a in arms]
+        structure = to_nexus_structure(inst, registry=BIFROST_REGISTRY)
+        return angles, json.dumps(structure)
+
+    import json
+    angles, structure = emitted()
+    circle, blades = rowland.three_point_circle, arm_module.Arm.local_blades
+
+    def noisy_circle(*args):
+        centre, radius, normal = circle(*args)
+        return centre + vector([1e-13, -1e-13, 1e-13], unit=centre.unit), radius * (1 + 3e-14), normal
+
+    def noisy_blades(self):
+        centres, normals, *rest = blades(self)
+        return (centres * (1 + 3e-14), normals * (1 - 3e-14), *rest)
+
+    monkeypatch.setattr(rowland, 'three_point_circle', noisy_circle)
+    monkeypatch.setattr(arm_module.Arm, 'local_blades', noisy_blades)
+    assert emitted() == (angles, structure)
