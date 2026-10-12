@@ -8,6 +8,30 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## 0.10.1
+
+Corrections to BIFROST's secondary spectrometer in the CAD (BREP) output, and agreement between
+the analyzer geometry niess describes and the one McStas simulates. Nothing is removed or renamed.
+
+BIFROST's analyzers and triplets are now drawn in CAD; they had no builders, so a STEP export
+showed neither. Each triplet sits the analyzer-detector distance from its analyzer, along the
+detector-angle frame, as in McStas and NeXus.
+
+The radial collimators were drawn on the beam axis at half their radii, pointing sideways. They
+now stand on a vertical axis at their own radii, centred on the beam.
+
+Each analyzer is drawn, in NeXus and CAD, from the blades niess builds: on the Rowland circle
+through the sample, the analyzer centre and the detector centre, each turned to focus, in place
+of a flat row. `Arm.local_blades` gives them in the analyzer's frame.
+
+The `angle_h` passed to Monochromator_Rowland is now the design coverage the blades were built
+with (`Analyzer.rowland_angle_h`), so McStas places its slabs on niess's blades; the previous
+value put the outer slabs up to 0.8 mm away. Simulations of BIFROST therefore change slightly.
+
+CAD and NeXus are checked against each other for every analyzer and triplet position, and the
+McStas slab placement against niess's blades.
+
+
 ## 0.10.0
 
 Many corrections and improvements, mostly geared toward / enabled by producing simulated BIFROST output
