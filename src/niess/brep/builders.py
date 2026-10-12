@@ -14,6 +14,7 @@ from math import sqrt
 
 from ..components.component import Component
 from ..components.aperture import Jaw, Slit
+from ..components.chopper import DiscChopper, NXDiskChopper
 from ..components.filter import Attenuator, NCrystalFilter, RadialFilterCollimator
 from ..components.guide import EllipticGuide, StraightGuide, TaperedGuide
 from ..components.moderator import ESSModerator
@@ -302,6 +303,39 @@ def build_ess_moderator(subject):
     shape = bd.extrude(bd.Face(wire), amount=height, dir=(0, 1, 0))
     shape.color = bd.Color('lightskyblue')
     return shape
+
+# Neither chopper class says how thick its disc is; NXdisk_chopper's is infinitely thin.
+DISC_THICKNESS = 0.01
+
+
+@BREP_REGISTRY.register(NXDiskChopper)
+@BREP_REGISTRY.register(DiscChopper)
+def build_disc_chopper(subject):
+    """The disc and its openings, about the spindle -- the chopper's position -- as
+    NXdisk_chopper.comp draws it: each opening runs from its two edges' angles, measured
+    from the zero mark, which sits ``zero_angle`` round from +y, and in from the rim to
+    the inner radius that leaves ``height`` of opening either side of where the beam
+    crosses. Angles turn counter-clockwise looking downstream, from +y towards +x. Drawn
+    at the disc's reference orientation: its phase belongs to a time, not a drawing."""
+    bd = _bd()
+    obj = subject.obj
+    radius = float(obj.radius.to(unit='m').value)
+    crossing = float(sqrt(sum(v * v for v in obj.beam_offset().to(unit='m').value)))
+    inner = crossing - float(obj.height.to(unit='m').value) / 2
+    zero = float(obj.zero_angle.to(unit='deg').value)
+    edges = [float(v) for v in obj.windows.to(unit='deg').values]
+    on_axis = (bd.Align.NONE, bd.Align.NONE, bd.Align.CENTER)
+
+    disc = bd.Cylinder(radius, DISC_THICKNESS)
+    for start, stop in zip(edges[0::2], edges[1::2]):
+        # build123d's arc turns from +x towards +y; these angles from +y towards +x
+        cut = bd.Cylinder(2 * radius, 2 * DISC_THICKNESS, arc_size=stop - start, align=on_axis)
+        if inner > 0:
+            cut = cut - bd.Cylinder(inner, 3 * DISC_THICKNESS, align=on_axis)
+        disc = disc - bd.Rot(0, 0, 90 - zero - stop) * cut
+    disc.color = bd.Color('dimgray')
+    return disc
+
 
 @BREP_REGISTRY.register(RadialFilterCollimator)
 def build_radial_filter_collimator(subject):

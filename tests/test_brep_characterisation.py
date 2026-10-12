@@ -52,15 +52,17 @@ def test_the_teaching_instrument_exports_what_it_did(assembly):
     from niess.teaching import Primary
 
     found = measure(assembly(Primary.from_calibration(), name='teaching'))
-    assert found['solids'] == 7
+    assert found['solids'] == 8  # 7 until its chopper disc was drawn
     # 0.012216 until the moderator was aimed at the first guide: its block runs to the
     # focus, so it grew from 30 x 30 x 30 mm to 40 x 30 x 1500 mm. 0.013989 until the
-    # moderator was drawn as ESS_butterfly's outline instead, 1.627 litres to the block's 1.8.
-    assert found['volume'] == pytest.approx(0.0138156, rel=1e-4)
+    # moderator was drawn as ESS_butterfly's outline instead, 1.627 litres to the block's 1.8;
+    # 0.0138156 until its chopper disc was.
+    assert found['volume'] == pytest.approx(0.0170944, rel=1e-4)
 
 
 def test_the_bifrost_primary_exports_what_it_did(assembly):
-    """131 solids from 158 components: a guide is a shell, not a block.
+    """137 solids from 158 components: a guide is a shell, not a block. 131 until the
+    six chopper discs were drawn.
 
     It was 188 while the instrument-driven route existed, because that route also got
     mccode-antlr's primitive fallback for the 57 windows, monitors and choppers niess
@@ -72,10 +74,10 @@ def test_the_bifrost_primary_exports_what_it_did(assembly):
 
     found = measure(assembly(Primary.from_calibration(primary_parameters()),
                              name='bifrost'))
-    assert found['solids'] == 131
+    assert found['solids'] == 137
     # 0.493015 until the moderator was drawn as ESS_butterfly's outline, not a block
-    # reaching to its focus
-    assert found['volume'] == pytest.approx(0.489255, rel=1e-4)
+    # reaching to its focus; 0.489255 until the chopper discs were drawn
+    assert found['volume'] == pytest.approx(0.509343, rel=1e-4)
 
 
 def test_the_instrument_is_as_long_as_the_instrument(assembly):
@@ -101,14 +103,14 @@ def test_the_export_spans_the_instrument_and_draws_what_niess_knows(assembly):
     a McStas component's own geometry for anything niess has no builder for -- 57 solids
     of windows, monitors and choppers on this instrument. This route draws what niess
     knows about and nothing else, which is fewer solids covering the same span. Closing
-    that gap means writing those builders.
+    that gap means writing those builders; the choppers' is written.
     """
     from niess.bifrost import Primary
     from niess.bifrost.parameters import primary_parameters
 
     found = measure(assembly(Primary.from_calibration(primary_parameters()),
                              name='bifrost'))
-    assert found['solids'] == 131
+    assert found['solids'] == 137
     assert found['max'][2] - found['min'][2] == pytest.approx(163.15, rel=1e-2)
 
 
@@ -138,15 +140,15 @@ def test_every_registered_builder_is_reached(assembly):
 
     assert dict(resolved) == {
         'ESSModerator': 1, 'EllipticGuide': 29, 'StraightGuide': 90,
-        'Attenuator': 3, 'Jaw': 3, 'Slit': 2, 'Component': 1,
+        'Attenuator': 3, 'Jaw': 3, 'Slit': 2, 'Component': 1, 'NXDiskChopper': 6,
     }
-    # 129 of 158. The rest -- 19 windows, 6 discs, 4 monitors -- resolve nothing,
+    # 135 of 158. The rest -- 19 windows, 4 monitors -- resolve nothing,
     # because resolving against an emitted instance matches the niess class exactly
     # rather than walking up to a base. A Filter is a Component and there is a builder
     # registered for Component, but that is not how this lookup works; the object-side
     # one added for the walk does walk the MRO, so moving the conversion would give
     # those 29 the generic marker glyph. Worth deciding deliberately, not discovering.
-    assert sum(resolved.values()) == 129
+    assert sum(resolved.values()) == 135
 
 
 def test_the_tree_route_needs_no_expression_evaluated():

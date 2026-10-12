@@ -388,3 +388,34 @@ def test_the_butterfly_moderator_is_drawn_as_mcstas_draws_it():
     assert solid.is_valid
     assert solid.bounding_box().size.Y == approx(0.03)
     assert solid.volume == approx(1.627e-3, rel=1e-3)
+
+
+def test_a_disc_chopper_is_cut_where_its_openings_are():
+    """An opening 30-60 degrees from the zero mark at +y, counter-clockwise looking
+    downstream, is towards +x; its mirror image is solid. The disc is centred on the
+    spindle, the chopper's position, and its openings run in from the rim to leave
+    ``height`` either side of the beam crossing."""
+    importorskip('build123d')
+    from math import pi, radians, sin, cos
+    import scipp as sc
+    import build123d as bd
+    from niess.brep import to_assembly
+    from niess.brep.builders import DISC_THICKNESS
+    from niess.components.chopper import NXDiskChopper
+    from niess.instrument import Instrument, Mount
+
+    chopper = NXDiskChopper(
+        name='disc', position=_origin(), orientation=_identity(),
+        velocity=sc.scalar(14.0, unit='Hz'), delay=sc.scalar(0.0, unit='s'),
+        radius=sc.scalar(0.35, unit='m'), windows=sc.array(dims=['edge'], values=[30., 60.], unit='deg'),
+        width=sc.scalar(0.0, unit='m'), height=sc.scalar(0.1, unit='m'))
+    disc = _assembly_child(to_assembly(Instrument(
+        name='c', parts=(Mount(name='c', content=chopper),))))
+
+    inner = 0.35 - 0.1
+    assert disc.volume == approx((pi * 0.35 ** 2 - pi * (0.35 ** 2 - inner ** 2) / 12)
+                                 * DISC_THICKNESS)
+    at = 0.3
+    assert not disc.is_inside(bd.Vector(at * sin(radians(45)), at * cos(radians(45)), 0))
+    assert disc.is_inside(bd.Vector(-at * sin(radians(45)), at * cos(radians(45)), 0))
+    assert disc.is_inside(bd.Vector(0.2 * sin(radians(45)), 0.2 * cos(radians(45)), 0))
