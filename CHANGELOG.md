@@ -8,6 +8,15 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## 0.11.1
+
+Swap the orentation of the BIFROST triplets when output to McStas.
+The real detectors have their 'A' connector at smallest scattering angle and smallest
+final energy. This is a 180 degree rotation around the local x-axis for each triplet 
+with respect to their earlier layout.
+In this orientation x=A/(A+B) ~ 1 is the smallest pixel in each triplet as identified
+by the EFU, which matches expectations.
+
 ## 0.11.0
 
 The CAD (BREP) export becomes usable on its own, and is documented. Nothing is removed or
