@@ -279,7 +279,11 @@ class Triplet(Base):
             # remove the scalar versions if present, otherwise they take precedence(?)
             if n[:-1] in base_parameters:
                 del base_parameters[n[:-1]]
-        tubes = assembler.component(name, component, at=((0, 0, distance), relative), parameters=base_parameters)
+        # Detector_tubes starts its wire at each tube's -y end, so tube 0 reads A/(A+B) ~ 1
+        # there; on BIFROST that end is +y, where the NeXus pixels and `efu_calibration`
+        # put pixel 0. Turning about x reverses y and leaves the tubes where they are.
+        tubes = assembler.component(name, component, at=((0, 0, distance), relative),
+                                    rotate=((180, 0, 0), relative), parameters=base_parameters)
         tubes.WHEN(when)
         tubes.EXTEND(extend)
         # The other route reads the selection out of provenance, since all it has is
