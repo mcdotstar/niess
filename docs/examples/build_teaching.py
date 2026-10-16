@@ -33,8 +33,8 @@ def main(outdir: Path) -> None:
     # the chopper generate their own, and the source wavelengths were given as
     # instrument-parameter specifications in the calibration.
     assert sorted(p.name for p in instrument.parameters) == [
-        'chopper_delay', 'chopper_rotation_speed', 'jaw_left', 'jaw_right',
-        'source_lambda_max', 'source_lambda_min',
+        'chopper_experiment_delay', 'chopper_mechanical_delay', 'chopper_rotation_speed',
+        'jaw_left', 'jaw_right', 'pulse_delay', 'source_lambda_max', 'source_lambda_min',
     ]
 
     # The guide section became its own included instrument

@@ -159,18 +159,38 @@ DiscChopper.from_calibration({
 That TDC source is what makes the rest diagnosable: the validator recovers a chopper's
 PV root *from* it, so a group without one cannot even be offered an automatic fix.
 
-A simulated disc writes only what a simulation knows — how fast it turns, when the mark
-passes, and where it stopped if parked. There is no setpoint distinct from the value and
-no electronics to delay anything, so those logs are absent and the ESS layout check says
-so, truthfully.
+A simulated disc writes every log but `rotation_speed_setpoint`, which a simulation has
+no value distinct from; the ESS layout check says so, truthfully.
 
-The disc's delay is written as `delay`, in nanoseconds. ESS `delay` is
-`{root}:TotDly`, the controller's total delay. A simulated disc has no electronics
-adding to it, so its total delay is the one knob it has, which is declared in
-nanoseconds for that reason — `{name}_delay/"ns"`. McStas works in seconds, so the
-conversion happens where the knob is inserted into the component:
-`delay = 1e-9 * {name}_delay`. The other delays a real controller reports have no
-counterpart in a simulation and are not written.
+Its delays have the same knobs as a real ESS chopper controller, each named for its log
+and declared in that log's unit:
+
+| knob | log | PV | unit | |
+|---|---|---|---|---|
+| `{name}_experiment_delay` | `experiment_delay` | `ChopDly-S` | ns | what an experiment sets, and the one NICOS writes |
+| `pulse_delay` | `pulse_delay` | `BeamPosDly-S` | ns | proton-on-target to the wanted t0; one for the whole instrument |
+| `{name}_mechanical_delay` | `mechanical_delay` | `MechDly-S` | degrees | from the sensor to the first opening edge; defaults to the geometry's value |
+
+The first opening edge, NeXus's `slit_edges[0]`, is at the beam
+`pulse_delay + experiment_delay` after proton-on-target, which is t=0 in McStas. The
+total, `delay` (`{root}:TotDly`), is formed as the controller's `evr_seq_calc` forms it,
+`mechanical_delay / (360 |f|) + pulse_delay + experiment_delay`, and is when the mark
+passes the sensor. McStas works in seconds, so that is what the component gets:
+
+```c
+delay = 1e-9 * (pulse_delay + {name}_experiment_delay)
+      + ({name}_rotation_speed ? {name}_mechanical_delay / (360.0 * fabs({name}_rotation_speed)) : 0.0)
+```
+
+No knob feeds the `delay` log, so it names no `simulation_parameter`: whatever serves the
+simulation computes it the same way.
+
+`mechanical_delay` is the angle from `slit_edges[0]` being at the beam to the mark
+passing the sensor, `(slit_edges[0] - beam_position)` signed by the direction of
+rotation, modulo a turn. It is zero only when the first opening edge is on the beam
+while the mark is at the sensor. It is worked out for the calibrated direction, as a
+real disc's is for the direction it was built for; setting it to anything else times the
+disc as a mis-calibrated real one would be.
 
 ### Where the timestamps are measured from
 

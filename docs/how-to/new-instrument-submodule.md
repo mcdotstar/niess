@@ -94,8 +94,9 @@ constants, and each gets there differently:
 - `source_lambda_min` / `source_lambda_max` — passed in the calibration as McCode
   parameter specification strings (`'source_lambda_min/"angstrom" = 0.75'`), which
   `ESSModerator` turns into `DEFINE INSTRUMENT` arguments.
-- `chopper_rotation_speed` / `chopper_delay` — `DiscChopper` declares these itself, in
-  Hz and nanoseconds, as ESS publishes them.
+- `chopper_rotation_speed`, `chopper_experiment_delay`, `chopper_mechanical_delay` and
+  `pulse_delay` — `DiscChopper` declares these itself, in Hz, nanoseconds and degrees, as
+  ESS publishes them. `pulse_delay` is not named for the disc: every chopper shares it.
 - `jaw_left` / `jaw_right` — `Jaw` declares these itself, in millimetres.
 
 You only need `ensure_runtime_line(assembler, 'name/"unit" = default')` when writing
@@ -198,8 +199,8 @@ number, so the pairs stay ordered and each width is just the difference:
 --8<-- "group_composite.py:build"
 ```
 
-Three McStas components come out, sharing one `pack_rotation_speed` and one `pack_delay` — one
-physical disc, so one pair of run-time knobs — and all three in a single McStas
+Three McStas components come out, sharing one `pack_rotation_speed` and one set of delays —
+one physical disc, so one set of run-time knobs — and all three in a single McStas
 `GROUP`, named after the disc.
 
 !!! warning "Alternatives, not a series"
@@ -223,12 +224,15 @@ left to the generated C, one start-up variable per opening:
 
 ```c
 double pack_slit_0_opening_delay;
-pack_slit_0_opening_delay = 1e-9 * pack_delay
+pack_slit_0_opening_delay = 1e-9 * (pulse_delay + pack_experiment_delay)
+    + (pack_rotation_speed ? pack_mechanical_delay / (360.0 * fabs(pack_rotation_speed)) : 0.0)
     + (pack_rotation_speed < 0 ? 290.0 : 70.0) / (360.0 * fabs(pack_rotation_speed));
 ```
 
-An opening already at the beam skips the variable: it is there at `pack_delay` whichever
-way the disc spins.
+The first two lines are the disc's total delay, which an ESS chopper controller calls
+`TotDly`: when the mark passes the top-dead-centre sensor. See
+[the NeXus guide](nexus-structure.md) for how it is made up. An opening already at the
+beam skips the variable: it is there at the total delay whichever way the disc spins.
 
 ### One disc, three components, one group
 

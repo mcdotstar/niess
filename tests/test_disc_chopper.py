@@ -32,7 +32,7 @@ def calibration(**overrides):
         'height': scalar(HEIGHT, unit='m'),
         'angle': scalar(170.0, unit='deg'),
         'frequency': scalar(14.0, unit='Hz'),
-        'delay': scalar(0.0, unit='s'),
+        'experiment_delay': scalar(0.0, unit='s'),
     }
     cal.update(overrides)
     return cal
@@ -127,6 +127,11 @@ def test_several_openings_emit_one_component_each_in_a_group():
     assert [c.get_parameter('theta_0').value for c in instances] == [20.0, 40.0]
 
 
+#: `Chopper.delay_seconds` as mccode-antlr prints it back: ESS TotDly, in seconds
+TOTAL = ('1e-09*chopper_experiment_delay + 1e-09*pulse_delay + (chopper_rotation_speed ? '
+         '0.002777777777777778*chopper_mechanical_delay/fabs(chopper_rotation_speed) : 0.0)')
+
+
 def test_the_angle_shorthand_centres_one_opening_on_the_beam():
     """`angle` is shorthand, and the edges it produces are in the same frame as any other.
 
@@ -141,7 +146,7 @@ def test_the_angle_shorthand_centres_one_opening_on_the_beam():
 
     assembler = Assembler('chopped', flavor=Flavor.MCSTAS)
     instance = disc.to_mccode(assembler)
-    assert str(instance.get_parameter('delay').value) == '1e-09*chopper_delay'
+    assert str(instance.get_parameter('delay').value) == TOTAL
     assert 'chopper_opening_delay' not in str(assembler.instrument)
 
 
@@ -460,3 +465,30 @@ def test_bifrost_no_longer_says_its_offsets():
         radial = sqrt(radius ** 2 - half_width ** 2) - disc.height.to(unit='m') / 2
         assert disc.beam_offset().to(unit='m').value == pytest.approx(
             [0.0, -radial.value, 0.0], abs=1e-12)
+
+
+# -- when the disc is where ---------------------------------------------------
+
+@pytest.mark.parametrize('speed', [14.0, -14.0, 28.0])
+@pytest.mark.parametrize('edges,beam', [([95.0, 265.0], 180.0),
+                                        ([-10.0, 10.0, 60.0, 90.0, 200.0, 250.0], 37.0)])
+def test_the_first_opening_edge_is_at_the_beam_after_the_pulse_and_experiment_delays(
+        speed, edges, beam):
+    """The ESS convention the total is built for, checked against NXdisk_chopper's motion.
+
+    NXdisk_chopper.comp has the disc point ``beam - 360 nu (t - delay)`` at the beam, with
+    ``delay`` the total. ESS's controller sets ``slit_edges[0]`` -- NeXus's first opening
+    edge, 60 degrees for the second disc rather than its first-written -10 -- at the beam
+    ``pulse_delay + experiment_delay`` after proton-on-target, whichever way it turns.
+    """
+    from niess.components import NXDiskChopper
+    disc = NXDiskChopper.from_calibration(calibration(
+        windows=array(values=edges, dims=['edges'], unit='deg'),
+        beam_angle=scalar(beam, unit='deg'), frequency=scalar(speed, unit='Hz'),
+        experiment_delay=scalar(2.0, unit='ms'), pulse_delay=scalar(10.0, unit='us')))
+    after = 2.0e-3 + 10.0e-6
+    total = after + disc.mechanical_delay() / (360.0 * abs(speed))
+    at_beam = (beam - 360.0 * speed * (after - total)) % 360.0
+    assert min(abs(at_beam - disc.nexus_slit_edges()[0]) % 360.0,
+               360.0 - abs(at_beam - disc.nexus_slit_edges()[0]) % 360.0) \
+        == pytest.approx(0.0, abs=1e-9)

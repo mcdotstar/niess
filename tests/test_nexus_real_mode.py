@@ -292,7 +292,7 @@ def chopped(pv_root=None, tdc_channel='00-TS-I'):
            'orientation': rotations_from_rotvecs(vector([0, 0, 0.0], unit='deg')),
            'radius': scalar(0.35, unit='m'), 'height': scalar(0.06, unit='m'),
            'angle': scalar(170., unit='deg'), 'frequency': scalar(14., unit='Hz'),
-           'delay': scalar(0., unit='s'), 'beam_angle': scalar(180., unit='deg')}
+           'experiment_delay': scalar(0., unit='s'), 'beam_angle': scalar(180., unit='deg')}
     if pv_root is not None:
         cal |= {'pv_root': pv_root, 'tdc_channel': tdc_channel}
 
@@ -345,16 +345,17 @@ def test_the_seven_f144_logs_hang_off_one_root():
 
 
 def test_a_simulated_disc_says_only_what_it_knows():
-    """No setpoint distinct from the value, and no electronics to delay anything."""
+    """Everything but a setpoint distinct from the value, in the canonical order."""
     disc = emitted_disc(chopped())
-    assert log_names(disc) == ['rotation_speed', 'top_dead_center', 'delay', 'park_angle']
+    assert log_names(disc) == ['rotation_speed', 'top_dead_center', 'delay', 'experiment_delay',
+                                'mechanical_delay', 'pulse_delay', 'park_angle']
     assert stream_of(find_child(disc, 'rotation_speed'))[1] == 'psc1_rotation_speed'
 
 
 def test_the_mccode_delay_is_the_ess_delay_in_nanoseconds():
-    """ESS `delay` is the controller's total delay, in nanoseconds. A simulated disc has
-    no electronics adding to its delay, so the one knob it has is its total delay, and
-    the knob is declared in nanoseconds so that the number published is the number set.
+    """ESS `delay` is the controller's total delay, in nanoseconds, served under the
+    disc's name for it. It is computed from the three delays rather than set, so no
+    parameter feeds it.
     """
     disc = emitted_disc(chopped())
     assert find_child(disc, 'mark_delay') is None
@@ -366,7 +367,8 @@ def test_the_mccode_delay_is_the_ess_delay_in_nanoseconds():
 def test_a_declared_root_is_ignored_when_simulating():
     """A simulated file naming real PVs would claim values nothing published."""
     disc = emitted_disc(chopped(CHOPPER_ROOT), streams=SIMULATED)
-    assert log_names(disc) == ['rotation_speed', 'top_dead_center', 'delay', 'park_angle']
+    assert log_names(disc) == ['rotation_speed', 'top_dead_center', 'delay', 'experiment_delay',
+                                'mechanical_delay', 'pulse_delay', 'park_angle']
     assert CHOPPER_ROOT not in str(disc)
 
 
@@ -423,10 +425,13 @@ def test_a_simulated_edge_names_its_parameter():
 
 
 def test_a_simulated_disc_names_its_parameters_but_not_for_the_tdc():
-    """The crossings are computed from the speed and delay; no one parameter feeds them."""
+    """The crossings and the total delay are computed; no one parameter feeds them."""
     disc = emitted_disc(chopped())
     assert simulation_parameter(find_child(disc, 'rotation_speed')) == 'psc1_rotation_speed'
-    assert simulation_parameter(find_child(disc, 'delay')) == 'psc1_delay'
+    assert simulation_parameter(find_child(disc, 'delay')) is None
+    for log in ('experiment_delay', 'mechanical_delay'):
+        assert simulation_parameter(find_child(disc, log)) == f'psc1_{log}'
+    assert simulation_parameter(find_child(disc, 'pulse_delay')) == 'pulse_delay'
     assert simulation_parameter(find_child(disc, 'park_angle')) == 'psc1_park_angle'
     assert simulation_parameter(find_child(disc, 'top_dead_center')) is None
 

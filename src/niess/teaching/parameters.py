@@ -110,7 +110,7 @@ def chopper_parameters(ref_p, ref_r):
         'radius': radius,
         'angle': scalar(170.0, unit='deg'),
         'frequency': scalar(14.0, unit='Hz'),
-        'delay': scalar(0.0, unit='s'),
+        'experiment_delay': scalar(0.0, unit='s'),
         'height': height,
         'width': 40 * mm,
         # The disc hangs above the beam, so the beam crosses at the bottom of it: half a

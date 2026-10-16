@@ -8,6 +8,34 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+A disc chopper's timing has the knobs an ESS chopper controller has, with the same meaning,
+so a simulation can be driven the way NICOS drives the real instrument. **This changes
+names and the default timing.**
+
+| was | now |
+|---|---|
+| `{disc}_delay` /"ns", when the mark passes the sensor | `{disc}_experiment_delay` /"ns" (ESS `ChopDly-S`), the one NICOS sets |
+| — | `pulse_delay` /"ns" (ESS `BeamPosDly-S`), one for the instrument, default 0 |
+| — | `{disc}_mechanical_delay` /"degrees" (ESS `MechDly-S`), default from the geometry |
+| calibration `delay` | calibration `experiment_delay`, and optionally `pulse_delay`; `delay` is refused |
+
+- The first opening edge, NeXus's `slit_edges[0]`, is at the beam `pulse_delay +
+  experiment_delay` after proton-on-target (t=0 in McStas). With every knob at its
+  default that is t=0, where before the disc's reference orientation was.
+- The McStas `delay` is the controller's total, formed as ESS's `evr_seq_calc` forms
+  `TotDly`: `mechanical_delay / (360 |f|) + pulse_delay + experiment_delay`. `niess.tof`
+  forms the same total.
+- `mechanical_delay` is `(slit_edges[0] - beam_position)`, signed by the calibrated
+  direction of rotation, modulo a turn. `niess.components.chopper.mechanical_delay` and
+  `experiment_delay` compute it, and convert a total back to an experiment delay.
+- A simulated `NXdisk_chopper` writes `experiment_delay`, `mechanical_delay` and
+  `pulse_delay`, each fed by its knob, as well as `delay`. `delay` names no
+  `simulation_parameter`, because it is computed. Serving it needs a mccode-plumber that
+  forms the total from the three.
+- The scaffold turns a McStas `delay` into the experiment delay that reproduces it.
+
 ## 0.11.1
 
 Swap the orentation of the BIFROST triplets when output to McStas.

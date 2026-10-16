@@ -135,15 +135,16 @@ def test_every_simulated_epics_source_is_prefixed(simulated):
 
 
 def test_a_simulation_writes_only_what_it_has(simulated):
-    """No setpoint, no done flag, no controller delays: a simulation has none of them,
-    and leaving them out is part of what says the file is simulated."""
+    """No setpoint and no done flag: a simulation has neither, and leaving them out is
+    part of what says the file is simulated. It has the controller's three delays,
+    because they are its knobs, and their total."""
     written = streams_by_key(simulated)
-    absent = ('target_value', 'idle_flag', 'rotation_speed_setpoint',
-              'experiment_delay', 'mechanical_delay', 'pulse_delay')
+    absent = ('target_value', 'idle_flag', 'rotation_speed_setpoint')
     assert [key for key in written if key.rpartition('.')[2] in absent] == []
     chopper = sorted(key.rpartition('.')[2] for key in written
                      if key.startswith('pulse_shaping_chopper_1.'))
-    assert chopper == ['delay', 'park_angle', 'rotation_speed', 'top_dead_center']
+    assert chopper == ['delay', 'experiment_delay', 'mechanical_delay', 'park_angle',
+                       'pulse_delay', 'rotation_speed', 'top_dead_center']
 
 
 def test_the_bound_axes_are_the_ones_ecdc_names(simulated):
@@ -189,13 +190,15 @@ def test_each_simulated_log_names_a_parameter_in_the_published_unit(simulated, e
         assert parameter in declared, key
         assert declared[parameter] == stream['value_units'], key
         checked += 1
-    # 6 discs x 3 knobs, 2 x 3 divergence edges, 4 mask and 4 jaw edges, 2 angles
-    assert checked == 18 + 6 + 8 + 2
+    # 6 discs x 5 knobs (speed, park, and three delays; pulse_delay is shared but each
+    # disc logs it), 2 x 3 divergence edges, 4 mask and 4 jaw edges, 2 angles
+    assert checked == 30 + 6 + 8 + 2
 
 
 def test_the_tdc_and_pulse_are_published_by_the_clock_not_a_parameter(simulated):
     written = streams_by_key(simulated)
-    for key in ('pulse_shaping_chopper_1.top_dead_center', 'source.pulse_charge'):
+    for key in ('pulse_shaping_chopper_1.top_dead_center',
+                'pulse_shaping_chopper_1.delay', 'source.pulse_charge'):
         assert get_attribute(written[key]['node'], 'simulation_parameter') is None, key
 
 

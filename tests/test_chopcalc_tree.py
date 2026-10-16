@@ -63,7 +63,9 @@ def test_a_disc_is_a_disc(teaching):
     entry, = train.choppers
     assert entry.name == 'chopper'
     assert entry.speed == 'chopper_rotation_speed'
-    assert entry.delay == '1e-9 * chopper_delay'
+    assert entry.delay == (
+        '1e-9 * (pulse_delay + chopper_experiment_delay) + (chopper_rotation_speed ? '
+        'chopper_mechanical_delay / (360.0 * fabs(chopper_rotation_speed)) : 0.0)')
     assert entry.beam == '180.0'
     assert entry.edges == ('95.0', '265.0')
 

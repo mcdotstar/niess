@@ -20,11 +20,12 @@ its calibration into a McStas instrument:
 it can be compiled and run by McStas like any other.
 
 Seven components come out of that: the moderator, two guide units, a chopper, a jaw, a
-monitor and the sample position. So do six run-time parameters —
-`source_lambda_min`, `source_lambda_max`, `chopper_rotation_speed`, `chopper_delay`,
-`jaw_left` and `jaw_right` — which nothing had to declare by hand. Each is named for the
-log ESS publishes it as, and declared in that log's unit: the delay in nanoseconds, the
-jaw edges in millimetres. The chopper and the jaw generate their
+monitor and the sample position. So do eight run-time parameters —
+`source_lambda_min`, `source_lambda_max`, `chopper_rotation_speed`,
+`chopper_experiment_delay`, `chopper_mechanical_delay`, `pulse_delay`, `jaw_left` and
+`jaw_right` — which nothing had to declare by hand. Each is named for the log ESS
+publishes it as, and declared in that log's unit: the delays in nanoseconds and degrees,
+the jaw edges in millimetres. The chopper and the jaw generate their
 own, and the source wavelengths were given in the calibration as parameter
 specifications rather than values.
 

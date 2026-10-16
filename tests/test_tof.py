@@ -35,7 +35,7 @@ def disc(speed, *, edges=None, beam=BEAM, delay=DELAY, name='pack'):
         'radius': sc.scalar(0.35, unit='m'),
         'height': sc.scalar(0.06, unit='m'),
         'frequency': sc.scalar(speed, unit='Hz'),
-        'delay': sc.scalar(delay, unit='s'),
+        'experiment_delay': sc.scalar(delay, unit='s'),
         'beam_angle': sc.scalar(beam, unit='deg'),
         'windows': sc.array(values=EDGES if edges is None else edges,
                             dims=['edges'], unit='deg'),

@@ -58,12 +58,13 @@ def main(outdir: Path) -> None:
     emitted = [c.name for c in instrument.components]
     # --8<-- [end:mccode]
 
-    # three McStas components, sharing one speed and one delay, in one GROUP so that a
+    # three McStas components, sharing one speed and one set of delays, in one GROUP so that a
     # neutron passes if it clears any opening
     assert emitted == ['origin', 'pack_slit_0', 'pack_slit_1', 'pack_slit_2', 'sample']
     assert {c.group for c in instrument.components if c.name.startswith('pack')} == \
            {'pack_group'}
-    assert sorted(p.name for p in instrument.parameters) == ['pack_delay', 'pack_rotation_speed']
+    assert sorted(p.name for p in instrument.parameters) == [
+        'pack_experiment_delay', 'pack_mechanical_delay', 'pack_rotation_speed', 'pulse_delay']
 
     # --8<-- [start:nexus]
     from niess.nexus.nodes import find_child, get_attribute

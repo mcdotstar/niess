@@ -157,16 +157,12 @@ def chopper_logs(disc, binding) -> list[dict]:
     all -- it infers the root from the TDC source, so a group without one cannot even be
     offered an automatic fix.
 
-    Simulated: only the logs a simulation can honestly fill. There is no setpoint
-    distinct from the value, no electronics to delay anything, and the numbers a
-    simulation does have are its own parameter names rather than PVs. What it can say is
-    how fast the disc turns, when the mark passes, and -- when parked -- where it
-    stopped.
-
-    The disc's delay knob is written as `delay`, in nanoseconds. ESS `delay` is
-    `{root}:TotDly`, the controller's total delay. A simulated disc has no electronics
-    adding to it, so its total delay is the one knob it has. The other delays a real
-    controller reports have no counterpart in a simulation, so they are not written.
+    Simulated: every log but the setpoint, which a simulation has no value distinct
+    from. The three delays the controller adds up -- `experiment_delay`,
+    `mechanical_delay` and `pulse_delay` -- are each fed by the knob of that name. Their
+    total, `delay` (`{root}:TotDly`), is no knob: whatever serves the file computes it
+    the way the controller does (`Chopper.delay_seconds`), so its log names no
+    parameter.
 
     When ``binding`` carries resolved ``logs`` -- `niess.nexus.bindings.BoundStreams` --
     those are written as they are.
@@ -175,14 +171,18 @@ def chopper_logs(disc, binding) -> list[dict]:
         return [bound_log(log) for log in binding.logs]
     topic = binding.topic
     if not binding.canonical:
+        from ..components.motor import unquote
+
         def fed(knob):
             return {SIMULATION_PARAMETER: knob.name}
-        speed, delay, park = (disc.speed_parameter(), disc.delay_parameter(),
-                              disc.park_parameter())
+        speed, park = disc.speed_parameter(), disc.park_parameter()
         return [
             f144_log('rotation_speed', speed.name, topic, 'Hz', 'double', fed(speed)),
             tdct_log('top_dead_center', f'{disc.name}_tdc', topic),
-            f144_log('delay', delay.name, topic, 'ns', 'double', fed(delay)),
+            f144_log('delay', f'{disc.name}_delay', topic, 'ns', 'double'),
+            *(f144_log(knob.name.removeprefix(f'{disc.name}_'), knob.name, topic,
+                       unquote(knob.unit), 'double', fed(knob))
+              for knob in disc.timing_parameters()),
             f144_log('park_angle', park.name, topic, 'degrees', 'double', fed(park)),
         ]
 

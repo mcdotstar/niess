@@ -23,7 +23,8 @@ def main(outdir: Path) -> None:
     assert names == ['moderator', 'unit_1', 'unit_2', 'chopper', 'jaw', 'monitor',
                      'sample_origin'], names
     assert sorted(p.name for p in instrument.parameters) == [
-        'chopper_delay', 'chopper_rotation_speed', 'jaw_left', 'jaw_right',
+        'chopper_experiment_delay', 'chopper_mechanical_delay', 'chopper_rotation_speed',
+        'jaw_left', 'jaw_right', 'pulse_delay',
     ]
 
 
