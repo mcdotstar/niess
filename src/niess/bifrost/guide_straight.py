@@ -192,7 +192,8 @@ def straight_guide_parameters(guide_pos, guide_rot, chopper_width, chopper_heigh
 
     devices = (
         ('bandwidth_chopper_1', {**chopper}),
-        ('bandwidth_chopper_2', {**chopper}),
+        # the second disc counter-rotates; its mechanical delay depends on which way
+        ('bandwidth_chopper_2', {**chopper, 'frequency': scalar(-14.0, unit='Hz')}),
         ('bandwidth_monitor', {'thickness': bandwidth_monitor, 'sample_rate': scalar(42., unit='kHz'), **beam}),
         ('attenuator_1', {'length': attenuator_1, **attenuator}),
         ('attenuator_2', {'length': attenuator_2, **attenuator}),

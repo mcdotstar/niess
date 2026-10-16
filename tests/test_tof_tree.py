@@ -45,7 +45,8 @@ def test_the_choppers_of_bifrost_are_what_they_are():
         ('bandwidth_chopper_2', 78.0659),
     ]
     assert all(s.frequency == 14.0 for s in specs)
-    assert all(s.anticlockwise for s in specs)
+    # all but the second bandwidth disc, which counter-rotates
+    assert [s.anticlockwise for s in specs] == [True] * 5 + [False]
     assert all(len(s.open) == len(s.close) == 1 for s in specs)
     # every experiment delay is zero, so each total is its mechanical delay alone:
     # slit_edges[0] at the beam at t=0
