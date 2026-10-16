@@ -8,7 +8,7 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.12.0
 
 A disc chopper's timing has the knobs an ESS chopper controller has, with the same meaning,
 so a simulation can be driven the way NICOS drives the real instrument. **This changes
