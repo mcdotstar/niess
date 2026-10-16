@@ -35,6 +35,10 @@ names and the default timing.**
   `simulation_parameter`, because it is computed. Serving it needs a mccode-plumber that
   forms the total from the three.
 - The scaffold turns a McStas `delay` into the experiment delay that reproduces it.
+- BIFROST's second bandwidth disc is calibrated at -14 Hz, the way it turns, so its
+  mechanical delay is right for it.
+- The `examples` extra needs chopcal 0.6.1, whose `chopcal.nicos.experiment_delay` gives the
+  experiment delay the chopcal notebook sets.
 
 ## 0.11.1
 
