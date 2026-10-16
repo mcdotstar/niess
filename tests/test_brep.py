@@ -406,7 +406,8 @@ def test_a_disc_chopper_is_cut_where_its_openings_are():
 
     chopper = NXDiskChopper(
         name='disc', position=_origin(), orientation=_identity(),
-        velocity=sc.scalar(14.0, unit='Hz'), delay=sc.scalar(0.0, unit='s'),
+        velocity=sc.scalar(14.0, unit='Hz'), experiment_delay=sc.scalar(0.0, unit='s'),
+            pulse_delay=sc.scalar(0.0, unit='ns'),
         radius=sc.scalar(0.35, unit='m'), windows=sc.array(dims=['edge'], values=[30., 60.], unit='deg'),
         width=sc.scalar(0.0, unit='m'), height=sc.scalar(0.1, unit='m'))
     disc = _assembly_child(to_assembly(Instrument(

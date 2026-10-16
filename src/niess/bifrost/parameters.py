@@ -229,7 +229,7 @@ def primary_parameters(use_tcs=False):
         'height': bunker_chopper_height,
         'angle': scalar(170., unit='deg'),
         'frequency': scalar(14., unit='Hz'),
-        'delay': scalar(0., unit='s'),
+        'experiment_delay': scalar(0., unit='s'),
         'beam_angle': beam_angle,
     }
     p['pulse_shaping_chopper_2'] = {
@@ -240,7 +240,7 @@ def primary_parameters(use_tcs=False):
         'height': bunker_chopper_height,
         'angle': scalar(170., unit='deg'),
         'frequency': scalar(14., unit='Hz'),
-        'delay': scalar(0., unit='s'),
+        'experiment_delay': scalar(0., unit='s'),
         'beam_angle': beam_angle,
     }
 

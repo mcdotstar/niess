@@ -27,7 +27,9 @@ TofSetup: 1 chopper(s), 2 detector(s)
 
   parameters used (override with with_values(...)):
     chopper_rotation_speed       = 14.0 Hz  (default)  <- chopper.speed
-    chopper_delay                = 0.0 ns  (default)  <- chopper.delay
+    chopper_experiment_delay     = 0.0 ns  (default)  <- chopper.experiment_delay
+    chopper_mechanical_delay     = 275.0 degrees  (default)  <- chopper.mechanical_delay
+    pulse_delay                  = 0.0 ns  (default)  <- chopper.pulse_delay
   nothing has to be provided; every value came from the instrument itself.
 ```
 
@@ -39,7 +41,7 @@ measures every component from the same zero as its source.
 ## What you need to provide
 
 Usually nothing, which is what the table says. niess declares each chopper's speed and
-delay as an instrument parameter carrying the calibration's own value, so a model built
+delays as instrument parameters carrying the calibration's own value, so a model built
 from a niess instrument is already the machine as calibrated.
 
 The knobs are listed anyway, because knowing which ones exist is the point of asking, and

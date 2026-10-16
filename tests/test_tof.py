@@ -35,7 +35,7 @@ def disc(speed, *, edges=None, beam=BEAM, delay=DELAY, name='pack'):
         'radius': sc.scalar(0.35, unit='m'),
         'height': sc.scalar(0.06, unit='m'),
         'frequency': sc.scalar(speed, unit='Hz'),
-        'delay': sc.scalar(delay, unit='s'),
+        'experiment_delay': sc.scalar(delay, unit='s'),
         'beam_angle': sc.scalar(beam, unit='deg'),
         'windows': sc.array(values=EDGES if edges is None else edges,
                             dims=['edges'], unit='deg'),
@@ -83,14 +83,16 @@ def wrapped(delta, period):
     return delta - period * np.round(delta / period)
 
 
-def niess_edge_time(edge, speed, *, beam=BEAM, delay=DELAY):
+def niess_edge_time(edge, speed, *, edges=EDGES, delay=DELAY):
     """When the disc point `edge` degrees from the mark is on the beam.
 
-    niess' own rule, stated in `DiscChopper`: an edge at angle `a` from the point the
-    delay refers to is on the beam at `delay + a / (360 * speed)`, with `a = beam - edge`
-    and the speed signed.
+    The ESS rule niess follows, stated without its code: the first opening edge -- of the
+    opening edges folded into one turn, the smallest, NXdisk_chopper's `slit_edges[0]` --
+    is on the beam at the experiment delay (the pulse delay is zero here), and an edge at
+    `a` follows `(first - a) / (360 * speed)` later, with the speed signed.
     """
-    return delay + (beam - edge) / (360.0 * speed)
+    first = min(opening % 360.0 for opening in edges[::2])
+    return delay + (first - edge) / (360.0 * speed)
 
 
 # -- the conversion --------------------------------------------------------------
@@ -134,11 +136,17 @@ def test_the_cutouts_open_when_the_niess_disc_opens(speed):
 
 
 def test_reversing_the_disc_is_not_the_same_chopper():
-    """Or the test above could pass by symmetry rather than by being right."""
+    """Or the test above could pass by symmetry rather than by being right.
+
+    The first opening edge is the exception, by design: it is on the beam at the
+    experiment delay whichever way the disc turns. 370 is that same edge, a turn on.
+    """
     period = 1.0 / 14.0
-    forward = [niess_edge_time(e, 14.0) for e in EDGES]
-    reverse = [niess_edge_time(e, -14.0) for e in EDGES]
-    assert all(abs(wrapped(f - r, period)) > 1e-6 for f, r in zip(forward, reverse))
+    first = min(e % 360.0 for e in EDGES[::2])
+    for edge in EDGES:
+        forward, reverse = niess_edge_time(edge, 14.0), niess_edge_time(edge, -14.0)
+        same = abs(wrapped(forward - reverse, period)) < 1e-12
+        assert same == (edge % 360.0 == first), edge
 
 
 def test_the_phase_does_not_flip_with_the_direction():
@@ -228,7 +236,8 @@ def test_the_parameters_it_used_are_reported_with_their_defaults():
     used = {use.name: use for use in setup.parameters}
     # only what was actually read: the caller supplied the source here, so the
     # instrument's own wavelength bounds were never consulted
-    assert set(used) == {'chopper_rotation_speed', 'chopper_delay'}
+    assert set(used) == {'chopper_rotation_speed', 'chopper_experiment_delay',
+                         'chopper_mechanical_delay', 'pulse_delay'}
     assert used['chopper_rotation_speed'].value == pytest.approx(14.0)
     assert used['chopper_rotation_speed'].unit == 'Hz'
     assert used['chopper_rotation_speed'].used_by == ('chopper.speed',)
@@ -256,7 +265,15 @@ def test_bifrost_becomes_a_chopper_cascade_that_chops():
     from niess.bifrost import Primary
     bifrost = Instrument(name='bifrost', origin='sample_origin', parts=(
         Mount(name='primary', content=Primary.from_calibration()),))
-    setup = to_tof_model(bifrost, source=offline_source())
+    # Every disc's zero mark at its sensor at t=0, which is where the knobs used to
+    # default: at their own defaults each first opening edge is on the beam at t=0, and
+    # the pulse-shaping pair closes before the pulse has begun.
+    from niess.components.chopper import DISC_CHOPPERS
+    from niess.walk import visits
+    values = {f'{v.name}_experiment_delay':
+              -v.obj.mechanical_delay() / (360 * abs(v.obj.speed.value)) * 1e9
+              for v in visits(bifrost) if isinstance(v.obj, DISC_CHOPPERS)}
+    setup = to_tof_model(bifrost, source=offline_source(), values=values)
 
     assert len(setup.choppers) == 6
     assert setup.detectors[-1] == 'sample_origin'

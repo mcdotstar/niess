@@ -99,7 +99,9 @@ def test_which_way_the_disc_turns_is_decided_at_run_time(assembled):
     """
     text = str(assembled)
     assert 'double pack_slit_0_opening_delay;' in text
-    assert ('pack_slit_0_opening_delay = 1e-9 * pack_delay '
+    assert ('pack_slit_0_opening_delay = 1e-9 * (pulse_delay + pack_experiment_delay) '
+            '+ (pack_rotation_speed ? pack_mechanical_delay / (360.0 * '
+            'fabs(pack_rotation_speed)) : 0.0) '
             '+ (pack_rotation_speed < 0 ? 290.0 : 70.0) '
             '/ (360.0 * fabs(pack_rotation_speed));') in text
     # 330 counter-clockwise is 30 the other way; 90 is 270
@@ -116,7 +118,9 @@ def test_an_opening_already_at_the_beam_needs_no_variable():
         assembler, at='origin', rotate='origin')
 
     only = instances(assembler.instrument)[0]
-    assert str(only.get_parameter('delay').value) == '1e-09*pack_delay'
+    assert str(only.get_parameter('delay').value) == (
+        '1e-09*pack_experiment_delay + 1e-09*pulse_delay + (pack_rotation_speed ? '
+        '0.002777777777777778*pack_mechanical_delay/fabs(pack_rotation_speed) : 0.0)')
     assert 'pack_slit_0_opening_delay' not in str(assembler.instrument)
 
 
@@ -153,8 +157,10 @@ def test_two_discs_do_not_share_a_group():
 
 
 def test_the_disc_has_one_speed_and_one_delay(assembled):
-    """One physical disc, so one pair of run-time parameters -- not one per opening."""
-    assert sorted(p.name for p in assembled.parameters) == ['pack_delay', 'pack_rotation_speed']
+    """One physical disc, so one set of run-time parameters -- not one per opening."""
+    assert sorted(p.name for p in assembled.parameters) == [
+        'pack_experiment_delay', 'pack_mechanical_delay', 'pack_rotation_speed',
+        'pulse_delay']
     assert all(str(c.get_parameter('nu').value) == 'pack_rotation_speed'
                for c in instances(assembled))
 
@@ -201,7 +207,7 @@ def test_the_nexus_disc_pairs_its_edges_the_same_way():
     reintroduces its own pairing should fail here.
     """
     from niess.components import NXDiskChopper
-    cal = calibration(width=scalar(0.03, unit='m'), delay=scalar(0.0, unit='s'))
+    cal = calibration(width=scalar(0.03, unit='m'), experiment_delay=scalar(0.0, unit='s'))
     disc, nexus_disc = (c.from_calibration(dict(cal))
                         for c in (DiscChopper, NXDiskChopper))
     assert nexus_disc.slits() == disc.slits()

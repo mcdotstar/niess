@@ -228,7 +228,8 @@ def disk_chopper(instance, fold):
         'zero_angle': zero_angle,
         'beam_angle': beam_angle,
         'frequency': scalar(float(frequency), unit='Hz'),
-        'delay': scalar(float(_setting(instance, 'delay', fold, 0.0) or 0.0), unit='s'),
+        # McStas' `delay` is the total, when the zero mark passes the sensor
+        'experiment_delay': _experiment_delay(instance, fold, edges, beam_angle, frequency),
         # the `.instr` placed the beam crossing; `position` must be the spindle
         'position_offset': -disc_beam_offset(
             radius=radius, width=None, height=height,
@@ -236,6 +237,21 @@ def disk_chopper(instance, fold):
         ),
     }
     
+
+def _experiment_delay(instance, fold, edges, beam_angle, frequency):
+    """The ESS ChopDly-S knob that reproduces this instance's McStas `delay`.
+
+    Zero when the delay is unset or does not fold to a number -- an expression of knobs
+    the disc declares again for itself, which is what an instrument written to niess's
+    own convention has.
+    """
+    from ..components.chopper import experiment_delay
+    total = _setting(instance, 'delay', fold)
+    if total is None:
+        return scalar(0.0, unit='s')
+    return scalar(experiment_delay(float(total), list(edges), float(beam_angle.value),
+                                   float(frequency)), unit='s')
+
 
 def nxdisk_chopper(instance, fold):
     """`NXdisk_chopper` -> `NXDiskChopper`, undoing McStas' placement convention.
@@ -279,7 +295,8 @@ def nxdisk_chopper(instance, fold):
         'zero_angle': zero_angle,
         'beam_angle': beam_angle,
         'frequency': scalar(float(frequency), unit='Hz'),
-        'delay': scalar(float(_setting(instance, 'delay', fold, 0.0) or 0.0), unit='s'),
+        # McStas' `delay` is the total, when the zero mark passes the sensor
+        'experiment_delay': _experiment_delay(instance, fold, edges, beam_angle, frequency),
         # the `.instr` placed the beam crossing; `position` must be the spindle
         'position_offset': -disc_beam_offset(
             radius=radius, width=width, height=height,

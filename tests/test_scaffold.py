@@ -97,7 +97,8 @@ def test_a_parameter_the_component_declares_itself_is_not_carried_forward(teachi
     """Two declarations of one name collide and the module would not build."""
     conversion = convert(teaching, origin='sample_origin')
     assert conversion.subsumed == {
-        'chopper_rotation_speed': 'chopper', 'chopper_delay': 'chopper',
+        'chopper_rotation_speed': 'chopper', 'chopper_experiment_delay': 'chopper',
+        'chopper_mechanical_delay': 'chopper', 'pulse_delay': '(a component)',
         'jaw_left': 'jaw', 'jaw_right': 'jaw',
     }
     assert conversion.parameters == ()
@@ -105,7 +106,8 @@ def test_a_parameter_the_component_declares_itself_is_not_carried_forward(teachi
     # the signature is unchanged: the names still exist, declared by their components
     emitted = to_mccode(to_instrument(conversion))
     assert sorted(p.name for p in emitted.parameters) == [
-        'chopper_delay', 'chopper_rotation_speed', 'jaw_left', 'jaw_right',
+        'chopper_experiment_delay', 'chopper_mechanical_delay', 'chopper_rotation_speed',
+        'jaw_left', 'jaw_right', 'pulse_delay',
     ]
 
 

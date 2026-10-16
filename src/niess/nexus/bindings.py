@@ -350,16 +350,25 @@ class BoundStreams:
     def chopper(self, disc) -> ChopperBinding:
         """A disc's logs, from the bindings for its group."""
         from .streams import CHOPPER_LOGS
+        experiment, mechanical, pulse = disc.timing_parameters()
+        # `delay` is the controller's total, which no knob feeds: see `chopper_logs`
         knobs = {'rotation_speed': disc.speed_parameter(),
-                 'delay': disc.delay_parameter(),
+                 'delay': None,
+                 'experiment_delay': experiment,
+                 'mechanical_delay': mechanical,
+                 'pulse_delay': pulse,
                  'park_angle': disc.park_parameter()}
         bound = {log: self.bindings.get(f'{disc.name}.{log}')
                  for log, _, _ in CHOPPER_LOGS}
         if not any(bound.values()):
             self._unbound(f'chopper {disc.name!r}',
                           f'Add {disc.name}.<log> entries to the bindings')
-            logs = [self._simulated_log(log, knobs[log], self.chopper_topic)
-                    for log in knobs]
+            logs = [self._simulated_log(log, knob, self.chopper_topic)
+                    if knob is not None else
+                    LogBinding(name=log, module='f144',
+                               source=f'{self.prefix}{disc.name}_{log}',
+                               topic=self.chopper_topic, units='ns', dtype='double')
+                    for log, knob in knobs.items()]
             logs.insert(1, LogBinding(name='top_dead_center', module='tdct',
                                       source=f'{self.prefix}{disc.name}_tdc',
                                       topic=self.chopper_topic, dtype=''))
@@ -369,7 +378,8 @@ class BoundStreams:
             binding, knob = bound[log], knobs.get(log)
             if binding is None:
                 continue
-            if self.simulated and knob is None and binding.schema != 'tdct':
+            if (self.simulated and knob is None and binding.schema != 'tdct'
+                    and log != 'delay'):
                 continue
             logs.append(self.log(binding, knob))
         return ChopperBinding(topic=self.chopper_topic, logs=tuple(logs))

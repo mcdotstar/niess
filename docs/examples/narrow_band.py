@@ -34,9 +34,12 @@ def main(outdir: Path) -> None:
     # --8<-- [end:narrow]
 
     # The band is computed at run time, so the row names parameters rather than numbers:
-    # change --chopper_delay on the command line and the band recomputes.
+    # change chopper_experiment_delay on the command line and the band recomputes. The
+    # delay is the total an ESS controller forms: MechDly/(360|f|) + BeamPosDly + ChopDly.
     assert train.choppers[0].speed == 'chopper_rotation_speed'
-    assert train.choppers[0].delay == '1e-9 * chopper_delay'
+    assert train.choppers[0].delay == (
+        '1e-9 * (pulse_delay + chopper_experiment_delay) + (chopper_rotation_speed ? '
+        'chopper_mechanical_delay / (360.0 * fabs(chopper_rotation_speed)) : 0.0)')
 
     # The source says nothing about how long it emits for, so niess' own default of
     # three ESS pulses applies -- the same 0.008571 s that ESS_butterfly's own

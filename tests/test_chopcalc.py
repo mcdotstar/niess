@@ -129,8 +129,10 @@ def test_the_band_is_narrowed_through_the_sources_own_parameters(teaching):
 def test_a_chopper_is_named_not_valued(teaching):
     """The row references run-time parameters, so the band recomputes without a rebuild."""
     narrow(teaching)
-    assert 'chopcalc_choppers[0] = (chopper_parameters){chopper_rotation_speed, ' \
-           '1e-9 * chopper_delay, 180.0, 2,' in str(teaching.instrument)
+    assert ('chopcalc_choppers[0] = (chopper_parameters){chopper_rotation_speed, '
+            '1e-9 * (pulse_delay + chopper_experiment_delay) + (chopper_rotation_speed ? '
+            'chopper_mechanical_delay / (360.0 * fabs(chopper_rotation_speed)) : 0.0), '
+            '180.0, 2,') in str(teaching.instrument)
 
 
 def test_a_single_opening_disc_is_one_opening_either_side_of_the_mark(teaching):
@@ -428,7 +430,9 @@ def test_a_multi_slit_disc_becomes_one_row_per_opening(caplog):
     assert disc.name == 'pack'
     assert len(disc.edges) == 4   # two openings
     # every opening shares the disc's own delay; the edges say where each one sits
-    assert disc.delay == '1e-9 * pack_delay'
+    assert disc.delay == (
+        '1e-9 * (pulse_delay + pack_experiment_delay) + (pack_rotation_speed ? '
+        'pack_mechanical_delay / (360.0 * fabs(pack_rotation_speed)) : 0.0)')
 
 
 def test_the_openings_go_across_as_the_disc_writes_them(caplog):

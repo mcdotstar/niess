@@ -50,8 +50,13 @@ def chopper_specs(instrument, values: dict | None = None, origin: float = 0.0,
         if not isinstance(disc, DISC_CHOPPERS) or visit.name not in paths:
             continue
         speed = _setting(disc, 'speed', values)
-        # The knob is in nanoseconds, as ESS publishes a chopper delay; tof works in s.
-        delay = _setting(disc, 'delay', values) * 1e-9
+        # ESS TotDly, formed as `Chopper.delay_seconds` forms it from the three knobs,
+        # which are in nanoseconds and degrees as ESS publishes them; tof works in s.
+        experiment, mechanical, pulse = (_setting(disc, which, values)
+                                         for which in DELAYS)
+        delay = 1e-9 * (pulse + experiment)
+        if speed:
+            delay += mechanical / (360.0 * abs(speed))
         beam = float(disc.beam_angle.to(unit='deg').value)
         windows = tuple((beam - closing, beam - opening)
                         for opening, closing in disc.slits())
@@ -61,16 +66,21 @@ def chopper_specs(instrument, values: dict | None = None, origin: float = 0.0,
     return tuple(sorted(specs, key=lambda spec: spec.distance))
 
 
+#: A disc's knobs, by what `_knob` calls them: its speed, and the three delays ESS adds up.
+DELAYS = ('experiment_delay', 'mechanical_delay', 'pulse_delay')
+KNOBS = ('speed', *DELAYS)
+
+
 def _knob(disc, which: str):
-    """A chopper's knob name, its calibrated value and its unit, for speed or delay.
+    """A chopper's knob name, its calibrated value and its unit, for one of `KNOBS`.
 
     The unit is the one the disc declares the knob in when it emits --
-    ``nu_rotation_speed/"Hz"`` and ``nu_delay/"ns"`` -- so a value supplied for it is
-    converted to the same thing whichever route read the instrument.
+    ``nu_rotation_speed/"Hz"``, ``nu_experiment_delay/"ns"`` -- so a value supplied for it
+    is converted to the same thing whichever route read the instrument.
     """
-    if which == 'speed':
-        return disc.speed_parameter().name, float(disc.speed.to(unit='Hz').value), 'Hz'
-    return disc.delay_parameter().name, float(disc.delay.to(unit='ns').value), 'ns'
+    from ..components.motor import unquote
+    knob = getattr(disc, f'{which}_parameter')()
+    return knob.name, float(str(knob.value)), unquote(knob.unit)
 
 
 def _setting(disc, which: str, values: dict) -> float:
@@ -111,7 +121,7 @@ def _knobs(instrument) -> dict[str, str | None]:
         known[parameter.name] = (parameter.unit or '').strip().strip('"') or None
     for visit in visits(instrument):
         if isinstance(visit.obj, DISC_CHOPPERS):
-            for which in ('speed', 'delay'):
+            for which in KNOBS:
                 name, _, unit = _knob(visit.obj, which)
                 known[name] = unit
         elif isinstance(visit.obj, Moderator):
@@ -230,7 +240,7 @@ def to_tof_model(instrument, *, source=None, values: dict | None = None,
     for visit in seen:
         if not isinstance(visit.obj, DISC_CHOPPERS) or visit.name not in by_name:
             continue
-        for which in ('speed', 'delay'):
+        for which in KNOBS:
             knob, default, unit = _knob(visit.obj, which)
             used.append(Use(name=knob, value=_setting(visit.obj, which, values),
                             default=default, unit=unit,

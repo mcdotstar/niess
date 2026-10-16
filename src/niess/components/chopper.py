@@ -55,14 +55,57 @@ def disc_beam_offset(radius: Variable,
     return (rotation * radial).to(unit='m')
 
 
+def mechanical_delay(edges: list[float], beam: float, speed: float) -> float:
+    """ESS ``MechDly-S`` in degrees, for slit ``edges`` and a beam crossing in degrees.
+
+    The first opening edge is NXdisk_chopper's ``slit_edges[0]``: of the opening edges
+    folded into one turn, the smallest -- which is what `Chopper.nexus_slit_edges` puts
+    first. ``speed`` only contributes its sign.
+    """
+    first = min(opening % 360.0 for opening in edges[::2])
+    sense = -1.0 if speed < 0 else 1.0
+    return (sense * (first - beam)) % 360.0
+
+
+def experiment_delay(total: float, edges: list[float], beam: float, speed: float,
+                     pulse: float = 0.0) -> float:
+    """The ESS ``ChopDly-S`` that gives a disc the total delay ``total``, all in s.
+
+    The inverse of `Chopper.delay_seconds`, for reading a McStas ``delay`` -- which is
+    the total -- back into the knob niess emits.
+    """
+    if not speed:
+        return total - pulse
+    return total - pulse - mechanical_delay(edges, beam, speed) / (360.0 * abs(speed))
+
+
+def _delays(cal: dict) -> dict:
+    """A calibration's ``experiment_delay`` and ``pulse_delay``, defaulting to zero.
+
+    ``delay`` is refused rather than read: it was the total, when the zero mark passes
+    the sensor, and taking it as the experiment delay would quietly move every opening.
+    """
+    if 'delay' in cal:
+        raise ValueError(
+            f"{cal.get('name')}: 'delay' is no longer a calibration field. Give "
+            f"'experiment_delay' (ESS ChopDly-S) and, if not zero, 'pulse_delay' (ESS "
+            f"BeamPosDly-S); slit_edges[0] is at the beam their sum after "
+            f"proton-on-target, and the total follows from the geometry.")
+    return {key: cal.get(key, scalar(0.0, unit='ns'))
+            for key in ('experiment_delay', 'pulse_delay')}
+
+
 class Chopper(Component):
     """Any device which periodically opens a path that particles may traverse"""
     velocity: Variable  # angular velocity scalar or vector
-    delay: Variable  # the time an opening is on the path, as real instruments are set
+    experiment_delay: Variable  # ESS ChopDly-S: what an experiment sets, see `delay_seconds`
     radius: Variable
     windows: Variable
     width: Variable  # the path width
     height: Variable  # the path height
+    #: ESS BeamPosDly-S: proton-on-target to the wanted t0. Fixed for an experiment, and
+    #: one knob for the whole instrument -- see `pulse_delay_parameter`.
+    pulse_delay: Variable
 
     #: Each knob is named ``{name}_{log}`` for the `NXdisk_chopper` log it is published
     #: as, and declared in the unit ESS publishes that log in. A simulation then carries
@@ -84,17 +127,64 @@ class Chopper(Component):
         return self._parameter('rotation_speed', float(self.speed.to(unit='Hz').value),
                                'Hz')
 
-    def delay_parameter(self) -> InstrumentParameter:
-        """The run-time knob saying when this disc's reference opening is at the beam.
+    def experiment_delay_parameter(self) -> InstrumentParameter:
+        """The knob an experiment sets this disc's timing with: ESS ``ChopDly-S``, in ns.
 
-        In nanoseconds, as ESS publishes a chopper's ``delay`` (``TotDly``). A simulated
-        disc has no electronics adding to it, so its total delay *is* this one.
+        The one delay NICOS writes, through ``<chopper>_delay`` and its degrees view
+        ``<chopper>_phase``. The other two that make up the controller's total are
+        `pulse_delay_parameter` and `mechanical_delay_parameter`.
         """
-        return self._parameter('delay', float(self.delay.to(unit='ns').value), 'ns')
+        return self._parameter('experiment_delay',
+                               float(self.experiment_delay.to(unit='ns').value), 'ns')
+
+    def pulse_delay_parameter(self) -> InstrumentParameter:
+        """ESS ``BeamPosDly-S``, in ns: proton-on-target to the wanted t0.
+
+        Not named for the disc: it is the same for every chopper on the instrument, so a
+        simulation has one. Discs given different values refuse to share it when emitted.
+        """
+        return InstrumentParameter.parse(
+            f'pulse_delay/"ns"={float(self.pulse_delay.to(unit="ns").value)}')
+
+    def mechanical_delay(self) -> float:
+        """ESS ``MechDly-S``, in degrees: from the TDC sensor to the first opening edge.
+
+        The angle the disc turns from ``slit_edges[0]`` being at the beam to its zero mark
+        passing the TDC sensor, at ``zero_angle``. A real one is measured; here it follows
+        from the geometry. It depends on which way the disc turns, so it is worked out for
+        the calibrated direction -- as a real disc's is for the direction it was built for.
+        """
+        return mechanical_delay([angle for opening in self.slits() for angle in opening],
+                                self.beam_angle.to(unit='deg').value,
+                                self.speed.value)
+
+    def mechanical_delay_parameter(self) -> InstrumentParameter:
+        """ESS ``MechDly-S`` as a knob, in degrees, defaulting to `mechanical_delay`.
+
+        A knob, as on the real controller, so that the total is formed the same way in
+        the simulation, in `niess.tof` and in the file, and so a mis-set one can be shown.
+        """
+        return self._parameter('mechanical_delay', self.mechanical_delay(), 'degrees')
+
+    def timing_parameters(self) -> tuple[InstrumentParameter, ...]:
+        """The three knobs the total delay is made of: experiment, mechanical, pulse."""
+        return (self.experiment_delay_parameter(), self.mechanical_delay_parameter(),
+                self.pulse_delay_parameter())
 
     def delay_seconds(self) -> str:
-        """The delay knob as McStas wants it: a C expression in seconds."""
-        return f'1e-9 * {self.delay_parameter().name}'
+        """ESS ``TotDly`` as McStas wants it: a C expression in seconds.
+
+        The EPICS module ``evr_seq_calc`` forms the total the controller locks the TDC
+        sensor to as ``MechDly/360/|Spd_S|·1e9 + BeamPosDly + ChopDly`` (ns), and this is
+        that. So ``slit_edges[0]`` is at the beam ``pulse_delay + experiment_delay`` after
+        proton-on-target -- t=0 in McStas -- and the disc's zero mark passes the sensor at
+        this time, which is what `NXdisk_chopper` and McStas' ``DiskChopper`` take as
+        ``delay``. A disc not turning has no total; zero stands in for it.
+        """
+        x, m, p = (k.name for k in self.timing_parameters())
+        speed = self.speed_parameter().name
+        return (f'1e-9 * ({p} + {x}) + '
+                f'({speed} ? {m} / (360.0 * fabs({speed})) : 0.0)')
 
     def park_parameter(self) -> InstrumentParameter:
         """The run-time knob saying where a parked disc is standing.
@@ -229,9 +319,12 @@ class DiscChopper(Chopper):
     as a final edge beyond 360 degrees -- ``[350, 370]`` rather than ``[350, 10]`` --
     so the pairs stay ordered and each width is simply the difference.
 
-    ``delay`` is when the *disc's* zero-angle point is on the beam. Each opening is
-    reached a fixed angle later, which becomes a fixed time only once the speed is known,
-    so that part is left to the generated C.
+    ``experiment_delay`` and ``pulse_delay`` are ESS's ``ChopDly-S`` and ``BeamPosDly-S``:
+    the first opening edge, ``slit_edges[0]``, is at the beam their sum after
+    proton-on-target. See `Chopper.delay_seconds` for the total they make, which is when
+    the zero mark passes the TDC sensor. Each opening is reached a fixed angle from it,
+    which becomes a fixed time only once the speed is known, so that part is left to the
+    generated C.
     """
     # `radius` is the outer dimension of the disc.
     # Where the beam crosses the disc, as two angles about +z, positive counter-clockwise
@@ -304,7 +397,6 @@ class DiscChopper(Chopper):
         velocity = cal.get('velocity', cal.get('frequency'))
         if velocity is None:
             raise ValueError('velocity (or frequency) cannot be None')
-        delay = cal.get('delay', scalar(0.0, unit='s'))
         radius = cal['radius']
         # `top_dead_center` and `beam_position` are the NXdisk_chopper field names, which
         # these started out carrying; accept them without writing back to the caller's
@@ -338,7 +430,7 @@ class DiscChopper(Chopper):
             position=position,
             orientation=orientation,
             velocity=velocity,
-            delay=delay,
+            **_delays(cal),
             radius=radius,
             windows=windows,
             width=width,
@@ -403,8 +495,8 @@ class DiscChopper(Chopper):
     ) -> str:
         """When this opening's centre is at the beam, as a McStas ``delay``.
 
-        Every opening turns with the disc, so they share the one run-time
-        ``{name}_delay``; each is offset from it by however long the disc takes to bring
+        Every opening turns with the disc, so they share the one total delay,
+        `delay_seconds`; each is offset from it by however long the disc takes to bring
         that opening round. The angle is fixed geometry, but the time is not: it depends
         on both the magnitude and the *sign* of ``{name}_rotation_speed``, and neither is known
         until the simulation runs. A disc that turns clockwise reaches an opening lying
@@ -413,7 +505,7 @@ class DiscChopper(Chopper):
 
         So the angle is computed here and the rest is left to the generated C, where the
         speed is a real number rather than a name. An opening already at the beam is a
-        special case worth taking: it is there at ``{name}_delay`` whichever way the disc
+        special case worth taking: it is there at the total delay whichever way the disc
         spins, so it needs no variable at all -- which is every disc described by a plain
         ``angle``, since that centres its one opening on the beam.
         """
@@ -422,7 +514,7 @@ class DiscChopper(Chopper):
             return self.delay_seconds()
 
         # `_opening_delay`, not `_delay`: for a single opening `name` is the disc's own,
-        # and `{disc}_delay` is the knob.
+        # and `{disc}_delay` is the total's log, which a NeXus file serves by that name.
         speed = self.speed_parameter().name
         assembler.declare(f'double {name}_opening_delay;')
         assembler.initialize(
@@ -446,7 +538,9 @@ class DiscChopper(Chopper):
             'beam_position': self.beam_angle.to(unit='deg').value,
             # The disc's own timing, so a translator rebuilding the disc can link it
             # without re-deriving the parameter naming convention.
-            'delay_parameter': self.delay_parameter().name,
+            'experiment_delay_parameter': self.experiment_delay_parameter().name,
+            'pulse_delay_parameter': self.pulse_delay_parameter().name,
+            'mechanical_delay_parameter': self.mechanical_delay_parameter().name,
         }
         if several:
             extra['disc_group_id'] = self.name
@@ -473,8 +567,8 @@ class DiscChopper(Chopper):
         from ..provenance import add_niess_metadata
         from ..spatial import mccode_ordered_angles
 
-        ensure_runtime_parameter(assembler, self.speed_parameter())
-        ensure_runtime_parameter(assembler, self.delay_parameter())
+        for parameter in (self.speed_parameter(), *self.timing_parameters()):
+            ensure_runtime_parameter(assembler, parameter)
 
         position = self.position + self.__mccode_offset__()
         placement = (position.to(unit='m').value, 'ABSOLUTE' if at is None else at)
@@ -563,7 +657,6 @@ class NXDiskChopper(Chopper):
         velocity = cal.get('velocity', cal.get('frequency'))
         if velocity is None:
             raise ValueError('velocity must be defined in calibration')
-        delay = cal.get('delay', scalar(0.0, unit='s'))
         zero_angle = cal.get('zero_angle', scalar(0.0, unit='deg'))
         beam_angle = cal.get('beam_angle', scalar(0.0, unit='deg'))
         park_angle = cal.get('park_angle', scalar(0.0, unit='deg'))
@@ -572,7 +665,7 @@ class NXDiskChopper(Chopper):
             windows = beam_angle.to(unit='deg') + half
         return cls(
             name=name, position=position, orientation=orientation,
-            velocity=velocity, delay=delay,
+            velocity=velocity, **_delays(cal),
             radius=radius, windows=windows,
             width=width, height=height,
             zero_angle=zero_angle, beam_angle=beam_angle, park_angle=park_angle,
@@ -606,7 +699,7 @@ class NXDiskChopper(Chopper):
         from ..chopcalc.emit import CHOPPER_LIB_REGISTRY
         ensure_registry(assembler, CHOPPER_LIB_REGISTRY)
         # Make sure the user controllable knobs are present
-        for parameter in (self.speed_parameter(), self.delay_parameter(),
+        for parameter in (self.speed_parameter(), *self.timing_parameters(),
                           self.park_parameter()):
             ensure_runtime_parameter(assembler, parameter)
         # Insert the edge array into the instrument DECLARE block
@@ -663,5 +756,5 @@ class FermiChopper(Chopper):
     its center, rotation vector parallel to its axis, and perpendicular to the path"""
     # `radius` describes the cylinder dimension
     # `windows` are the edges of the channels, as offsets from the central line
-    # `delay` is when the central line is aligned with the path
+    # `experiment_delay` is when the central line is aligned with the path
     curvature: Variable
