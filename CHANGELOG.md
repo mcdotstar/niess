@@ -8,6 +8,22 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+- **A component turned about two or three axes is placed as McStas places it.** McCode's
+  `ROTATED (x, y, z)` is `R_x R_y R_z` (`rot_set_rotation` in `mccode-r.c` builds its
+  transpose, which takes vectors into the component's frame). niess used `R_z R_y R_x`
+  in `mccode_ordered_angles`, `mccode_quaternion`, `mccode_angles_without_turn` and
+  `Frame.orientation`. A turn about one axis is the same either way, so BIFROST's
+  emitted instrument is unchanged. What did change:
+  - a calibrated orientation about several axes, in McStas and in NeXus, which takes
+    its angles from the same conversion;
+  - a `DiscChopper` that is both tilted and turned to put the beam away from the top of
+    its disc;
+  - a frame declared with angles on several axes, as CAD draws it;
+  - the scaffold reading a foreign instrument's multi-axis `ROTATED` (it now places
+    whatever hangs from such a component where McStas does).
+
 ## 0.12.0
 
 A disc chopper's timing has the knobs an ESS chopper controller has, with the same meaning,

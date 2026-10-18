@@ -92,7 +92,7 @@ class Mount(msgspec.Struct):
     primary's are, hangs from nothing.
 
     ``rotation`` turns the piece about the frame it hangs from, in degrees, in McCode's
-    ``ROTATED`` order -- the extrinsic x-y-z that :func:`niess.spatial.mccode_ordered_angles`
+    ``ROTATED`` order -- ``R_x R_y R_z``, as :func:`niess.spatial.mccode_ordered_angles`
     documents. Its three entries may be numbers or ``InstrumentParameter``s, because the
     interesting ones are driven at run time: a BIFROST run turns the sample by a3 and
     the detector tank by a4, and neither is known when the instrument is described.

@@ -1,6 +1,6 @@
 """Turning a rotation into the three angles a McCode instrument line carries.
 
-`ROTATED (x, y, z)` means `R_z(z) R_y(y) R_x(x)` applied on the left, so the conversion
+`ROTATED (x, y, z)` means `R_x(x) R_y(y) R_z(z)` applied on the left, so the conversion
 has one job: come back with a triple that rebuilds the rotation it was given. Which triple
 is not fixed -- more than one represents the same rotation, and at a singularity a whole
 family does -- so every test here asks whether the *rotation* survives the round trip
@@ -87,16 +87,18 @@ def test_the_angles_are_plain_floats():
     assert all(type(a) is float for a in mccode_ordered_angles(mccode_quaternion(1., 2., 3.)))
 
 
-def test_a_half_turn_about_z_commutes_the_way_it_should():
-    """`R_z(180) R_y(-t) == R_y(t) R_z(180)`: half a turn about z reverses the y sense.
+def test_a_tilted_and_turned_disc_keeps_its_tilt():
+    """A disc tilted with the guide and turned half a turn about the beam.
 
-    Which is what a chopper's beam-side flip relies on, so it is worth pinning here rather
-    than discovering it in an instrument.
+    `DiskChopper` turns a disc about its own z so the beam crosses it where its angles
+    say -- `orientation * turn`. McStas turns by x, then the new y, then the new z, so
+    that is written as the tilt and the turn as they are. The reversed order wrote
+    `(0, 0.56, 180)`: a disc whose beam crossed it at the bottom was tilted the wrong way.
     """
     from scipp.spatial import rotations_from_rotvecs
     tilt = rotations_from_rotvecs(vector(value=[0., -0.56, 0.], unit='deg'))
     flip = rotations_from_rotvecs(vector(value=[0., 0., 180.], unit='deg'))
-    assert mccode_ordered_angles(tilt * flip) == pytest.approx((0.0, 0.56, 180.0))
+    assert mccode_ordered_angles(tilt * flip) == pytest.approx((0.0, -0.56, 180.0))
 
 
 def test_gimbal_lock_is_not_announced_to_the_caller():
@@ -115,3 +117,31 @@ def test_gimbal_lock_is_not_announced_to_the_caller():
 def test_something_that_is_not_a_rotation_is_refused():
     with pytest.raises(ValueError, match='quaternion'):
         mccode_ordered_angles(vector(value=[0., 0., 1.], unit='m'))
+
+
+def mcstas_placement(x, y, z):
+    """How McStas places a component turned `ROTATED (x, y, z)`.
+
+    `rot_set_rotation` in mccode-r.c, verbatim. It is the matrix taking a vector into the
+    component's frame; `AT` positions use its transpose, which is the orientation.
+    """
+    cx, sx, cy, sy, cz, sz = (f(np.radians(a)) for a in (x, y, z) for f in (np.cos, np.sin))
+    t = np.array([[cy * cz, sx * sy * cz + cx * sz, sx * sz - cx * sy * cz],
+                  [-cy * sz, cx * cz - sx * sy * sz, sx * cz + cx * sy * sz],
+                  [sy, -sx * cy, cx * cy]])
+    return t.T
+
+
+@pytest.mark.parametrize('angles', [(0., 40., 0.), (30., 0., 40.), (10., 20., 30.),
+                                    (-75., 12., 140.)])
+def test_the_angles_place_a_component_as_mcstas_does(angles):
+    """Both ways: McStas's angles mean `mccode_quaternion`, and the angles extracted
+    from an orientation make McStas turn the component to that orientation.
+
+    Only a turn about two or more axes tells the orders apart, and the conversion had
+    them reversed: R_z R_y R_x, where McStas is R_x R_y R_z.
+    """
+    orientation = mccode_quaternion(*angles)
+    assert np.allclose(as_matrix(orientation), mcstas_placement(*angles))
+    extracted = mccode_ordered_angles(orientation)
+    assert np.allclose(mcstas_placement(*extracted), as_matrix(orientation))
