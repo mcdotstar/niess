@@ -27,8 +27,6 @@ CHOPPER_TOPIC = 'bifrost_choppers'
 #: checks, so a refresh that adds one is noticed.
 NOT_SIMULATED: dict[str, str] = {
     'source.': 'accelerator and target state, which a simulation does not have',
-    'goniometer_lower.': 'not simulated',
-    'goniometer_upper.': 'not simulated',
     'attenuator_': 'not simulated',
     'get_lost_tube.': 'not simulated',
     'sample_jaws.distance_from_guide_exit': 'niess places the sample jaws at a fixed '

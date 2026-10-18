@@ -421,7 +421,9 @@ def test_a_split_point_precedes_the_mount_that_asks_for_it():
     names = [c.name for c in components]
     assert [n for n in names if n.startswith('split_before_')] == ['split_before_sample']
     split = names.index('split_before_sample')
-    assert names[split + 1] == 'sample'
+    # the goniometer is more than one thing, so the mount's frame is an Arm of its own
+    assert names[split + 1:split + 5] == ['sample_mounting', 'goniometer_lower_axis',
+                                          'goniometer_upper_axis', 'sample']
     arm = components[split]
     assert arm.type.name == 'Arm'
     assert arm.at_relative[1].name == 'sample_origin'

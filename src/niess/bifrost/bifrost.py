@@ -2,6 +2,7 @@
 from ..instrument import Instrument, Mount, Motor, InstrumentParameter
 from .primary import Primary
 from .tank import Tank
+from .goniometer import Goniometer
 from ..utilities import calibration
 from ..components.component import Component
 from scipp import vector
@@ -15,8 +16,9 @@ _RENAMED = {'a3_source': 'sample_rotation_source', 'a4_source': 'detector_tank_a
 
 @calibration
 def instrument(params: dict):
-    """BIFROST: the primary spectrometer, a sample turned by `sample_rotation` (a3), and
-    the detector tank turned by `detector_tank_angle` (a4).
+    """BIFROST: the primary spectrometer, a sample turned by `sample_rotation` (a3) and
+    tilted by `goniometer_lower` and `goniometer_upper`, and the detector tank turned by
+    `detector_tank_angle` (a4).
 
     The two angles take ECDC's names, which are what the real instrument's file uses.
     They are in degrees, which is what ESS publishes them in.
@@ -39,6 +41,9 @@ def instrument(params: dict):
 
     a3 = Motor(name='sample_rotation', unit='degrees', source=sample_rotation_source,
                topic=motor_topic, default=0.0, pv_root=sample_rotation_pv_root)
+    lower, upper = (Motor(name=f'goniometer_{which}', unit='degrees',
+                          source=f'goniometer_{which}', topic=motor_topic, default=0.0)
+                    for which in ('lower', 'upper'))
     a4 = Motor(name='detector_tank_angle', unit='degrees', source=tank_angle_source,
                topic=motor_topic, default=0.0, pv_root=tank_angle_pv_root)
 
@@ -53,10 +58,11 @@ def instrument(params: dict):
         name='bifrost', origin=origin, parts=(
             Mount(name='primary', content=primary),
             # the latest place a scan of a3 or a4 can split the simulation; see Mount
-            Mount(name='sample', rotation=(0, a3, 0), relative_to=origin, content=sample,
+            Mount(name='sample', rotation=(0, a3, 0), relative_to=origin,
+                  content=Goniometer(sample=sample, lower=lower, upper=upper),
                   split_before=True),
             Mount(name='tank', rotation=(0, a4, 0), relative_to=origin, content=tank),
-        ), motors=(a3, a4), parameters=())
+        ), motors=(a3, lower, upper, a4), parameters=())
 
 
 BIFROST = instrument()

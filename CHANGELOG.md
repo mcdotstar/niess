@@ -23,6 +23,13 @@ is listed below with what replaces it.
   - a frame declared with angles on several axes, as CAD draws it;
   - the scaffold reading a foreign instrument's multi-axis `ROTATED` (it now places
     whatever hangs from such a component where McStas does).
+- BIFROST's sample sits on two goniometer tilts, `goniometer_lower` and
+  `goniometer_upper` (degrees, default 0), as ECDC chains them for the real instrument:
+  the sample depends on `goniometer_upper` (about x), then `goniometer_lower` (about z),
+  then `sample_rotation` (about y), so both tilt axes turn with the sample. Their streams
+  are bound to ECDC's `BIFRO-SpGon` motors. Each tilt is an `Arm` of its own in McStas,
+  `goniometer_lower_axis` and `goniometer_upper_axis`, and the sample's tree path is now
+  `sample/sample`. Zero, the default, is the goniometers removed.
 
 ## 0.12.0
 
