@@ -8,7 +8,11 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.13.0
+
+BIFROST's sample can be tilted on the real instrument's two goniometers, and a component
+turned about more than one axis is now placed where McStas places it. **Multi-axis
+orientations change, and the BIFROST sample's tree path is now `sample/sample`.**
 
 - **A component turned about two or three axes is placed as McStas places it.** McCode's
   `ROTATED (x, y, z)` is `R_x R_y R_z` (`rot_set_rotation` in `mccode-r.c` builds its
