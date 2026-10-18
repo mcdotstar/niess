@@ -44,7 +44,7 @@ def main(outdir: Path) -> None:
     try:
         to_assembly(bifrost.BIFROST, parameters={'a4': 60})
     except ValueError as error:
-        print(error)  # No frame turns by a4; the knobs are detector_tank_angle, sample_rotation
+        print(error)  # No frame turns by a4; the knobs are detector_tank_angle, goniometer_lower, ...
     # --8<-- [end:refused]
     else:
         raise AssertionError('a parameter no frame turns by was accepted')

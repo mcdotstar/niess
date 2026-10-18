@@ -26,11 +26,12 @@ def _root_subgraph(graph: nx.Graph, root: Hashable) -> nx.Graph:
 def test_bifrost(bifrost_instrument):
     from niess.tree import flow_graph
     graph = flow_graph(bifrost_instrument)
-    sub_graph = _root_subgraph(graph, 'sample')
+    # the sample sits in the goniometer, which the sample mount holds
+    sub_graph = _root_subgraph(graph, 'sample/sample')
 
     assert sub_graph.size() == 100
     for child in ('monitor', *[f'filter[{i}]' for i in range(9)]):
-        assert sub_graph.has_edge('sample', f'tank/{child}')
+        assert sub_graph.has_edge('sample/sample', f'tank/{child}')
 
     from niess.mccode import to_mccode
     instr = to_mccode(bifrost_instrument)

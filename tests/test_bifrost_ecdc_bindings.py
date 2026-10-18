@@ -156,6 +156,22 @@ def test_the_bound_axes_are_the_ones_ecdc_names(simulated):
         assert key in written, key
 
 
+def test_the_sample_hangs_from_the_goniometers_as_ecdc_chains_them(real):
+    """sample -> goniometer_upper (x) -> goniometer_lower (z) -> sample_rotation (y)."""
+    from niess.nexus.nodes import find_child
+    instrument = real['children'][0]['children'][0]
+    chain = []
+    path = find_child(find_child(instrument, 'sample'), 'depends_on')['config']['values']
+    while '/sample_origin/' not in path:
+        positioner, _ = path.removeprefix('/entry/instrument/').split('/')
+        value = find_child(find_child(instrument, positioner), 'value')
+        chain.append((positioner, get_attribute(value, 'vector')))
+        path = get_attribute(value, 'depends_on')
+    assert chain == [('goniometer_upper', [1.0, 0.0, 0.0]),
+                     ('goniometer_lower', [0.0, 0.0, 1.0]),
+                     ('sample_rotation', [0.0, 1.0, 0.0])]
+
+
 def test_divergence_slits_are_numbered_along_the_beam(instrument):
     """ECDC's slit 1 is the one furthest from the sample."""
     from niess.walk import visits
@@ -191,8 +207,9 @@ def test_each_simulated_log_names_a_parameter_in_the_published_unit(simulated, e
         assert declared[parameter] == stream['value_units'], key
         checked += 1
     # 6 discs x 5 knobs (speed, park, and three delays; pulse_delay is shared but each
-    # disc logs it), 2 x 3 divergence edges, 4 mask and 4 jaw edges, 2 angles
-    assert checked == 30 + 6 + 8 + 2
+    # disc logs it), 2 x 3 divergence edges, 4 mask and 4 jaw edges, 4 angles (sample
+    # rotation, two goniometer tilts, detector tank)
+    assert checked == 30 + 6 + 8 + 4
 
 
 def test_the_tdc_and_pulse_are_published_by_the_clock_not_a_parameter(simulated):

@@ -27,7 +27,7 @@ Each component is a named part of the file -- `moderator`, `pulse_shaping_choppe
 
 An instrument's run-time knobs are drawn at their declared defaults. Some of them move
 things: BIFROST's detector tank turns by `detector_tank_angle` (a4), its sample by
-`sample_rotation` (a3). Give their values, in degrees, by name:
+`sample_rotation` (a3) and tilts by `goniometer_lower` and `goniometer_upper`. Give their values, in degrees, by name:
 
 ```python
 --8<-- "export_to_cad.py:parameters"
