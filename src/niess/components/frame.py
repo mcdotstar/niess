@@ -122,7 +122,7 @@ class Frame(Base):
         return tuple(a.parameter() if isinstance(a, Motor) else a for a in angs)
 
     def angles(self) -> tuple:
-        """The turn as McCode-ordered angles: extrinsic x, then y, then z, in degrees.
+        """The turn as McCode-ordered angles, in degrees: ``R_x R_y R_z``.
 
         A rotation about one axis is that angle on that axis, exactly. Only a rotation
         about several needs composing, and only then is a quaternion involved -- which
@@ -171,12 +171,9 @@ class Frame(Base):
             angle = numbers[turning[0]] if turning else 0.0
             return rotations_from_rotvecs(
                 vector(value=[a * angle for a in axis], unit='degree'))
-        # several axes: compose them in McCode's own order, extrinsic x then y then z
-        turn = rotations_from_rotvecs(vector(value=[numbers[0], 0., 0.], unit='degree'))
-        for index, axis in ((1, [0., 1., 0.]), (2, [0., 0., 1.])):
-            step = [a * numbers[index] for a in axis]
-            turn = rotations_from_rotvecs(vector(value=step, unit='degree')) * turn
-        return turn
+        # several axes: compose them in McCode's own order
+        from ..spatial import mccode_quaternion
+        return mccode_quaternion(*numbers)
 
     def __niess_label__(self, label: str) -> str:
         """A frame is named, and things measured from it refer to it by that name."""

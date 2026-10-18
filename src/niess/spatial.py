@@ -198,13 +198,18 @@ def mccode_ordered_angles(orientation: Variable):
     """Determine the McCode ordered Euler angles that represent a quaternion
 
     In McCode instruments, a rotation is specified as (x, y, z), indicating the
-    ordered rotation, R_z(z) R_y(y) R_x(x), which is applied on the left of a vector,
-        v_rotated = R_z(z) R_y(y) R_x(x) v
+    ordered rotation, R_x(x) R_y(y) R_z(z), which is applied on the left of a vector,
+        v_rotated = R_x(x) R_y(y) R_z(z) v
 
     Each R matrix is the 'standard' rotation matrix with the noted axis constant,
               [1  0      0     ]          [ cos(y) 0 sin(y)]          [cos(z) -sin(z) 0]
         R_x = [0 cos(x) -sin(x)]    R_y = [ 0      1 0     ]    R_z = [sin(z)  cos(z) 0]
               [0 sin(x)  cos(x)]          [-sin(y) 0 cos(y)]          [0       0      1]
+
+    That is the coordinate system turned about x, then about its new y, then its new z.
+    McCode's runtime (``rot_set_rotation`` in ``mccode-r.c``) builds the transpose of this
+    matrix, because it uses the matrix to take a vector *into* the component's frame, and
+    places a component with its transpose -- which is this one.
 
     Parameters
     ----------
@@ -223,9 +228,11 @@ def mccode_ordered_angles(orientation: Variable):
     import warnings
     from scipy.spatial.transform import Rotation
 
-    # R_z(z) R_y(y) R_x(x) applied on the left is x, then y, then z about *fixed* axes,
-    # which is what scipy calls the extrinsic 'xyz' sequence -- in that order, so the
-    # triple comes back already in McCode's order.
+    # R_x(x) R_y(y) R_z(z) applied on the left is x, then y, then z about the *turning*
+    # axes, which is what scipy calls the intrinsic 'XYZ' sequence -- in that order, so
+    # the triple comes back already in McCode's order. This used to be the extrinsic
+    # 'xyz', R_z R_y R_x, which agrees about a single axis and turned anything rotated
+    # about two or three into a different orientation.
     #
     # This used to extract the angles by hand. Two things were wrong with that, and both
     # returned a different rotation rather than failing: the gimbal-lock guard tested
@@ -244,7 +251,7 @@ def mccode_ordered_angles(orientation: Variable):
     # ordinary ROTATED (0, 90, 0) should not raise an alarm from inside scipy.
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', 'Gimbal lock detected', UserWarning)
-        angles = Rotation.from_quat(orientation.value).as_euler('xyz', degrees=True)
+        angles = Rotation.from_quat(orientation.value).as_euler('XYZ', degrees=True)
     return float(angles[0]), float(angles[1]), float(angles[2])
 
 
@@ -258,9 +265,9 @@ def mccode_angles_without_turn(angles, rotvec_degrees):
     so the physical one is ``emitted * turn`` inverted.
     """
     from scipy.spatial.transform import Rotation
-    emitted = Rotation.from_euler('xyz', [float(a) for a in angles], degrees=True)
+    emitted = Rotation.from_euler('XYZ', [float(a) for a in angles], degrees=True)
     turn = Rotation.from_rotvec([float(a) for a in rotvec_degrees], degrees=True)
-    undone = (emitted * turn.inv()).as_euler('xyz', degrees=True)
+    undone = (emitted * turn.inv()).as_euler('XYZ', degrees=True)
     # Composing and decomposing rotations leaves a residue of order 1e-16 degrees on the
     # axes that should have come out at zero. Nobody means a rotation that small, and left
     # in it becomes a transformation in the emitted file that says "turn by nothing".
@@ -268,12 +275,13 @@ def mccode_angles_without_turn(angles, rotvec_degrees):
 
 
 def mccode_quaternion(x, y, z):
+    """The orientation McCode's ``ROTATED (x, y, z)`` means, in degrees: R_x R_y R_z."""
     from scipp import vector
     from scipp.spatial import rotations_from_rotvecs as r
     rx = r(vector([x, 0, 0], unit='deg'))
     ry = r(vector([0, y, 0], unit='deg'))
     rz = r(vector([0, 0, z], unit='deg'))
-    q = rz * ry * rx
+    q = rx * ry * rz
     return q
 
 
