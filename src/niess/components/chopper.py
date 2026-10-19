@@ -58,13 +58,15 @@ def disc_beam_offset(radius: Variable,
 def mechanical_delay(edges: list[float], beam: float, speed: float) -> float:
     """ESS ``MechDly-S`` in degrees, for slit ``edges`` and a beam crossing in degrees.
 
-    The first opening edge is NXdisk_chopper's ``slit_edges[0]``: of the opening edges
-    folded into one turn, the smallest -- which is what `Chopper.nexus_slit_edges` puts
-    first. ``speed`` only contributes its sign.
+    ESS measures it from the TDC to the *centre* of the disc's reference opening: the
+    one whose opening edge is NXdisk_chopper's ``slit_edges[0]``, i.e. of the opening
+    edges folded into one turn, the smallest -- which is what `Chopper.nexus_slit_edges`
+    puts first. ``speed`` only contributes its sign.
     """
-    first = min(opening % 360.0 for opening in edges[::2])
+    opening, closing = min(zip(edges[::2], edges[1::2]), key=lambda e: e[0] % 360.0)
+    centre = opening % 360.0 + (closing - opening) / 2
     sense = -1.0 if speed < 0 else 1.0
-    return (sense * (first - beam)) % 360.0
+    return (sense * (centre - beam)) % 360.0
 
 
 def experiment_delay(total: float, edges: list[float], beam: float, speed: float,
@@ -89,8 +91,8 @@ def _delays(cal: dict) -> dict:
         raise ValueError(
             f"{cal.get('name')}: 'delay' is no longer a calibration field. Give "
             f"'experiment_delay' (ESS ChopDly-S) and, if not zero, 'pulse_delay' (ESS "
-            f"BeamPosDly-S); slit_edges[0] is at the beam their sum after "
-            f"proton-on-target, and the total follows from the geometry.")
+            f"BeamPosDly-S); the reference opening is centred on the beam their sum "
+            f"after proton-on-target, and the total follows from the geometry.")
     return {key: cal.get(key, scalar(0.0, unit='ns'))
             for key in ('experiment_delay', 'pulse_delay')}
 
@@ -147,9 +149,10 @@ class Chopper(Component):
             f'pulse_delay/"ns"={float(self.pulse_delay.to(unit="ns").value)}')
 
     def mechanical_delay(self) -> float:
-        """ESS ``MechDly-S``, in degrees: from the TDC sensor to the first opening edge.
+        """ESS ``MechDly-S``, in degrees: from the TDC to the reference opening's centre.
 
-        The angle the disc turns from ``slit_edges[0]`` being at the beam to its zero mark
+        The angle the disc turns from the centre of the opening that starts at
+        ``slit_edges[0]`` being at the beam to its zero mark
         passing the TDC sensor, at ``zero_angle``. A real one is measured; here it follows
         from the geometry. It depends on which way the disc turns, so it is worked out for
         the calibrated direction -- as a real disc's is for the direction it was built for.
@@ -176,7 +179,8 @@ class Chopper(Component):
 
         The EPICS module ``evr_seq_calc`` forms the total the controller locks the TDC
         sensor to as ``MechDly/360/|Spd_S|·1e9 + BeamPosDly + ChopDly`` (ns), and this is
-        that. So ``slit_edges[0]`` is at the beam ``pulse_delay + experiment_delay`` after
+        that. So the reference opening -- the one starting at ``slit_edges[0]`` -- is
+        centred on the beam ``pulse_delay + experiment_delay`` after
         proton-on-target -- t=0 in McStas -- and the disc's zero mark passes the sensor at
         this time, which is what `NXdisk_chopper` and McStas' ``DiskChopper`` take as
         ``delay``. A disc not turning has no total; zero stands in for it.
@@ -320,8 +324,8 @@ class DiscChopper(Chopper):
     so the pairs stay ordered and each width is simply the difference.
 
     ``experiment_delay`` and ``pulse_delay`` are ESS's ``ChopDly-S`` and ``BeamPosDly-S``:
-    the first opening edge, ``slit_edges[0]``, is at the beam their sum after
-    proton-on-target. See `Chopper.delay_seconds` for the total they make, which is when
+    the reference opening, which starts at ``slit_edges[0]``, is centred on the beam
+    their sum after proton-on-target. See `Chopper.delay_seconds` for the total they make, which is when
     the zero mark passes the TDC sensor. Each opening is reached a fixed angle from it,
     which becomes a fixed time only once the speed is known, so that part is left to the
     generated C.
@@ -338,7 +342,7 @@ class DiscChopper(Chopper):
     """From the zero mark to where the beam crosses the disc."""
 
     #: The EPICS chopper controller this disc really is, when somebody has wired one up.
-    #: Every ESS chopper log hangs off it -- ``{pv_root}:Spd_R``, ``:TotDly``, and the
+    #: Every ESS chopper log hangs off it -- ``{pv_root}:SpdNexus-R``, ``:TotDly``, and the
     #: top-dead-centre channel ``{pv_root}:{tdc_channel}``.
     pv_root: str | None = None
     #: The TDC channel suffix, which is per-chopper rather than fixed: BIFROST's six
@@ -639,7 +643,7 @@ class NXDiskChopper(Chopper):
     """Angle of the disk when the frequency is zero"""
 
     #: The EPICS chopper controller this disc really is, when somebody has wired one up.
-    #: Every ESS chopper log hangs off it -- ``{pv_root}:Spd_R``, ``:TotDly``, and the
+    #: Every ESS chopper log hangs off it -- ``{pv_root}:SpdNexus-R``, ``:TotDly``, and the
     #: top-dead-centre channel ``{pv_root}:{tdc_channel}``. Without it a file can only be
     #: written in simulated mode, so dropping it in the move to `NXdisk_chopper` took
     #: real-mode NeXus away from every BIFROST disc.

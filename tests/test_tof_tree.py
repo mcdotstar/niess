@@ -49,7 +49,7 @@ def test_the_choppers_of_bifrost_are_what_they_are():
     assert [s.anticlockwise for s in specs] == [True] * 5 + [False]
     assert all(len(s.open) == len(s.close) == 1 for s in specs)
     # every experiment delay is zero, so each total is its mechanical delay alone:
-    # slit_edges[0] at the beam at t=0
+    # each reference opening centred on the beam at t=0
     from niess.components.chopper import DISC_CHOPPERS
     from niess.tof.mapping import delay_to_phase
     from niess.walk import visits

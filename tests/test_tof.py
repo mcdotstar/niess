@@ -86,13 +86,15 @@ def wrapped(delta, period):
 def niess_edge_time(edge, speed, *, edges=EDGES, delay=DELAY):
     """When the disc point `edge` degrees from the mark is on the beam.
 
-    The ESS rule niess follows, stated without its code: the first opening edge -- of the
-    opening edges folded into one turn, the smallest, NXdisk_chopper's `slit_edges[0]` --
-    is on the beam at the experiment delay (the pulse delay is zero here), and an edge at
-    `a` follows `(first - a) / (360 * speed)` later, with the speed signed.
+    The ESS rule niess follows, stated without its code: the centre of the reference
+    opening -- the one whose opening edge, folded into one turn, is the smallest,
+    NXdisk_chopper's `slit_edges[0]` -- is on the beam at the experiment delay (the pulse
+    delay is zero here), and a point at `a` follows `(centre - a) / (360 * speed)` later,
+    with the speed signed.
     """
-    first = min(opening % 360.0 for opening in edges[::2])
-    return delay + (first - edge) / (360.0 * speed)
+    opening, closing = min(zip(edges[::2], edges[1::2]), key=lambda e: e[0] % 360.0)
+    centre = opening % 360.0 + (closing - opening) / 2
+    return delay + (centre - edge) / (360.0 * speed)
 
 
 # -- the conversion --------------------------------------------------------------
@@ -138,15 +140,18 @@ def test_the_cutouts_open_when_the_niess_disc_opens(speed):
 def test_reversing_the_disc_is_not_the_same_chopper():
     """Or the test above could pass by symmetry rather than by being right.
 
-    The first opening edge is the exception, by design: it is on the beam at the
-    experiment delay whichever way the disc turns. 370 is that same edge, a turn on.
+    Only the reference opening's centre is on the beam at the experiment delay whichever
+    way the disc turns, by design, and with it the point half a turn away. No edge of
+    this disc is either.
     """
     period = 1.0 / 14.0
-    first = min(e % 360.0 for e in EDGES[::2])
     for edge in EDGES:
         forward, reverse = niess_edge_time(edge, 14.0), niess_edge_time(edge, -14.0)
-        same = abs(wrapped(forward - reverse, period)) < 1e-12
-        assert same == (edge % 360.0 == first), edge
+        assert abs(wrapped(forward - reverse, period)) > 1e-6, edge
+    centre = 20.0  # of the reference opening, [10, 30]
+    for point in (centre, centre + 180.0):
+        forward, reverse = niess_edge_time(point, 14.0), niess_edge_time(point, -14.0)
+        assert wrapped(forward - reverse, period) == pytest.approx(0.0, abs=1e-12)
 
 
 def test_the_phase_does_not_flip_with_the_direction():
@@ -266,7 +271,8 @@ def test_bifrost_becomes_a_chopper_cascade_that_chops():
     bifrost = Instrument(name='bifrost', origin='sample_origin', parts=(
         Mount(name='primary', content=Primary.from_calibration()),))
     # Every disc's zero mark at its sensor at t=0, which is where the knobs used to
-    # default: at their own defaults each first opening edge is on the beam at t=0, and
+    # default: at their own defaults each reference opening is centred on the beam at
+    # t=0, and
     # the pulse-shaping pair closes before the pulse has begun.
     from niess.components.chopper import DISC_CHOPPERS
     from niess.walk import visits

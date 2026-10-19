@@ -44,12 +44,31 @@ def bindings_path():
     return files(__name__) / 'bindings.yaml'
 
 
+#: PV suffixes niess replaces in ECDC's bindings, until ECDC does (MR !314). ESS's
+#: ``Spd_R``/``Spd_S`` are positive clockwise facing away from the source, NeXus's
+#: ``rotation_speed`` anticlockwise; the controllers serve the NeXus sign as
+#: ``SpdNexus-R``/``SpdNexus-RB`` (ECDC's Choppers page).
+CORRECTED_SUFFIXES: dict[str, tuple[str, str]] = {
+    '.rotation_speed': (':Spd_R', ':SpdNexus-R'),
+    '.rotation_speed_setpoint': (':Spd_S', ':SpdNexus-RB'),
+}
+
+
+def _corrected(binding):
+    from dataclasses import replace
+    for key_end, (wrong, right) in CORRECTED_SUFFIXES.items():
+        if binding.key.endswith(key_end) and binding.source.endswith(wrong):
+            return replace(binding, source=binding.source.removesuffix(wrong) + right)
+    return binding
+
+
 @cache
 def bindings():
-    """ECDC's bindings for BIFROST, keyed by NeXus path."""
+    """ECDC's bindings for BIFROST, keyed by NeXus path, with `CORRECTED_SUFFIXES`."""
     from types import MappingProxyType
     from ...nexus.bindings import load_bindings
-    return MappingProxyType(load_bindings(bindings_path()))
+    return MappingProxyType({key: _corrected(binding)
+                             for key, binding in load_bindings(bindings_path()).items()})
 
 
 #: Bindings niess writes although a prefix above would exclude them.

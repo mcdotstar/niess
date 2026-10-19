@@ -14,6 +14,11 @@ ECDC controls what the real file contains, so niess adopts their names rather th
 mapping its own names onto theirs. Do not edit `bindings.yaml` here: a change belongs
 upstream, and a local edit would be lost at the next refresh.
 
+Where niess knows ECDC's file to be wrong, it corrects the loaded bindings instead, in
+`niess.bifrost.ecdc.CORRECTED_SUFFIXES`: the chopper speeds are bound to `Spd_R`/`Spd_S`,
+whose sign is the opposite of NeXus's, rather than `SpdNexus-R`/`SpdNexus-RB` (raised
+on nexus-json-templates MR !314). Drop a correction once a refresh no longer needs it.
+
 ## Refreshing
 
 ```
