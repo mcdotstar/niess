@@ -8,6 +8,12 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+niess now needs mccode-antlr 0.35.0 or later. That release stopped writing extra blank
+lines and trailing spaces around an instrument's blocks (`METADATA`, `EXTEND` and the
+like), so the frozen `.instr` baselines are re-minted. Only whitespace changed.
+
 ## 0.13.0
 
 BIFROST's sample can be tilted on the real instrument's two goniometers, and a component
