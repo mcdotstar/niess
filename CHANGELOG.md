@@ -10,6 +10,10 @@ is listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+niess now needs mccode-antlr 0.35.0 or later. That release stopped writing extra blank
+lines and trailing spaces around an instrument's blocks (`METADATA`, `EXTEND` and the
+like), so the frozen `.instr` baselines are re-minted. Only whitespace changed.
+
 Chopper timing and speeds now follow ECDC's Choppers page. **Every disc's default
 `mechanical_delay` changes, and the chopper speeds are published on different PVs.**
 
