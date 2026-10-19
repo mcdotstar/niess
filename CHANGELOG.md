@@ -8,6 +8,25 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+Chopper timing and speeds now follow ECDC's Choppers page. **Every disc's default
+`mechanical_delay` changes, and the chopper speeds are published on different PVs.**
+
+- **`MechDly-S` is measured to the centre of the reference opening.** The reference
+  opening is the one that starts at `slit_edges[0]`. niess measured to that edge, so with
+  its default mechanical delay each opening was centred half its width early: 85° (16.9 ms
+  at 14 Hz) for BIFROST's pulse-shaping discs. `mechanical_delay()` now gives the angle to
+  the centre, which is 0° for every BIFROST disc, and `pulse_delay + experiment_delay`
+  after the proton pulse is when that centre is on the beam. The emitted instrument
+  differs only in the defaults of the `*_mechanical_delay` parameters. An experiment
+  delay computed for the old rule must be recomputed (chopcal's `chopcal.nicos` changes
+  with this).
+- **Chopper speeds are the NeXus-signed `SpdNexus-R` and `SpdNexus-RB`.** ESS's `Spd_R`
+  and `Spd_S` are positive clockwise facing away from the source, the opposite of
+  `NXdisk_chopper`. `CHOPPER_LOGS` uses the `SpdNexus-*` suffixes, and the vendored ECDC
+  bindings are read with `niess.bifrost.ecdc.CORRECTED_SUFFIXES` until ECDC changes them.
+
 ## 0.13.0
 
 BIFROST's sample can be tilted on the real instrument's two goniometers, and a component

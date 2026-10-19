@@ -472,13 +472,14 @@ def test_bifrost_no_longer_says_its_offsets():
 @pytest.mark.parametrize('speed', [14.0, -14.0, 28.0])
 @pytest.mark.parametrize('edges,beam', [([95.0, 265.0], 180.0),
                                         ([-10.0, 10.0, 60.0, 90.0, 200.0, 250.0], 37.0)])
-def test_the_first_opening_edge_is_at_the_beam_after_the_pulse_and_experiment_delays(
+def test_the_reference_opening_is_centred_after_the_pulse_and_experiment_delays(
         speed, edges, beam):
     """The ESS convention the total is built for, checked against NXdisk_chopper's motion.
 
     NXdisk_chopper.comp has the disc point ``beam - 360 nu (t - delay)`` at the beam, with
-    ``delay`` the total. ESS's controller sets ``slit_edges[0]`` -- NeXus's first opening
-    edge, 60 degrees for the second disc rather than its first-written -10 -- at the beam
+    ``delay`` the total. ESS's controller centres the reference opening -- the one that
+    starts at ``slit_edges[0]``, NeXus's first opening edge, which is 60 degrees for the
+    second disc rather than its first-written -10 -- on the beam
     ``pulse_delay + experiment_delay`` after proton-on-target, whichever way it turns.
     """
     from niess.components import NXDiskChopper
@@ -489,6 +490,7 @@ def test_the_first_opening_edge_is_at_the_beam_after_the_pulse_and_experiment_de
     after = 2.0e-3 + 10.0e-6
     total = after + disc.mechanical_delay() / (360.0 * abs(speed))
     at_beam = (beam - 360.0 * speed * (after - total)) % 360.0
-    assert min(abs(at_beam - disc.nexus_slit_edges()[0]) % 360.0,
-               360.0 - abs(at_beam - disc.nexus_slit_edges()[0]) % 360.0) \
+    opening, closing = disc.nexus_slit_edges()[:2]
+    centre = (opening + closing) / 2
+    assert min(abs(at_beam - centre) % 360.0, 360.0 - abs(at_beam - centre) % 360.0) \
         == pytest.approx(0.0, abs=1e-9)

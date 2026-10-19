@@ -131,9 +131,13 @@ def bound_log(log, attrs: dict[str, Any] | None = None) -> dict:
 #: that quantity on. `top_dead_center` is the odd one out twice over: it is a `tdct`
 #: stream rather than `f144`, and its suffix is per-chopper rather than fixed, so it
 #: comes from the disc instead of from here.
+#:
+#: The speeds are the ``SpdNexus-*`` PVs, not ``Spd_R``/``Spd_S``: ESS's own speed is
+#: positive clockwise facing away from the source, the opposite of NXdisk_chopper's, and
+#: the controllers serve it negated under these names for NeXus (ECDC's Choppers page).
 CHOPPER_LOGS = (
-    ('rotation_speed', ':Spd_R', 'Hz'),
-    ('rotation_speed_setpoint', ':Spd_S', 'Hz'),
+    ('rotation_speed', ':SpdNexus-R', 'Hz'),
+    ('rotation_speed_setpoint', ':SpdNexus-RB', 'Hz'),
     ('top_dead_center', None, None),
     ('delay', ':TotDly', 'ns'),
     ('experiment_delay', ':ChopDly-S', 'ns'),

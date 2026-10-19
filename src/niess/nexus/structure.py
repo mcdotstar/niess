@@ -204,7 +204,7 @@ class NexusContext(Context):
         """An NXlog for a named run-time value that is not a positioner axis.
 
         Chopper speed and delay come through here. They are knobs, but not motor
-        records: ESS spells a chopper as eight logs off a `{root}:Spd_R`-style root,
+        records: ESS spells a chopper as eight logs off a `{root}:SpdNexus-R`-style root,
         which is a different canonical shape from a positioner's three and is not yet
         written. So these keep the simulation's own names in both modes.
         """

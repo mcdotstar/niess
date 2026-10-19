@@ -147,6 +147,20 @@ def test_a_simulation_writes_only_what_it_has(simulated):
                        'pulse_delay', 'rotation_speed', 'top_dead_center']
 
 
+def test_chopper_speeds_are_the_nexus_signed_pvs(real, simulated):
+    """ESS's Spd_R/Spd_S are positive clockwise facing away from the source, NeXus's
+    rotation_speed anticlockwise. ECDC's file binds the former; niess corrects it to
+    the SpdNexus-* PVs the controllers serve for NeXus, in both kinds of file."""
+    real, simulated = streams_by_key(real), streams_by_key(simulated)
+    for disc in ('pulse_shaping_chopper_1', 'bandwidth_chopper_2'):
+        root = real[f'{disc}.delay']['source'].removesuffix(':TotDly')
+        assert real[f'{disc}.rotation_speed']['source'] == f'{root}:SpdNexus-R'
+        assert (real[f'{disc}.rotation_speed_setpoint']['source']
+                == f'{root}:SpdNexus-RB')
+        assert (simulated[f'{disc}.rotation_speed']['source']
+                == f'{SIMULATION_PREFIX}{root}:SpdNexus-R')
+
+
 def test_the_bound_axes_are_the_ones_ecdc_names(simulated):
     written = streams_by_key(simulated)
     for key in ('divergence_slit_1.left.value', 'divergence_slit_3.right.value',

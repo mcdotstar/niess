@@ -169,10 +169,10 @@ and declared in that log's unit:
 |---|---|---|---|---|
 | `{name}_experiment_delay` | `experiment_delay` | `ChopDly-S` | ns | what an experiment sets, and the one NICOS writes |
 | `pulse_delay` | `pulse_delay` | `BeamPosDly-S` | ns | proton-on-target to the wanted t0; one for the whole instrument |
-| `{name}_mechanical_delay` | `mechanical_delay` | `MechDly-S` | degrees | from the sensor to the first opening edge; defaults to the geometry's value |
+| `{name}_mechanical_delay` | `mechanical_delay` | `MechDly-S` | degrees | from the sensor to the reference opening's centre; defaults to the geometry's value |
 
-The first opening edge, NeXus's `slit_edges[0]`, is at the beam
-`pulse_delay + experiment_delay` after proton-on-target, which is t=0 in McStas. The
+The reference opening, the one that starts at NeXus's `slit_edges[0]`, is centred on
+the beam `pulse_delay + experiment_delay` after proton-on-target, which is t=0 in McStas. The
 total, `delay` (`{root}:TotDly`), is formed as the controller's `evr_seq_calc` forms it,
 `mechanical_delay / (360 |f|) + pulse_delay + experiment_delay`, and is when the mark
 passes the sensor. McStas works in seconds, so that is what the component gets:
@@ -185,10 +185,10 @@ delay = 1e-9 * (pulse_delay + {name}_experiment_delay)
 No knob feeds the `delay` log, so it names no `simulation_parameter`: whatever serves the
 simulation computes it the same way.
 
-`mechanical_delay` is the angle from `slit_edges[0]` being at the beam to the mark
-passing the sensor, `(slit_edges[0] - beam_position)` signed by the direction of
-rotation, modulo a turn. It is zero only when the first opening edge is on the beam
-while the mark is at the sensor. It is worked out for the calibrated direction, as a
+`mechanical_delay` is the angle from the reference opening's centre being at the beam
+to the mark passing the sensor, `(centre - beam_position)` signed by the direction of
+rotation, modulo a turn, as ECDC's Choppers page defines `MechDly-S`. It is zero only
+when that centre is on the beam while the mark is at the sensor. It is worked out for the calibrated direction, as a
 real disc's is for the direction it was built for; setting it to anything else times the
 disc as a mis-calibrated real one would be.
 
@@ -248,7 +248,7 @@ fill each log of the real instrument's file. It is keyed by where the log sits b
 ```yaml
 pulse_shaping_chopper_1.rotation_speed:
   schema: f144
-  source: BIFRO-ChpSy1:Chop-PSC-101:Spd_R
+  source: BIFRO-ChpSy1:Chop-PSC-101:SpdNexus-R
   topic: bifrost_choppers
   dtype: double
   value_units: Hz
@@ -260,7 +260,9 @@ root, so a per-disc TDC channel or a piezo motor's `PzMtr` record needs no speci
 For that to work niess names things as the file does. The file's key is then also the
 path niess writes the log at, and no mapping between the two names is kept.
 
-BIFROST carries a verbatim copy of ECDC's file:
+BIFROST carries a verbatim copy of ECDC's file, read with the few corrections listed
+in `niess.bifrost.ecdc.CORRECTED_SUFFIXES`: the chopper speeds come from the NeXus-signed
+`SpdNexus-R` and `SpdNexus-RB`, not ESS's clockwise-positive `Spd_R` and `Spd_S`.
 
 ```python
 from niess.bifrost import BIFROST
@@ -278,7 +280,7 @@ The default is a simulation made to look like the real instrument:
   flag, or a delay the electronics add has no counterpart in a simulation, and leaving
   them out is part of what says the file is simulated.
 - **Every EPICS source is prefixed** with `mcstas:`. The file names the real topics, but
-  `mcstas:BIFRO-ChpSy1:Chop-PSC-101:Spd_R` is never the real PV, so a simulated producer
+  `mcstas:BIFRO-ChpSy1:Chop-PSC-101:SpdNexus-R` is never the real PV, so a simulated producer
   that reached the real network could not impersonate a real motor or chopper. A source
   an event formation unit chooses (`source_type: efu`, such as a triplet's
   `arc=0;triplet=0`) is fixed by the EFU and left as it is.
