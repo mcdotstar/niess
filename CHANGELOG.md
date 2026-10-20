@@ -8,6 +8,25 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+niess fetches chopper-lib 4.4.0, whose `Polygon_ESS_butterfly` changes two things
+`PolygonESSModerator` passes on. **A `PolygonESSModerator` that left `resample` unset now
+resamples.**
+
+- **The moderator's depth.** ESS_butterfly emits from surfaces a few centimetres ahead of
+  and behind its origin, so a neutron can reach a disc over a shorter or a longer path
+  than the nominal one. The region was drawn from the origin alone and refused 0.15% of
+  what reaches BIFROST's sample. The component now takes the range from its own surfaces;
+  `emission_depth=False` restores the old region.
+- **`resample=True` is the default**, here as in the component: every ray is drawn from
+  inside the region and its weight multiplied by the region's share of the sampled plane,
+  about two hundred times the statistics per CPU second at BIFROST's sample. Time
+  focusing, `use_region=False` and a `noise_fraction` need `resample=False`; the component
+  refuses them otherwise.
+
+`ESSModerator` is unchanged and still BIFROST's default.
+
 ## 0.14.0
 
 niess now needs mccode-antlr 0.35.0 or later. That release stopped writing extra blank

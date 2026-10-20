@@ -131,9 +131,14 @@ class PolygonESSModerator(ESSModerator):
 
     chopper-lib's ``Polygon_ESS_butterfly``: an ``ESS_butterfly`` that works out, at run
     time, the exact region of (inverse velocity, emission time) the chopper train
-    transmits, and absorbs -- or with ``resample``, redraws -- every ray outside it.
-    Nothing reaching the sample changes; the rays that would have died on a disc are
-    simply not spent.
+    transmits, and redraws every ray outside it from inside it, correcting the weight --
+    or with ``resample=False``, absorbs it. Nothing reaching the sample changes; the rays
+    that would have died on a disc are simply not spent. On BIFROST's primary that is
+    about two hundred times the statistics per CPU second at the sample.
+
+    Only after the last disc, though: a monitor between discs sees only what *every* disc
+    passes, which is not what the real instrument shows there. Test anything before the
+    last disc with the plain `ESSModerator`.
 
     The component reads the train as a pointer and a count, which `niess.chopcalc`
     publishes under `train_identifier`. So an instrument with this moderator has to be
@@ -155,8 +160,12 @@ class PolygonESSModerator(ESSModerator):
     """Accept a ray outside the region with this probability."""
     use_region: bool = True
     """Limit emission to the transmitted region. False makes this an `ESSModerator`."""
-    resample: bool = False
-    """Redraw a ray outside the region from inside it, correcting its weight."""
+    resample: bool = True
+    """Redraw a ray outside the region from inside it, correcting its weight; False
+    absorbs it, which time focusing, ``use_region=False`` and a ``noise_fraction`` need."""
+    emission_depth: bool = True
+    """Allow for the moderator surfaces standing ahead of and behind its origin, so a ray
+    can reach a disc over a shorter or longer path than the nominal one."""
     save_polygons: bool = True
     """Write the transmitted region to ``{filename}.json``."""
     verify_acceptance: bool = True
@@ -167,7 +176,8 @@ class PolygonESSModerator(ESSModerator):
     #: The component's own defaults, so only what differs is emitted.
     _COMPONENT_DEFAULTS = {
         'path_spread_fraction': 0.0, 'noise_fraction': 0.0, 'use_region': True,
-        'resample': False, 'save_polygons': True, 'verify_acceptance': True,
+        'resample': True, 'emission_depth': True, 'save_polygons': True,
+        'verify_acceptance': True,
     }
 
     @classmethod
