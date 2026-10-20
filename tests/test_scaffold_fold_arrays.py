@@ -9,7 +9,7 @@ back as nothing, and a vector-valued symbol was never substituted.
 
 No component registry is needed: the components are in-memory stand-ins whose
 SETTING PARAMETERS copy the real ones (`NXdisk_chopper` from mcstas-chopper-lib
-v4.4.0, `niess.chopcalc.emit.CHOPPER_LIB_REGISTRY`), with empty bodies.
+v4.4.1, `niess.chopcalc.emit.CHOPPER_LIB_REGISTRY`), with empty bodies.
 """
 from textwrap import dedent
 

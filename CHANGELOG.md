@@ -8,6 +8,15 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+niess fetches chopper-lib 4.4.1. A parked disk now counts as open while any of the beam
+crosses one of its openings, judged over the beam's width on the disk (its `aperture`),
+not only at the beam's centre. Before, a `PolygonESSModerator` refused to run -- "Choppers
+allow no transmission" -- at park angles where the centre of the beam was on the solid
+part of a disk and the rest went through, which is half of every edge in a park-angle
+scan. Nothing changes for a disk that is turning, or parked wholly open or wholly shut.
+
 ## 0.15.0
 
 niess fetches chopper-lib 4.4.0, whose `Polygon_ESS_butterfly` changes two things

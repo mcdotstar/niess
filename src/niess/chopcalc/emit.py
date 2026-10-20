@@ -8,8 +8,10 @@ from .model import ChopperTrain, Export
 #: The release fetched. 4.4.0 changes nothing `niess.chopcalc` calls, so the guard below
 #: stays at 4.2.1; what it changes is `Polygon_ESS_butterfly`, which allows for the depth
 #: of the moderator's emission surfaces and resamples by default -- see
-#: `niess.components.PolygonESSModerator`.
-CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.4.0'
+#: `niess.components.PolygonESSModerator`. 4.4.1 counts a parked disk open while any of
+#: the beam crosses an opening, not only its centre, so a park-angle scan with the polygon
+#: source sees each edge ramp rather than stopping the run.
+CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.4.1'
 #: 4.2.1, not 4.1.0, and the reason is `chopper_wavelength_limits` -- the one
 #: function this module calls. It goes through `range_set_sort`, which until 4.2.1
 #: "gave different answers on different platforms, which is how a chopper train's
