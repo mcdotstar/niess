@@ -8,7 +8,7 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.15.1
 
 niess fetches chopper-lib 4.4.1. A parked disk now counts as open while any of the beam
 crosses one of its openings, judged over the beam's width on the disk (its `aperture`),
