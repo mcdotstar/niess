@@ -5,9 +5,11 @@ from textwrap import indent
 
 from .model import ChopperTrain, Export
 
-#: The release fetched. 4.2.2 changes nothing niess calls -- it licenses the library and
-#: offers `Polygon_ESS_butterfly` to McCode -- so the guard below stays at 4.2.1.
-CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.2.2'
+#: The release fetched. 4.4.0 changes nothing `niess.chopcalc` calls, so the guard below
+#: stays at 4.2.1; what it changes is `Polygon_ESS_butterfly`, which allows for the depth
+#: of the moderator's emission surfaces and resamples by default -- see
+#: `niess.components.PolygonESSModerator`.
+CHOPPER_LIB_REGISTRY = 'mcdotstar/mcstas-chopper-lib@v4.4.0'
 #: 4.2.1, not 4.1.0, and the reason is `chopper_wavelength_limits` -- the one
 #: function this module calls. It goes through `range_set_sort`, which until 4.2.1
 #: "gave different answers on different platforms, which is how a chopper train's

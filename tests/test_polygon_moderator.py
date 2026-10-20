@@ -60,12 +60,15 @@ def test_it_emits_polygon_ess_butterfly_reading_the_train():
 def test_only_what_differs_from_the_component_is_emitted():
     """The component's defaults are its own; repeating them would only be noise."""
     plain = moderator_instance(emitted(polygon_teaching()))
-    for name in ('resample', 'use_region', 'path_spread_fraction', 'filename'):
+    for name in ('resample', 'emission_depth', 'use_region', 'path_spread_fraction',
+                 'filename'):
         assert parameter(plain, name) is None, name
 
     chosen = moderator_instance(emitted(polygon_teaching(
-        resample=True, path_spread_fraction=1e-4, filename='region', chopper_train='train')))
-    assert parameter(chosen, 'resample') == '1'
+        resample=False, emission_depth=False, path_spread_fraction=1e-4, filename='region',
+        chopper_train='train')))
+    assert parameter(chosen, 'resample') == '0'
+    assert parameter(chosen, 'emission_depth') == '0'
     assert float(parameter(chosen, 'path_spread_fraction')) == 1e-4
     assert parameter(chosen, 'filename') == '"region"'
     assert parameter(chosen, 'choppers') == '(double *) train'
@@ -148,7 +151,7 @@ def test_it_round_trips_through_json():
     from niess.io.json import from_json, to_json
 
     moderator = PolygonESSModerator.from_calibration(
-        {'name': 'moderator', 'resample': True, 'chopper_train': 'train'})
+        {'name': 'moderator', 'resample': False, 'chopper_train': 'train'})
     assert from_json(to_json(moderator)) == moderator
 
 
