@@ -8,7 +8,7 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.15.0
 
 niess fetches chopper-lib 4.4.0, whose `Polygon_ESS_butterfly` changes two things
 `PolygonESSModerator` passes on. **A `PolygonESSModerator` that left `resample` unset now
