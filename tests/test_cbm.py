@@ -210,8 +210,21 @@ def test_efu_monitors_publish_what_the_efu_does(instrument):
     # where ECDC histograms a monitor, the file says exactly what ECDC's does
     for name in MONITORS[:3]:
         bound = bindings()[f'{name}.data']
-        for key in ('variables', 'constants', 'attributes'):
+        for key in ('variables', 'attributes'):
             assert streams[name][key] == bound.extra[key]
+        # plus the edges, which ECDC leaves to the EFU's first message
+        constants = [{k: v for k, v in c.items() if k != 'data'}
+                     for c in streams[name]['constants']]
+        assert constants == bound.extra['constants']
+
+
+def test_the_file_writer_is_given_the_efus_frame_time_edges():
+    from niess.cbm import CbmChannel
+    edges = CbmChannel(fen=0, source='cbm1').frame_time_edges()
+    # what EFU 3.1 published into BIFROST files: 745 edges, 96006 ns apart
+    assert len(edges) == 745
+    assert edges[:3] == [0, 96006, 192012]
+    assert edges[-1] == 71428464
 
 
 def test_otherwise_monitors_publish_mcstas_histograms(instrument):
