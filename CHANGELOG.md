@@ -8,6 +8,16 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## 0.15.2
+
+The file-writer configuration for a cbm monitor histogrammed by the EFU now carries its
+`frame_time` bin edges, computed as EFU 3.1 does: an integer bin width of
+`max_tof_bin // bin_count` from 0. kafka-to-nexus otherwise copies the edges from the
+first message it reads for the source, and when that message came from something else --
+McStas publishing its own histogram, say -- `frame_time` stayed zero for the whole file,
+which ess.reduce cannot convert to wavelength. `CbmChannel.frame_time_edges()` returns the
+same edges.
+
 ## 0.15.1
 
 niess fetches chopper-lib 4.4.1. A parked disk now counts as open while any of the beam
