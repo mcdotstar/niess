@@ -81,11 +81,23 @@ class CbmChannel(msgspec.Struct, kw_only=True, frozen=True):
             entry |= {'PixelOffset': self.pixel_offset, 'PixelRange': 1}
         return entry
 
+    def frame_time_edges(self) -> list[int]:
+        """The da00 ``frame_time`` bin edges, in ns, exactly as the cbm EFU computes them.
+
+        EFU 3.1 builds them in integers: a bin width of ``max_tof_bin // bin_count`` from
+        0, so the last edge can fall short of ``max_tof_bin``.
+        """
+        width = self.max_tof_bin // self.bin_count
+        return [i * width for i in range(self.bin_count + 1)]
+
     def stream(self, topic: str) -> dict:
         """The stream selection for what the EFU publishes, as a NeXus file reads it.
 
         The da00 shape is the EFU's: a ``uint32`` ``signal`` over ``frame_time`` bin
-        edges in nanoseconds. It is what ECDC binds for BIFROST's histogramming monitors.
+        edges in nanoseconds. It is what ECDC binds for BIFROST's histogramming monitors,
+        plus the edges themselves: the file-writer otherwise copies them from the first
+        message it reads for the source, and a first message from anything else (McStas
+        publishing its own histogram, say) leaves them at zero for the whole file.
         """
         selection = {'module': self.schema, 'topic': topic, 'source': self.source}
         if self.schema == 'da00':
@@ -100,7 +112,7 @@ class CbmChannel(msgspec.Struct, kw_only=True, frozen=True):
                                'unit': 'dimensionless'}],
                 'constants': [{'name': 'frame_time', 'data_type': 'int32',
                                'axes': ['frame_time'], 'shape': [self.bin_count + 1],
-                               'unit': 'ns'}],
+                               'unit': 'ns', 'data': self.frame_time_edges()}],
             }
         return selection
 
