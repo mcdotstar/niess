@@ -91,3 +91,16 @@ def test_it_sits_on_bifrosts_sample_table():
     # after the split, so a sample change keeps restage's cached primary
     assert names.index('split_before_sample') < at
     assert any('int sample_switch;' in u.source for u in instr.user)
+
+
+def test_a_remounted_sample_sits_at_its_offset_on_the_stack():
+    from niess.bifrost.bifrost import instrument
+    from niess.mccode import to_mccode
+    s = sample(powder('Al2O3_sapphire.laz', ROD), offset=(0, 0.002, -0.001))
+    assert list(s.scatterers[0].position.value) == [0.0, 0.002, -0.001]
+    # the choice stays at the sample position, and the rest of BIFROST is unmoved
+    assert list(s.choice.position.value) == [0.0, 0.0, 0.0]
+    powder_at = {c.name: c for c in to_mccode(instrument(sample=s)).components}['powder'].at_relative
+    assert [float(str(v)) for v in powder_at[0]] == [0.0, 0.002, -0.001]
+    with pytest.raises(ValueError, match='offset'):
+        sample(vanadium(ROD), offset=(0, 0.002))

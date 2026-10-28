@@ -156,15 +156,24 @@ def targets(tank_height: float = 3.0) -> tuple[Target, Target]:
     return analyzers, elastic
 
 
-def _here() -> dict:
+def _here(offset=(0., 0., 0.)) -> dict:
     from scipp import vector
     from scipp.spatial import rotations_from_rotvecs
-    return dict(position=vector([0., 0., 0.], unit='m'),
+    return dict(position=vector([float(x) for x in offset], unit='m'),
                 orientation=rotations_from_rotvecs(vector([0., 0., 0.], unit='deg')))
 
 
-def sample(*processes: Process, tank_height: float = 3.0) -> Sample:
-    """The processes as one sample; see the module docstring."""
+def sample(*processes: Process, offset=(0., 0., 0.), tank_height: float = 3.0) -> Sample:
+    """The processes as one sample; see the module docstring.
+
+    ``offset`` is where the sample is mounted, in metres, from the sample position in the
+    frame of the stack it sits on: it turns with ``sample_rotation`` and the goniometers,
+    so at zero rotation x is across the beam, y up and z along it. Remounting a sample
+    off-centre and measuring again is a new `sample` with another offset. The focusing
+    targets keep their directions, which for millimetres is what the real sample sees.
+    """
+    if len(offset) != 3:
+        raise ValueError(f'offset is (x, y, z) in metres, not {offset!r}')
     if not processes:
         raise ValueError('a sample needs at least one process')
     names = [p.name for p in processes]
@@ -200,7 +209,7 @@ def sample(*processes: Process, tank_height: float = 3.0) -> Sample:
             parameters = dict(process.parameters) | (target.mccode() if target else {})
             scatterers.append(Opaque(
                 name=f'{process.name}{suffix}', mccode_type=process.mccode_type,
-                mccode_parameters=parameters, **_here(),
+                mccode_parameters=parameters, **_here(offset),
                 extend='event_time_zero = t;', when=f'sample_switch == {i}{when}'))
     return Sample(choice=choice, scatterers=tuple(scatterers))
 
