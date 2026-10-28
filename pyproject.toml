@@ -81,6 +81,12 @@ path = ".venv"
 [tool.hatch.envs.hatch-test]
 features = ["tof", "brep"]
 
+# Hatch's own matrix follows its releases -- 1.18 put 3.15 first -- and `hatch test` takes
+# the first Python it finds, which on macOS became one build123d's OCP has no wheels for.
+# Listed here, a new Python is tested when it is added, not when Hatch or a runner has it.
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.14", "3.13", "3.12", "3.11"]
+
 [tool.hatch.envs.docs]
 # brep: the CAD gallery's models are drawn when the site is built
 features = ["docs", "test", "brep"]
