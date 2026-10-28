@@ -8,6 +8,19 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+`niess.bifrost.samples` builds exchangeable simulated samples for BIFROST from McStas'
+own sample components: `vanadium` (`Incoherent`), `powder` (`PowderN`), `tunneling`
+(`Tunneling_sample`), `spinwave` (`SpinWave_BCO`), `isotropic_sqw`, `crystal` and
+`crystal_sqw`, each a `Process` with a share of the neutrons. `sample(*processes)` makes
+them one `Sample` for `instrument(sample=...)`. Each neutron goes to one process; one that
+can focus aims at the analyzers or at the elastic monitor. The weights are corrected for
+both choices, and the targets come from the tank's calibration. `Cylinder` and `Box` give
+McStas and NXsample the same dimensions. A data file given as a `pathlib.Path` is written
+as an absolute path, so it no longer depends on the directory the simulation runs in. `sample(..., offset=(x, y, z))` mounts
+the sample off the sample position, in the frame of the stack it sits on.
+
 ## 0.15.2
 
 The file-writer configuration for a cbm monitor histogrammed by the EFU now carries its
