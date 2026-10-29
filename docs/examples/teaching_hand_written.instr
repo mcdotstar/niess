@@ -13,8 +13,8 @@ DEFINE INSTRUMENT teaching_hand_written(
   chopper_experiment_delay = 0.0,
   chopper_mechanical_delay = 275.0,
   pulse_delay = 0.0,
-  jaw_left = -15.0,
-  jaw_right = 15.0
+  jaw_left = 15.0,
+  jaw_right = -15.0
 )
 
 TRACE
@@ -39,7 +39,7 @@ COMPONENT chopper = DiskChopper(
 ) AT (0, 0, 3.25) RELATIVE unit_2
 
 COMPONENT jaw = Slit(
-  xmin = 0.001 * jaw_left, xmax = 0.001 * jaw_right, yheight = 0.05
+  xmin = 0.001 * jaw_right, xmax = 0.001 * jaw_left, yheight = 0.05
 ) AT (0, 0, 3.75) RELATIVE unit_2
 
 COMPONENT monitor = TOF_monitor(
