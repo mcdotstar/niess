@@ -36,6 +36,16 @@ NOT_SIMULATED: dict[str, str] = {
                      'must describe what McStas produces rather than what the cbm EFU '
                      'would; with efu_monitors=True each publishes what its CbmChannel '
                      'configures the EFU to',
+    '_chopper_1.status': 'the drive state, which a simulated disc does not have',
+    '_chopper_2.status': 'the drive state, which a simulated disc does not have',
+    '.in_phase': 'phase-lock state; a simulated disc is always in phase',
+    '.park_angle_setpoint': 'a simulated disc stands where `park_angle` says; it has '
+                            'no separate setpoint',
+    '.park_status': 'the drive state, which a simulated disc does not have',
+    '.park_open_angle': "the drive's configured park positions, which niess does not "
+                        'model',
+    '.park_closed_angle': "the drive's configured park positions, which niess does not "
+                          'model',
 }
 
 
@@ -44,7 +54,9 @@ def bindings_path():
     return files(__name__) / 'bindings.yaml'
 
 
-#: PV suffixes niess replaces in ECDC's bindings, until ECDC does (MR !314). ESS's
+#: PV suffixes niess replaces in ECDC's bindings, until ECDC does (MR !314,
+#: ECDC-5388: the IOCs don't serve ``SpdNexus-*`` yet, and CODA's PV simulator inverts
+#: the speeds meanwhile). ESS's
 #: ``Spd_R``/``Spd_S`` are positive clockwise facing away from the source, NeXus's
 #: ``rotation_speed`` anticlockwise; the controllers serve the NeXus sign as
 #: ``SpdNexus-R``/``SpdNexus-RB`` (ECDC's Choppers page).

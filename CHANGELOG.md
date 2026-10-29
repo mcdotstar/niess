@@ -21,6 +21,13 @@ McStas and NXsample the same dimensions. A data file given as a `pathlib.Path` i
 as an absolute path, so it no longer depends on the directory the simulation runs in. `sample(..., offset=(x, y, z))` mounts
 the sample off the sample position, in the frame of the stack it sits on.
 
+The vendored ECDC bindings are refreshed to `bifrost-nexus-config` 0.3.2. Each chopper
+gains `status`, `in_phase`, `park_angle_setpoint`, `park_status`, `park_open_angle` and
+`park_closed_angle` streams, which a simulated disc does not have, so niess does not write
+them (`NOT_SIMULATED`). The structure niess writes is unchanged. ECDC's `instrument.yaml`
+now gives each disc a `beam_position`; niess keeps its own, which agrees with its
+`slit_edges` and mechanical delay, while ECDC's are placeholders.
+
 ## 0.15.2
 
 The file-writer configuration for a cbm monitor histogrammed by the EFU now carries its

@@ -70,7 +70,7 @@ def streams_by_key(structure) -> dict[str, dict]:
 # -- the vendored file ------------------------------------------------------------
 
 def test_the_vendored_file_is_readable_and_complete(bindings):
-    assert len(bindings) == 181
+    assert len(bindings) == 217
     for binding in bindings.values():
         assert binding.schema in ('f144', 'tdct', 'ev44', 'da00'), binding.key
         assert binding.source_type in ('forwarder', 'efu'), binding.key
