@@ -8,7 +8,7 @@ source fill each log.
 | | |
 |---|---|
 | repository | `git@gitlab.esss.lu.se:ecdc/ess-nexus-configs/bifrost-nexus-config.git` |
-| commit | `a8ede8573fe1c0b91b01c3d4232cd25da4a0c070` (2026-09-29) |
+| commit | `cf47ad58e54cc95efdd55f1096639535f0260860`, tag `0.3.2` (2026-10-19) |
 
 ECDC controls what the real file contains, so niess adopts their names rather than
 mapping its own names onto theirs. Do not edit `bindings.yaml` here: a change belongs
@@ -17,7 +17,7 @@ upstream, and a local edit would be lost at the next refresh.
 Where niess knows ECDC's file to be wrong, it corrects the loaded bindings instead, in
 `niess.bifrost.ecdc.CORRECTED_SUFFIXES`: the chopper speeds are bound to `Spd_R`/`Spd_S`,
 whose sign is the opposite of NeXus's, rather than `SpdNexus-R`/`SpdNexus-RB` (raised
-on nexus-json-templates MR !314). Drop a correction once a refresh no longer needs it.
+on nexus-json-templates MR !314; ECDC-5388 tracks the IOCs serving them). Drop a correction once a refresh no longer needs it.
 
 ## Refreshing
 

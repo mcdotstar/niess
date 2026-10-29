@@ -276,6 +276,48 @@ pulse_shaping_chopper_1.top_dead_center:
   source: BIFRO-ChpSy1:Chop-PSC-101:00-TS-I
   topic: bifrost_choppers
   source_type: forwarder
+pulse_shaping_chopper_1.status:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:ChopState_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+pulse_shaping_chopper_1.in_phase:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:InPhaseTS-R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+pulse_shaping_chopper_1.park_angle_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:ParkS_RB
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+pulse_shaping_chopper_1.park_status:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:ParkStatus_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+pulse_shaping_chopper_1.park_open_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:ParkPosOpen_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+pulse_shaping_chopper_1.park_closed_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-101:ParkPosClose_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
 pulse_shaping_chopper_2.rotation_speed:
   schema: f144
   source: BIFRO-ChpSy1:Chop-PSC-102:Spd_R
@@ -329,6 +371,48 @@ pulse_shaping_chopper_2.top_dead_center:
   schema: tdct
   source: BIFRO-ChpSy1:Chop-PSC-102:01-TS-I
   topic: bifrost_choppers
+  source_type: forwarder
+pulse_shaping_chopper_2.status:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:ChopState_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+pulse_shaping_chopper_2.in_phase:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:InPhaseTS-R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+pulse_shaping_chopper_2.park_angle_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:ParkS_RB
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+pulse_shaping_chopper_2.park_status:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:ParkStatus_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+pulse_shaping_chopper_2.park_open_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:ParkPosOpen_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+pulse_shaping_chopper_2.park_closed_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-PSC-102:ParkPosClose_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
   source_type: forwarder
 psc_monitor.data:
   schema: da00
@@ -406,6 +490,48 @@ frame_overlap_chopper_1.top_dead_center:
   source: BIFRO-ChpSy1:Chop-FOC-101:02-TS-I
   topic: bifrost_choppers
   source_type: forwarder
+frame_overlap_chopper_1.status:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:ChopState_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+frame_overlap_chopper_1.in_phase:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:InPhaseTS-R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+frame_overlap_chopper_1.park_angle_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:ParkS_RB
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+frame_overlap_chopper_1.park_status:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:ParkStatus_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+frame_overlap_chopper_1.park_open_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:ParkPosOpen_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+frame_overlap_chopper_1.park_closed_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-101:ParkPosClose_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
 frame_overlap_chopper_2.rotation_speed:
   schema: f144
   source: BIFRO-ChpSy1:Chop-FOC-201:Spd_R
@@ -459,6 +585,48 @@ frame_overlap_chopper_2.top_dead_center:
   schema: tdct
   source: BIFRO-ChpSy1:Chop-FOC-201:03-TS-I
   topic: bifrost_choppers
+  source_type: forwarder
+frame_overlap_chopper_2.status:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:ChopState_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+frame_overlap_chopper_2.in_phase:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:InPhaseTS-R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+frame_overlap_chopper_2.park_angle_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:ParkS_RB
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+frame_overlap_chopper_2.park_status:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:ParkStatus_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+frame_overlap_chopper_2.park_open_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:ParkPosOpen_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+frame_overlap_chopper_2.park_closed_angle:
+  schema: f144
+  source: BIFRO-ChpSy1:Chop-FOC-201:ParkPosClose_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
   source_type: forwarder
 overlap_monitor.data:
   schema: da00
@@ -536,6 +704,48 @@ bandwidth_chopper_1.top_dead_center:
   source: BIFRO-ChpSy2:Chop-BWC-101:00-TS-I
   topic: bifrost_choppers
   source_type: forwarder
+bandwidth_chopper_1.status:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:ChopState_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+bandwidth_chopper_1.in_phase:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:InPhaseTS-R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+bandwidth_chopper_1.park_angle_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:ParkS_RB
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+bandwidth_chopper_1.park_status:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:ParkStatus_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+bandwidth_chopper_1.park_open_angle:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:ParkPosOpen_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+bandwidth_chopper_1.park_closed_angle:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-101:ParkPosClose_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
 bandwidth_chopper_2.rotation_speed:
   schema: f144
   source: BIFRO-ChpSy2:Chop-BWC-102:Spd_R
@@ -589,6 +799,48 @@ bandwidth_chopper_2.top_dead_center:
   schema: tdct
   source: BIFRO-ChpSy2:Chop-BWC-102:01-TS-I
   topic: bifrost_choppers
+  source_type: forwarder
+bandwidth_chopper_2.status:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:ChopState_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+bandwidth_chopper_2.in_phase:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:InPhaseTS-R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+bandwidth_chopper_2.park_angle_setpoint:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:ParkS_RB
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+bandwidth_chopper_2.park_status:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:ParkStatus_R
+  topic: bifrost_choppers
+  dtype: int32
+  value_units: ''
+  source_type: forwarder
+bandwidth_chopper_2.park_open_angle:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:ParkPosOpen_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
+  source_type: forwarder
+bandwidth_chopper_2.park_closed_angle:
+  schema: f144
+  source: BIFRO-ChpSy2:Chop-BWC-102:ParkPosClose_R
+  topic: bifrost_choppers
+  dtype: double
+  value_units: degrees
   source_type: forwarder
 bandwidth_monitor.data:
   schema: da00
