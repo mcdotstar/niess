@@ -48,8 +48,14 @@ class Aperture(Component):
         as (``sample_jaws.left.value``), and in millimetres, as ESS publishes a jaw.
         The conversion to metres happens where the knob is inserted into the McStas
         component -- see `__mccode__`.
+
+        Each knob is the edge's signed coordinate. ``left`` is the edge at ``+x``, as
+        ESS has it: McStas and NeXus put ``+x`` on the left looking downstream, and
+        ECDC binds every ``left`` edge to an ``SlYp`` (``+Y``) motor, PV ``Y`` being
+        NeXus ``x``. So an open, centred jaw has ``left`` positive and ``right``
+        negative.
         """
-        signs = {'left': -1, 'right': 1, 'bottom': -1, 'top': 1}
+        signs = {'left': 1, 'right': -1, 'bottom': -1, 'top': 1}
         return {edge: f'{self.name}_{edge}/"mm" = {signs[edge] * size}'
                 for edge, size in half.items()}
 
@@ -68,8 +74,8 @@ class Aperture(Component):
 
         params = {}
         if all(x in edges for x in ('left', 'right')):
-            params['xmin'] = metres('left')
-            params['xmax'] = metres('right')
+            params['xmin'] = metres('right')
+            params['xmax'] = metres('left')
         else:
             params['xwidth'] = self.width.to(unit='m', dtype='float').value
         if all(y in edges for y in ('bottom', 'top')):

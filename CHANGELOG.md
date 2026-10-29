@@ -10,6 +10,15 @@ is listed below with what replaces it.
 <!-- --8<-- [start:releases] -->
 ## Unreleased
 
+**An aperture's `left` edge is now at +x, as ESS has it.** McStas and NeXus put +x on the
+left looking downstream, and ECDC binds every `left` edge to an `SlYp` (+Y) motor. niess
+had `left` at -x, so a simulated file recorded the +x motor's reading for the -x edge, and
+an asymmetric opening was simulated as its mirror image. `Jaw` and `Slit` now emit
+`xmax` from `{name}_left` and `xmin` from `{name}_right`, and the defaults change sign:
+an open, centred jaw has `left` positive and `right` negative. A scan or script that sets
+`*_left`/`*_right` from the old convention must swap the signs. A symmetric opening
+transmits the same as before; nothing moves.
+
 `niess.bifrost.samples` builds exchangeable simulated samples for BIFROST from McStas'
 own sample components: `vanadium` (`Incoherent`), `powder` (`PowderN`), `tunneling`
 (`Tunneling_sample`), `spinwave` (`SpinWave_BCO`), `isotropic_sqw`, `crystal` and

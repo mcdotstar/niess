@@ -5,7 +5,7 @@ from mccode_antlr.common import InstrumentParameter
 def unquote(unit: str | None) -> str:
     """A McCode unit as a unit.
 
-    ``InstrumentParameter.parse('jaw_left/"mm" = -15').unit`` is the four characters
+    ``InstrumentParameter.parse('jaw_left/"mm" = 15').unit`` is the four characters
     ``"mm"``, quotes included, because that is how a McCode instrument declares one. A
     NeXus ``value_units`` is ``mm``. Written down once, here, rather than at each place
     that reads a parameter's unit -- the file that reached the filewriter carrying
