@@ -8,7 +8,7 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.16.0
 
 **An aperture's `left` edge is now at +x, as ESS has it.** McStas and NeXus put +x on the
 left looking downstream, and ECDC binds every `left` edge to an `SlYp` (+Y) motor. niess
