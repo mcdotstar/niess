@@ -50,6 +50,13 @@ class Difference(NamedTuple):
     distance: float
 
 
+class ClauseDifference(NamedTuple):
+    name: str
+    clause: str
+    expected: str | None
+    actual: str | None
+
+
 class Comparison(NamedTuple):
     """What a conversion got right, and what it did not."""
     matched: tuple[str, ...]
@@ -60,10 +67,14 @@ class Comparison(NamedTuple):
     #: Components the conversion added. Legitimate -- a `DiscChopper` emits one instance
     #: per opening, a `Frame` emits an `Arm` -- so these are reported, never failed on.
     added: tuple[str, ...]
+    #: WHEN, GROUP, EXTEND or SPLIT that differ on a component present in both. A
+    #: component in the right place that is traced at the wrong time is not the same
+    #: instrument either.
+    clauses: tuple[ClauseDifference, ...] = ()
 
     @property
     def ok(self) -> bool:
-        return not self.moved and not self.missing
+        return not self.moved and not self.missing and not self.clauses
 
     def report(self) -> str:
         lines = [f'{len(self.matched)} of {len(self.matched) + len(self.moved) + len(self.missing)}'
@@ -73,6 +84,9 @@ class Comparison(NamedTuple):
                          f'{difference.actual} ({difference.distance:.6g} m)')
         for name in self.missing:
             lines.append(f'  MISSING {name}')
+        for difference in self.clauses:
+            lines.append(f'  {difference.clause.upper():7} {difference.name}: '
+                         f'{difference.expected!r} -> {difference.actual!r}')
         if self.added:
             lines.append(f'  added by the conversion: {", ".join(self.added)}')
         return '\n'.join(lines)
@@ -84,8 +98,26 @@ def _positions(instr) -> dict[str, tuple[float, float, float]]:
             for name, place in resolved.items()}
 
 
+def _clauses(instr) -> dict[str, dict[str, str | None]]:
+    """Each component's WHEN, GROUP, EXTEND and SPLIT, as comparable text.
+
+    EXTEND with its whitespace removed: a niess `Opaque` re-emits several blocks as one.
+    """
+    def extend(instance):
+        text = ''.join(''.join(str(block).split()) for block in instance.extend)
+        return text or None
+
+    return {instance.name: {
+        'when': None if instance.when is None else str(instance.when),
+        'group': instance.group or None,
+        'extend': extend(instance),
+        'split': None if instance.split is None else str(instance.split),
+    } for instance in instr.components}
+
+
 def compare(original, converted, tolerance: float = 1e-9) -> Comparison:
-    """Every component of `original` must appear in `converted` in the same place.
+    """Every component of `original` must appear in `converted` in the same place, and
+    with the same WHEN, GROUP, EXTEND and SPLIT.
 
     Both are `mccode_antlr` ``Instr`` objects: the instrument that was read, and the one
     the generated niess module emits.
@@ -104,11 +136,20 @@ def compare(original, converted, tolerance: float = 1e-9) -> Comparison:
         else:
             matched.append(name)
 
+    written, emitted = _clauses(original), _clauses(converted)
+    clauses = tuple(
+        ClauseDifference(name, clause, expected, emitted[name][clause])
+        for name in before if name in after
+        for clause, expected in written[name].items()
+        if expected != emitted[name][clause]
+    )
+
     return Comparison(
         matched=tuple(matched),
         moved=tuple(moved),
         missing=tuple(missing),
         added=tuple(name for name in after if name not in before),
+        clauses=clauses,
     )
 
 

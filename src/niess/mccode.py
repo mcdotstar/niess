@@ -52,6 +52,9 @@ class McCodeContext(Context):
     #: but what a *composite* wants each of its parts to record about the particle is
     #: the composite's business, and it is the only thing that knows the index.
     extends: dict = field(default_factory=dict)
+    #: Per-visit SPLIT counts. Like the others, a statement about how a component is
+    #: simulated rather than what it is, so it belongs to whatever encloses it.
+    splits: dict = field(default_factory=dict)
     #: The name emitted at each visit, so a frame can be named as the thing another
     #: component is placed relative to. Names rather than instances because that is what
     #: a placement refers to, and what an Assembler resolves.
@@ -142,6 +145,7 @@ class ComponentTranslator:
                 (context.whens.get(visit.id), lambda one, v: one.WHEN(v)),
                 (context.groups.get(visit.id), lambda one, v: one.GROUP(v)),
                 (context.extends.get(visit.id), lambda one, v: one.EXTEND(v)),
+                (context.splits.get(visit.id), lambda one, v: one.SPLIT(v)),
         ):
             if clause is not None:
                 for one in emitted:
@@ -149,6 +153,24 @@ class ComponentTranslator:
         # the first is what anything placed against this node refers to
         context.emitted[visit.id] = emitted[0].name
         return instance
+
+
+
+def declare_clauses(visit, clauses: dict) -> None:
+    """Say how the children of `visit` are emitted: ``{child: {'when': ..., 'group': ...}}``.
+
+    The clauses are ``when``, ``group``, ``extend`` and ``split``, as McStas source text.
+    Call it from a composite's ``__mccode_enter__``; `ComponentTranslator` applies them
+    when it emits each child. This is what `niess.scaffold` generates for a converted
+    instrument, whose components arrive with the clauses the original wrote on them.
+    """
+    context = visit.context
+    slots = {'when': context.whens, 'group': context.groups,
+             'extend': context.extends, 'split': context.splits}
+    prefix = f'{visit.id}/' if visit.id else ''
+    for child, given in clauses.items():
+        for clause, value in given.items():
+            slots[clause][prefix + child] = value
 
 
 def to_mccode(instrument, registry=None, assembler=None,
