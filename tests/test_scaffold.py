@@ -252,3 +252,78 @@ def test_the_report_names_the_work_that_is_left(foreign):
     assert '8 of 50 components were mapped' in text
     assert 'L_monitor' in text and 'to-do list' in text
     assert 'GUI_start' in text
+
+
+# --- WHEN, GROUP, EXTEND and SPLIT ---------------------------------------------------
+
+CLAUSES = '''DEFINE INSTRUMENT clauses(int which=0)
+TRACE
+COMPONENT origin = Arm() AT (0, 0, 0) ABSOLUTE
+COMPONENT thermal = Guide_gravity(w1=0.05, h1=0.05, l=1, m=2)
+WHEN (which==0) AT (0, 0, 1) RELATIVE origin
+COMPONENT cold = Guide_gravity(w1=0.05, h1=0.05, l=1, m=2)
+WHEN (which==1) AT (0, 0, 1) RELATIVE origin
+COMPONENT left = Slit(xwidth=0.01, yheight=0.01) AT (0.01, 0, 3) RELATIVE origin GROUP pair
+COMPONENT right = Slit(xwidth=0.01, yheight=0.01) AT (-0.01, 0, 3) RELATIVE origin GROUP pair
+SPLIT 10 COMPONENT last = Guide_gravity(w1=0.05, h1=0.05, l=1, m=2) AT (0, 0, 4) RELATIVE origin
+EXTEND %{
+  if (!SCATTERED) ABSORB;
+%}
+END
+'''
+#: what each modelled component of CLAUSES must be emitted with
+WRITTEN = {
+    'thermal': ('which==0', None, None, None),
+    'cold': ('which==1', None, None, None),
+    'left': (None, 'pair', None, None),
+    'right': (None, 'pair', None, None),
+    'last': (None, None, 'if(!SCATTERED)ABSORB;', '10'),
+}
+
+
+@pytest.fixture(scope='module')
+def clauses(tmp_path_factory):
+    """Every clause a component can carry, each on one niess models rather than an Opaque."""
+    path = tmp_path_factory.mktemp('clauses') / 'clauses.instr'
+    path.write_text(CLAUSES)
+    return load_instr(path)
+
+
+def _emitted_clauses(instr):
+    from niess.scaffold.verify import _clauses
+    return {name: tuple(found.values()) for name, found in _clauses(instr).items()
+            if name in WRITTEN}
+
+
+def test_the_clauses_on_modelled_components_survive(clauses):
+    conversion = convert(clauses)
+    assert not any(m.is_opaque for m in conversion.components)
+    emitted = to_mccode(to_instrument(conversion))
+    assert _emitted_clauses(emitted) == WRITTEN
+    assert compare(clauses, emitted).ok
+
+
+def test_the_generated_module_keeps_the_clauses(clauses, tmp_path):
+    module = _load_generated(write(convert(clauses), tmp_path))
+    emitted = to_mccode(module.instrument())
+    assert _emitted_clauses(emitted) == WRITTEN
+    assert compare(clauses, emitted).ok
+
+
+def test_a_dropped_clause_is_a_failed_conversion(clauses):
+    """Every component in the right place is not enough: one traced at the wrong time is
+    a different instrument. This is the conversion before the clauses were carried."""
+    from niess.instrument import Instrument
+    from niess.scaffold.classify import _parts
+
+    conversion = convert(clauses)
+    without = Instrument(name=conversion.name, origin=None,
+                         parts=_parts(conversion.components),
+                         parameters=tuple(conversion.parameters))
+    comparison = compare(clauses, to_mccode(without))
+    assert not comparison.moved and not comparison.missing
+    assert not comparison.ok
+    assert {(d.name, d.clause) for d in comparison.clauses} == {
+        ('thermal', 'when'), ('cold', 'when'), ('left', 'group'), ('right', 'group'),
+        ('last', 'extend'), ('last', 'split')}
+    assert 'WHEN    thermal' in comparison.report()

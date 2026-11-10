@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple
 
+import msgspec
+
 from ..components import Opaque
+from ..instrument import Instrument
 from .fold import folder, symbol_table
 from .place import Placement, placements
 from .recipes import recipe_for
@@ -28,6 +31,10 @@ class Mapped(NamedTuple):
     #: explicitly, because it rebuilds positions from the original `AT` chain and would
     #: otherwise reproduce the McStas convention rather than the niess one.
     position_offset: Any = None
+    #: The WHEN, GROUP, EXTEND and SPLIT the `.instr` wrote on this component, as source
+    #: text, for a modelled one: a niess class does not carry them, so the section it is
+    #: emitted from says them instead. An `Opaque` carries its own, in its calibration.
+    clauses: dict | None = None
 
     @property
     def is_opaque(self) -> bool:
@@ -87,14 +94,23 @@ def _extend_text(instance) -> str | None:
     return '\n'.join(str(block) for block in instance.extend)
 
 
-def _as_opaque(instance, placement, instrument_parameters) -> Mapped:
-    calibration = {
-        'mccode_type': instance.type.name,
-        'mccode_parameters': _opaque_parameters(instance, instrument_parameters),
+def _clauses(instance) -> dict[str, str]:
+    """The WHEN, GROUP, EXTEND and SPLIT written on `instance`, those it has, as text."""
+    found = {
         'when': None if instance.when is None else str(instance.when),
         'group': instance.group,
         'extend': _extend_text(instance),
         'split': None if instance.split is None else str(instance.split),
+    }
+    return {clause: value for clause, value in found.items() if value is not None}
+
+
+def _as_opaque(instance, placement, instrument_parameters) -> Mapped:
+    calibration = {
+        'mccode_type': instance.type.name,
+        'mccode_parameters': _opaque_parameters(instance, instrument_parameters),
+        'when': None, 'group': None, 'extend': None, 'split': None,
+        **_clauses(instance),
         'removable': instance.removable,
     }
     return Mapped(instance.name, instance.type.name, Opaque, calibration, placement)
@@ -151,7 +167,7 @@ def convert(instr, origin: str | None = None) -> Conversion:
                         position=placement.position + offset.to(unit=placement.position.unit)
                     )
                 mapped = Mapped(instance.name, instance.type.name, niess_class,
-                                calibration, placement, offset)
+                                calibration, placement, offset, _clauses(instance))
 
         if mapped is None:
             mapped = _as_opaque(instance, placement, instrument_parameters)
@@ -230,11 +246,24 @@ def to_instrument(conversion: Conversion):
     This is what `niess.scaffold.verify` measures, and what makes the conversion testable
     before a line of Python has been written out.
     """
-    from ..instrument import Instrument
-
-    return Instrument(
+    return _Converted(
         name=conversion.name,
         origin=conversion.origin,
         parts=_parts(conversion.components),
         parameters=tuple(conversion.parameters),
+        clauses={m.name: m.clauses for m in conversion.modelled if m.clauses},
     )
+
+
+class _Converted(Instrument):
+    """An `Instrument` that says the original's clauses for the components it models.
+
+    The generated module's section does the same with `niess.mccode.declare_clauses`, so
+    what `verify` measures here is what the module will emit.
+    """
+    clauses: dict = msgspec.field(default_factory=dict)
+
+    def __mccode_enter__(self, visit):
+        from ..mccode import declare_clauses
+        declare_clauses(visit, self.clauses)
+        return super().__mccode_enter__(visit)

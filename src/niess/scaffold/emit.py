@@ -295,6 +295,20 @@ def structure_module(conversion, fields: dict[str, str], section: str) -> str:
         '        return super().from_calibration(parameters)',
         '',
     ]
+    clauses = {fields[m.name]: m.clauses for m in conversion.modelled if m.clauses}
+    if clauses:
+        lines += [
+            '    def __mccode_enter__(self, visit):',
+            '        """The WHEN, GROUP, EXTEND and SPLIT the original wrote on what niess models.',
+            '',
+            '        A niess class does not carry them -- what encloses a component says how it is',
+            '        emitted -- so this section says them. `Opaque` components carry their own.',
+            '        """',
+            '        from niess.mccode import declare_clauses',
+            f'        declare_clauses(visit, {_literal(clauses, 8)})',
+            '        return None',
+            '',
+        ]
     return '\n'.join(lines)
 
 
