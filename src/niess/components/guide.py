@@ -35,6 +35,10 @@ def list_or_dict_to_type_list(typ, value):
     return ret
 
 
+#: The `Guide_gravity` mirror and gravity parameters a straight or tapered guide carries.
+COATING = ('R0', 'Qc', 'alpha', 'W', 'G')
+
+
 class Guide(Component):
     length: Variable
     left: Union[float, tuple[float]]  # m-value for x > 0 face
@@ -94,6 +98,20 @@ class StraightGuide(Guide):
     means `niess.brep.builders.SUBSTRATE`, which is what every guide was drawn with
     before this was sayable, so leaving it alone draws what it always drew.
     """
+    R0: float = 0.99
+    """Low-angle reflectivity of every mirror."""
+    Qc: float = 0.0217
+    """Critical scattering vector, in inverse angstrom."""
+    alpha: float = 3.1
+    """Slope of the reflectivity above Qc, in angstrom."""
+    W: float = 0.003
+    """Width of the supermirror cut-off, in inverse angstrom."""
+    G: float = -9.82
+    """Gravitational acceleration along the guide's y axis, in m/s^2; zero turns it off.
+
+    These five defaults are BIFROST's, which every guide used before they were sayable.
+    `Guide_gravity`'s own are R0=0.995, Qc=0.0218, alpha=4.38 and G=0.
+    """
 
     @classmethod
     def from_calibration(cls, cal: dict):
@@ -122,7 +140,8 @@ class StraightGuide(Guide):
             top=top,
             bottom=bottom,
             width=width,
-            height=height
+            height=height,
+            **{k: float(cal[k]) for k in COATING if k in cal}
         )
 
     def __mccode__(self) -> tuple[str, dict]:
@@ -134,11 +153,7 @@ class StraightGuide(Guide):
             'mright': self.right,
             'mtop': self.top,
             'mbottom': self.bottom,
-            'R0': 0.99,
-            'Qc': 0.0217,
-            'alpha': 3.1,
-            'W': 0.003,
-            'G': -9.82
+            **{k: getattr(self, k) for k in COATING},
         }
         p['w2'] = p['w1']
         p['h2'] = p['h1']
@@ -203,6 +218,20 @@ class TaperedGuide(Guide):
     means `niess.brep.builders.SUBSTRATE`, which is what every guide was drawn with
     before this was sayable, so leaving it alone draws what it always drew.
     """
+    R0: float = 0.99
+    """Low-angle reflectivity of every mirror."""
+    Qc: float = 0.0217
+    """Critical scattering vector, in inverse angstrom."""
+    alpha: float = 3.1
+    """Slope of the reflectivity above Qc, in angstrom."""
+    W: float = 0.003
+    """Width of the supermirror cut-off, in inverse angstrom."""
+    G: float = -9.82
+    """Gravitational acceleration along the guide's y axis, in m/s^2; zero turns it off.
+
+    These five defaults are BIFROST's, which every guide used before they were sayable.
+    `Guide_gravity`'s own are R0=0.995, Qc=0.0218, alpha=4.38 and G=0.
+    """
 
     @classmethod
     def from_calibration(cls, cal: dict):
@@ -235,7 +264,8 @@ class TaperedGuide(Guide):
             in_width=in_width,
             out_width=out_width,
             in_height=in_height,
-            out_height=out_height
+            out_height=out_height,
+            **{k: float(cal[k]) for k in COATING if k in cal}
         )
 
     def __mccode__(self) -> tuple[str, dict]:
@@ -249,11 +279,7 @@ class TaperedGuide(Guide):
             'mright': self.right,
             'mtop': self.top,
             'mbottom': self.bottom,
-            'R0': 0.99,
-            'Qc': 0.0217,
-            'alpha': 3.1,
-            'W': 0.003,
-            'G': -9.82
+            **{k: getattr(self, k) for k in COATING},
         }
         return 'Guide_gravity', p
 
