@@ -110,6 +110,22 @@ def test_the_emitted_flow_graph_is_unchanged(bifrost):
     assert instrument_graph(to_mccode(bifrost)) == frozen_json(graph_path('bifrost'))
 
 
+def test_showconstruction_is_an_instrument_parameter(bifrost):
+    """Every Monochromator_Rowland passes show_construction=showconstruction (#160).
+
+    Undeclared, McStas fails to compile the instrument with one error per analyzer.
+    """
+    built = to_mccode(bifrost)
+    parameter = built.get_parameter('showconstruction')
+    assert parameter is not None
+    assert str(parameter) == 'int showconstruction=0'
+    rowlands = [c for c in built.components if c.type.name == 'Monochromator_Rowland']
+    assert len(rowlands) == 45
+    for component in rowlands:
+        values = {p.name: str(p.value) for p in component.parameters}
+        assert values['show_construction'] == 'showconstruction'
+
+
 def test_the_tank_emits_what_it_used_to(bifrost):
     built = to_mccode(bifrost)
     names = [c.name for c in built.components]

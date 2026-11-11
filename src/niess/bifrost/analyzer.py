@@ -133,7 +133,7 @@ class Analyzer(Base):
         # differ between numpy builds -- enough to change an emitted instrument's text
         return round(float(np.degrees(count * step - gap / radius) / 2), 9)
 
-    def mcstas_parameters(self, sample: Variable, source: str, sink: str) -> dict:
+    def mcstas_parameters(self, sample: Variable, source: str, sink: str, show_construction: str | None = None) -> dict:
         from mccode_antlr.instr import Instance
         from ..spatial import is_scipp_vector
         is_scipp_vector(sample, 'sample')
@@ -151,7 +151,7 @@ class Analyzer(Base):
             mosaic=self.central_blade.mosaic.to(unit='arcminute').value,
             DM=3.355,
             gap=gap,
-            show_construction='showconstruction',
+            show_construction=show_construction or 'show_rowland_circle_construction',
             angle_h=self.rowland_angle_h(gap),
             source=f'"{source}"',
             sink=f'"{sink}"',
@@ -192,13 +192,17 @@ class Analyzer(Base):
     def to_mccode(self, assembler: Assembler, source: str, relative: str, sink: str, theta: float, name: str,
                   when: str = None, extend: str = None, origin: Variable = None,
             insert_provenance_metadata: bool = True):
-        from niess.assembler import ensure_registry
+        from niess.assembler import ensure_registry, ensure_runtime_line
         from niess.provenance import add_niess_metadata
+
         ensure_registry(assembler, "mcdotstar/mcstas-monochromator-rowland@main")
+
+        show_construction = 'showconstruction'
+        ensure_runtime_line(assembler, f"int {show_construction} = 0")
 
         mono = assembler.component(name, 'Monochromator_Rowland',
                                    at=((0, 0, 0), relative), rotate=((0, theta, 0), relative))
-        mono.set_parameters(**self.mcstas_parameters(origin, source, sink))
+        mono.set_parameters(**self.mcstas_parameters(origin, source, sink, show_construction))
         mono.WHEN(when)
         mono.EXTEND(extend)
         if insert_provenance_metadata:
