@@ -131,6 +131,23 @@ def test_a_guide_is_straight_or_tapered_by_its_parameters(teaching):
     assert 'left' not in guide.calibration
 
 
+def test_a_guide_keeps_its_coating_and_gravity(teaching):
+    """`unit_1` leaves them at `Guide_gravity`'s defaults, gravity off among them, and
+    niess's own defaults (BIFROST's) must not replace them on the way through."""
+    from niess.components import StraightGuide
+    conversion = convert(teaching)
+    guide = next(m for m in conversion.components if m.name == 'unit_1')
+    # W=0.003 is the same in both, so it need not be said
+    assert {k: guide.calibration[k] for k in ('R0', 'Qc', 'alpha', 'G')} == pytest.approx(
+        {'R0': 0.995, 'Qc': 0.0218, 'alpha': 4.38, 'G': 0.0})
+    assert 'W' not in guide.calibration
+
+    built = StraightGuide.from_calibration({'name': 'unit_1', **guide.calibration})
+    _, parameters = built.__mccode__()
+    assert {k: parameters[k] for k in ('R0', 'Qc', 'alpha', 'W', 'G')} == pytest.approx(
+        {'R0': 0.995, 'Qc': 0.0218, 'alpha': 4.38, 'W': 0.003, 'G': 0.0})
+
+
 def test_a_slit_is_a_jaw_only_when_this_instance_drives_its_edges(teaching):
     from niess.components import Aperture, Jaw
     from niess.scaffold.recipes import slit

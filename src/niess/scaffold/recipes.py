@@ -35,6 +35,7 @@ from typing import Any, Callable
 
 from scipp import scalar
 
+from ..components.guide import COATING
 from ..components import (
     Aperture, Component, DiscChopper, NXDiskChopper, ESSModerator, Jaw, Slit, StraightGuide, TaperedGuide,
 )
@@ -117,6 +118,19 @@ def _guide_m_values(instance, fold):
     return {'m': float(_setting(instance, 'm', fold, 0.0) or 0.0)}
 
 
+def _guide_coating(instance, fold):
+    """The mirror and gravity parameters that differ from niess's guide defaults.
+
+    Read with the `.comp` fallback, so a `Guide_gravity` left at its own defaults --
+    gravity off, among others -- says so rather than inheriting BIFROST's.
+    """
+    from msgspec.structs import fields
+    defaults = {f.name: f.default for f in fields(StraightGuide) if f.name in COATING}
+    found = {key: _setting(instance, key, fold) for key in COATING}
+    return {key: float(value) for key, value in found.items()
+            if value is not None and float(value) != defaults[key]}
+
+
 def guide_gravity(instance, fold):
     """`Guide_gravity` is straight or tapered, and the parameters say which."""
     length = _setting(instance, 'l', fold)
@@ -130,6 +144,7 @@ def guide_gravity(instance, fold):
 
     calibration = {'length': scalar(float(length), unit='m')}
     calibration.update(_guide_m_values(instance, fold))
+    calibration.update(_guide_coating(instance, fold))
 
     if abs(w1 - w2) < 1e-12 and abs(h1 - h2) < 1e-12:
         calibration['width'] = scalar(float(w1), unit='m')
