@@ -76,7 +76,7 @@ class RadialSlitBank(Component):
         """
         from ..assembler import ensure_registry, ensure_runtime_line, ensure_user_var
 
-        ensure_registry(assembler, 'mcdotstar/mcstas-slit-radial@main')
+        ensure_registry(assembler, 'mcdotstar/mcstas-slit-radial@v1.0.0')
         ensure_user_var(assembler, 'int', self.tag_name(),
                         'Secondary spectrometer analyzer cassette index')
         ensure_runtime_line(assembler, f'{self.knob("Angle")}/"degree" = 0.0')

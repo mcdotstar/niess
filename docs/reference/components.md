@@ -159,7 +159,7 @@ accepted but not yet used in the emitted component.
 
 `Attenuator` adds an `int {name}_in = 0` instrument parameter and a matching `WHEN`, so
 it can be moved in and out of the beam at run time. `RadialFilterCollimator` needs the
-`mcdotstar/mcstas-radial-filter-collimator@main` component registry.
+`mcdotstar/mcstas-radial-filter-collimator@v1.0.0` component registry.
 
 ## Unmodelled components
 

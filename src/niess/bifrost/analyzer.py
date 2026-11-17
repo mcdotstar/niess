@@ -195,7 +195,7 @@ class Analyzer(Base):
         from niess.assembler import ensure_registry, ensure_runtime_line
         from niess.provenance import add_niess_metadata
 
-        ensure_registry(assembler, "mcdotstar/mcstas-monochromator-rowland@main")
+        ensure_registry(assembler, "mcdotstar/mcstas-monochromator-rowland@v1.0.0")
 
         show_construction = 'showconstruction'
         ensure_runtime_line(assembler, f"int {show_construction} = 0")

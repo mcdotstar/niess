@@ -120,7 +120,7 @@ class FrameMonitor(Component, kw_only=True):
         """
         from niess.assembler import ensure_registry, instrument_name
         from niess.provenance import add_niess_metadata
-        ensure_registry(assembler, 'mcdotstar/mcstas-frame-tof-monitor@main')
+        ensure_registry(assembler, 'mcdotstar/mcstas-frame-tof-monitor@v1.1.0')
 
         inst = super().to_mccode(assembler, at, rotate, insert_provenance_metadata=insert_provenance_metadata)
         # The instrument's name, not assembler.name: inside a nested section the
