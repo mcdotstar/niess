@@ -58,6 +58,14 @@ def dict_to_variable(d: dict) -> Variable:
     from scipp import array, scalar
     if isinstance(dtype := d['dtype'], str) and hasattr(DType, dtype):
         d['dtype'] = getattr(DType, dtype)
+    if d['dtype'] in (DType.affine_transform3, DType.linear_transform3):
+        # scalar/array(dtype=...) transpose each matrix (scipp#4017);
+        # the scipp.spatial constructors store them as given.
+        from scipp import spatial
+        name = 'affine_transform' if d['dtype'] == DType.affine_transform3 else 'linear_transform'
+        if 'values' in d:
+            return getattr(spatial, name + 's')(dims=d['dims'], values=d['values'], unit=d['unit'])
+        return getattr(spatial, name)(value=d['value'], unit=d['unit'])
     if 'values' in d:
         return array(**d)
     else:
