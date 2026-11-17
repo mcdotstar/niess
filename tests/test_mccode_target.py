@@ -142,6 +142,15 @@ def test_the_tank_emits_what_it_used_to(bifrost):
     assert len(frames) == 99, 'the coordinate frames, still McStas Arms'
 
 
+def test_detector_tube_variables_are_declared(bifrost):
+    """Detector_tubes exits at run time if a particle variable it is named to write is
+    undeclared, and copies sizeof(the declared type) -- so int charges, a double time."""
+    user = ' '.join(block.source for block in to_mccode(bifrost).user)
+    for declaration in ('int event_charge_left;', 'int event_charge_right;',
+                        'double event_time;', 'int TUBE;'):
+        assert declaration in user
+
+
 def test_per_particle_state_stays_on_the_mcstas_side(bifrost):
     """secondary_cassette and its WHEN clauses mean nothing to any other target.
 

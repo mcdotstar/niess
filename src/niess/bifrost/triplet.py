@@ -270,6 +270,12 @@ class Triplet(Base):
         base_parameters = self.mcstas_parameters()
         if parameters is not None:
             base_parameters.update(parameters)
+        # Detector_tubes writes each named particle variable with particle_setvar_void,
+        # which copies sizeof(the declared type), and exits if the name is undeclared.
+        for key, dtype in (('charge_a', 'int'), ('charge_b', 'int'),
+                           ('detection_time', 'double'), ('tube_index_name', 'int')):
+            if (var := base_parameters.get(key)) is not None:
+                assembler.ensure_user_var(f'{dtype} {var.strip(chr(34))};')
         # The resistivity (rhos) and resistances (Rs) must be written into the instrument
         assembler.declare_array('double', f'{name}_rhos', base_parameters['rhos'])
         assembler.declare_array('double', f'{name}_Rs', base_parameters['Rs'])
