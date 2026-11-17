@@ -144,6 +144,16 @@ def test_a_sequence_mixing_components_and_data_is_refused():
         Odd(items=[Base(), 'not a component']).__niess_children__()
 
 
+def test_a_section_field_holding_a_non_node_is_refused(primary):
+    """A section replaced by something that is not one used to vanish from the emission."""
+    import msgspec
+    from msgspec.structs import replace
+
+    stand_in = msgspec.defstruct('Straight', [('unit', int)])(unit=1)
+    with pytest.raises(TypeError, match='Primary.straight is declared Straight'):
+        replace(primary, straight=stand_in).__niess_children__()
+
+
 # -- paths --------------------------------------------------------------------
 
 def test_walk_paths_identify_a_node_without_naming_it(tank):
