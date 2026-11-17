@@ -3,17 +3,25 @@ name: Stock McStas
 # The .instr bundle `mccode-antlr extract` makes from niess must compile and run with a
 # McStas from conda-forge, for people who use McStas without Python
 # (tests/test_stock_mcstas.py; skipped in the main test job, which has no mcrun).
+#
+# On a release, the bundle is also attached to it, without niess's provenance METADATA:
+# that is for tools reading the model back, and a McStas user only has to scroll past it.
 
 on:
   push:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  release:
+    types:
+      - published
   workflow_dispatch:
 
 jobs:
   bundle:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         shell: bash -el {0}
@@ -32,3 +40,31 @@ jobs:
         run: pip install -e ".[test]"
       - name: Extract, compile and run BIFROST
         run: pytest tests/test_stock_mcstas.py -v
+      - name: Build the release bundle
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python -c "
+          from mccode_antlr.io.json import save_json
+          from niess.bifrost.bifrost import instrument
+          from niess.mccode import to_mccode
+          save_json(to_mccode(instrument(), insert_provenance_metadata=False), 'bifrost.json')"
+          mccode-antlr extract bifrost.json --include-remote -X '*/mccode-dev/McCode' -o bifrost
+          cp .github/bifrost-bundle-README.md bifrost/README.md
+          echo "Made from niess $TAG with mccode-antlr $(python -c 'import mccode_antlr; print(mccode_antlr.__version__)'), and run with $(mcstas -v | head -n1) from conda-forge before release." >> bifrost/README.md
+          zip -qr "bifrost-mcstas-$TAG.zip" bifrost
+      # run the zip as published, not the directory it was made from
+      - name: Run the release bundle
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir check && unzip -q "bifrost-mcstas-$TAG.zip" -d check
+          cd check/bifrost && mcrun -c -y -n 1000 -d run bifrost.instr
+      - name: Attach the bundle to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" "bifrost-mcstas-$TAG.zip"
