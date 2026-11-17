@@ -27,7 +27,8 @@ the chopper phasing, so a correction made only here reaches none of those.
 - **Correcting the model** (a position, a dimension, a coating): keep this bundle
   unmodified, make the change in a copy, run `diff -ru bifrost/ my-bifrost/ > change.diff`,
   and open an issue on https://github.com/mcdotstar/niess with the diff and why. The
-  change is made in niess and appears in the next bundle.
+  change is made in niess and appears in the next bundle. To make the change in niess
+  yourself, see https://mcdotstar.github.io/niess/how-to/change-bifrost/
 
 Each `.instr` file's header names the niess and mccode-antlr versions that wrote it and
 the release of each component repository the bundled components came from.

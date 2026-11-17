@@ -22,6 +22,7 @@ nav = [
     { "Export an instrument to CAD (STEP)" = "how-to/export-to-cad.md" },
     { "Narrow the wavelength band" = "how-to/narrow-the-wavelength-band.md" },
     { "Simulate a chopper cascade" = "how-to/simulate-a-chopper-cascade.md" },
+    { "Change BIFROST" = "how-to/change-bifrost.md" },
     { "Write NeXus translators" = "how-to/custom-nexus-registry.md" },
   ] },
   { "Reference" = [
