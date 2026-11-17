@@ -40,6 +40,10 @@ without niess's provenance METADATA, extracted as above, with a README on runnin
 how to send a change back to niess. CI runs the zip as published with `mcrun` before
 attaching it.
 
+A new how-to, *Change BIFROST*, is for someone holding the bundle who wants a change made
+in niess instead: swap the sample, correct a calibrated value, add a component or remove
+one, each starting from the `.instr` edit it replaces. The bundle's README links to it.
+
 niess now needs mccode-antlr 0.37.1 or later. It keeps a `%include`d instrument's
 parameters in the parent that includes it (so `pulse_delay` is declared in
 `bifrost.instr`), adds `extract -X/--exclude-repository` and `extract --strip-metadata`,
