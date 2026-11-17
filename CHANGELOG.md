@@ -40,6 +40,10 @@ without niess's provenance METADATA, extracted as above, with a README on runnin
 how to send a change back to niess. CI runs the zip as published with `mcrun` before
 attaching it.
 
+A new how-to, *Change BIFROST*, is for someone holding the bundle who wants a change made
+in niess instead: swap the sample, correct a calibrated value, add a component or remove
+one, each starting from the `.instr` edit it replaces. The bundle's README links to it.
+
 niess now needs mccode-antlr 0.37.1 or later. It keeps a `%include`d instrument's
 parameters in the parent that includes it (so `pulse_delay` is declared in
 `bifrost.instr`), adds `extract -X/--exclude-repository` and `extract --strip-metadata`,
@@ -62,6 +66,11 @@ can declare clauses for its children with the new `niess.mccode.declare_clauses`
 `affine_transform3` and `linear_transform3` variables round-trip through JSON without being
 transposed. scipp's scalar and array constructors store the transpose of the matrix given
 for those dtypes (scipp#4017), so every one read back from JSON was transposed.
+
+A field declared as a section or component that holds something else now raises a
+`TypeError` when the instrument is walked. It was taken for data and skipped, so a section
+replaced by a look-alike that is not a `Section` vanished from the emitted instrument
+without a word.
 
 ## 0.16.0
 
