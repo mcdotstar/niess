@@ -49,13 +49,23 @@ def default_children(node) -> tuple[tuple[str, object], ...]:
     and neither is a thing in the beam.
 
     The test is on the *value*, not the annotation, because the annotations do not carry
-    it -- ``SegmentedGuide.segments`` is declared as a bare ``list``.
+    it -- ``SegmentedGuide.segments`` is declared as a bare ``list``. The annotation is
+    only checked the other way: a field declared as a node class must hold a node (or
+    None), or whatever replaced it -- ``Primary.straight`` set to something that is not a
+    section -- would be taken for data, and the instrument emitted without it.
     """
     found: list[tuple[str, object]] = []
     for field in component_fields(node):
         value = getattr(node, field.name)
         if is_node(value):
             found.append((field.name, value))
+        elif value is not None and is_node(field.type):
+            raise TypeError(
+                f'{type(node).__name__}.{field.name} is declared {field.type.__name__}, '
+                f'but holds a {type(value).__name__} that is not a niess node (not a '
+                f'Section or a component: it has no __niess_children__), so it would go '
+                f'silently missing from every walk'
+            )
         elif isinstance(value, (list, tuple)) and len(value):
             nodes = [is_node(item) for item in value]
             if all(nodes):
