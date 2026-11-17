@@ -265,7 +265,7 @@ class Triplet(Base):
         if component is None:
             component = 'Detector_tubes'
         if component in ('Detector_tubes', 'Detector_time_tubes'):
-            ensure_registry(assembler, 'mcdotstar/mcstas-detector-tubes@v1.0.0')
+            ensure_registry(assembler, 'mcdotstar/mcstas-detector-tubes@v1.0.1')
 
         base_parameters = self.mcstas_parameters()
         if parameters is not None:
