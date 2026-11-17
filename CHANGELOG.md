@@ -8,7 +8,11 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.17.1
+
+**BIFROST's simulated detector charges and its EFU calibration agree.** Two errors made the
+EFU drop about one simulated event in ten and put the rest of those in each triplet's
+middle and last tube in the wrong pixels; both are fixed.
 
 - **BIFROST's EFU calibration groups are numbered as the EFU numbers them**:
   `15 * ring + 3 * arc + channel % 3`, with `ring = channel // 3`, not `9 * arc + channel`.
