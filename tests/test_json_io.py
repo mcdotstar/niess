@@ -41,6 +41,21 @@ def test_scipp_rotation():
     assert q == scipp_round_trip(q)
 
 
+def test_scipp_transforms():
+    # asymmetric matrices, so a transposition (scipp#4017) is detectable
+    from numpy import arange, stack
+    m4 = arange(16.).reshape(4, 4)
+    m4[3] = [0, 0, 0, 1]
+    m3 = arange(9.).reshape(3, 3)
+    for t in (
+        sc.spatial.affine_transform(value=m4, unit='m'),
+        sc.spatial.affine_transforms(dims=['x'], values=stack([m4, 2 * m4]), unit='m'),
+        sc.spatial.linear_transform(value=m3),
+        sc.spatial.linear_transforms(dims=['x'], values=stack([m3, 2 * m3])),
+    ):
+        assert sc.identical(t, scipp_round_trip(t))
+
+
 def test_scipp_array():
     from numpy.random import random
     a = sc.array(values=random((10,20)), variances=random((10,20)), dims=['a', 'b'], unit='m')
