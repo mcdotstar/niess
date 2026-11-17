@@ -241,10 +241,18 @@ class Channel(Base):
 
 
     def efu_calibration(self, channel_number: int):
-        """The EFU calibration needs a unique 'group' number for each triplet
-        The current understanding is that `arc = group // 9` and `triplet = group % 9`
-        This means that `group = 9 * arc + triplet` where `0 <= arc < 5` is an
-        enumeration of the analyzer energies from low to high, and `0 <= triplet < 9`
-        is an enumeration of the equal-energy analyzers from low to high scattering angle
+        """The EFU calibration of this channel's triplets, one per arc.
+
+        The BIFROST EFU numbers a triplet's calibration group as it numbers its readout:
+        `group = 15 * ring + 3 * arc + channel % 3`, where three neighbouring channels share
+        a ring, `ring = channel // 3`. Here `0 <= arc < 5` enumerates the analyzer energies
+        from low to high and `0 <= channel < 9` the channels from low to high scattering
+        angle (event-formation-unit `BifrostGeometry`: `Group = Ring * TRIPLETS_PER_RING +
+        Data.Group`, with arc `Data.Group / 3` and position in the ring `Data.Group % 3`).
         """
-        return [arm.efu_calibration(9 * index + channel_number) for index, arm in enumerate(self.pairs)]
+        return [arm.efu_calibration(efu_group(channel_number, arc)) for arc, arm in enumerate(self.pairs)]
+
+
+def efu_group(channel: int, arc: int) -> int:
+    """The BIFROST EFU's calibration group for the triplet of `channel` (0-8) and `arc` (0-4)."""
+    return 15 * (channel // 3) + 3 * arc + channel % 3

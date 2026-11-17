@@ -8,6 +8,17 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## Unreleased
+
+- **BIFROST's EFU calibration groups are numbered as the EFU numbers them**:
+  `15 * ring + 3 * arc + channel % 3`, with `ring = channel // 3`, not `9 * arc + channel`.
+  Every triplet but those of arc 0 in channels 0-2 had been given another triplet's charge
+  intervals, from a tube of another length. `niess.bifrost.channel.efu_group(channel, arc)`
+  gives the number.
+- **detector-tubes is pinned to v1.0.1**, which takes the resistor after each tube from the
+  right entry of `Rs`. Up to v1.0.0 the middle and last tube of every triplet were shifted
+  along the wire, by 16-20 % of their length, against the calibration niess writes.
+
 ## 0.17.0
 
 **BIFROST's `.instr` compiles and runs with a stock McStas.** `mccode-antlr extract` turns
