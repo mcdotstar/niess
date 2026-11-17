@@ -1,0 +1,34 @@
+name: Stock McStas
+
+# The .instr bundle `mccode-antlr extract` makes from niess must compile and run with a
+# McStas from conda-forge, for people who use McStas without Python
+# (tests/test_stock_mcstas.py; skipped in the main test job, which has no mcrun).
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: stock-mcstas
+          create-args: python=3.13 mcstas
+          condarc: |
+            channels:
+              - conda-forge
+      - name: Install niess
+        run: pip install -e ".[test]"
+      - name: Extract, compile and run BIFROST
+        run: pytest tests/test_stock_mcstas.py -v
