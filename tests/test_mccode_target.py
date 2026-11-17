@@ -151,6 +151,23 @@ def test_detector_tube_variables_are_declared(bifrost):
         assert declaration in user
 
 
+def test_every_emitted_file_names_its_niess_version(bifrost):
+    """The .instr header's Source: line says which niess made it, in every %include'd
+    file too, and survives the JSON a bundle is extracted from."""
+    from mccode_antlr.io.json import from_json, to_json
+    from niess.__about__ import __version__
+
+    def sources(node):
+        yield node.source
+        for child in node.included:
+            yield from sources(child)
+
+    built = to_mccode(bifrost)
+    assert len(built.included) > 0
+    for instr in (built, from_json(to_json(built))):
+        assert set(sources(instr)) == {f'niess {__version__} (https://github.com/mcdotstar/niess)'}
+
+
 def test_per_particle_state_stays_on_the_mcstas_side(bifrost):
     """secondary_cassette and its WHEN clauses mean nothing to any other target.
 

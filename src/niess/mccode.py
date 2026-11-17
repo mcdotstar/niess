@@ -194,7 +194,8 @@ def to_mccode(instrument, registry=None, assembler=None,
 
     from .assembler import ensure_runtime_parameter
 
-    if assembler is None:
+    made_here = assembler is None
+    if made_here:
         assembler = Assembler(instrument.name, flavor=instrument.flavor)
     # What the instrument declares of its own accord, before anything it contains gets
     # to declare its own. `Instrument.parameters` exists so a knob can be stated up
@@ -212,4 +213,16 @@ def to_mccode(instrument, registry=None, assembler=None,
             f'{len(context.scopes)} section scope(s) left open; a translator opened one '
             f'without closing it'
         )
+    if made_here:
+        # The .instr header's `Source:` line, in every file of the %include tree, so a
+        # copied file still says what made it and where to send changes.
+        from .__about__ import __version__
+        source = f'niess {__version__} (https://github.com/mcdotstar/niess)'
+
+        def stamp(node):
+            node.source = source
+            for child in node.included:
+                stamp(child)
+
+        stamp(assembler.instrument)
     return assembler.instrument
