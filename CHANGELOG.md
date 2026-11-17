@@ -67,6 +67,11 @@ can declare clauses for its children with the new `niess.mccode.declare_clauses`
 transposed. scipp's scalar and array constructors store the transpose of the matrix given
 for those dtypes (scipp#4017), so every one read back from JSON was transposed.
 
+A field declared as a section or component that holds something else now raises a
+`TypeError` when the instrument is walked. It was taken for data and skipped, so a section
+replaced by a look-alike that is not a `Section` vanished from the emitted instrument
+without a word.
+
 ## 0.16.0
 
 **An aperture's `left` edge is now at +x, as ESS has it.** McStas and NeXus put +x on the
