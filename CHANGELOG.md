@@ -8,6 +8,61 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
+## 0.17.0
+
+**BIFROST's `.instr` compiles and runs with a stock McStas.** `mccode-antlr extract` turns
+a saved instrument into a directory of `.instr` files, components and C libraries for
+people who use McStas without Python. Until now that bundle needed hand edits. It now
+needs none, and a new CI workflow (`stock-mcstas`) extracts BIFROST with McStas's own
+library left out (`-X '*/mccode-dev/McCode'`) and runs it with `mcrun` from conda-forge:
+
+    mccode-antlr extract --include-remote -X '*/mccode-dev/McCode' bifrost.json -o bifrost
+
+- `showconstruction`, which every `Monochromator_Rowland` is given, is declared as an
+  instrument parameter, `int showconstruction = 0` (#160). McStas refused to compile
+  BIFROST without it, with one error per analyzer.
+- The particle variables each triplet's `Detector_tubes` writes are declared as USERVARS:
+  `int event_charge_left`, `int event_charge_right`, `double event_time` and `int TUBE`.
+  Without them `Detector_tubes` stopped any run that reached a triplet, on the Python route
+  too. The charges and `TUBE` must be `int`: the component copies each value at the
+  declared size.
+- The mcdotstar component repositories are pinned to releases instead of `main`:
+  monochromator-rowland, detector-tubes, radial-filter-collimator and slit-radial at
+  v1.0.0, frame-tof-monitor at v1.1.0. A cached copy of a branch could serve files older
+  than the branch; a tag cannot change under the cache.
+- Each emitted `.instr` file, every file of the `%include` tree, names the niess version
+  and repository that made it in its header, `Source: niess 0.17.0
+  (https://github.com/mcdotstar/niess)`, so a copied file still says where to send
+  changes. An instrument emitted into a caller's own `Assembler` keeps its own `Source`.
+
+Each niess release now has the bundle attached, as `bifrost-mcstas-<tag>.zip`: BIFROST
+without niess's provenance METADATA, extracted as above, with a README on running it and on
+how to send a change back to niess. CI runs the zip as published with `mcrun` before
+attaching it.
+
+niess now needs mccode-antlr 0.37.1 or later. It keeps a `%include`d instrument's
+parameters in the parent that includes it (so `pulse_delay` is declared in
+`bifrost.instr`), adds `extract -X/--exclude-repository` and `extract --strip-metadata`,
+names itself in the `.instr` header, and leaves paths on the building machine out of an
+extracted bundle's header. `Assembler.ensure_user_var` now raises if a variable is already
+declared with another type.
+
+`StraightGuide` and `TaperedGuide` take their coating and gravity from the calibration:
+`R0`, `Qc`, `alpha`, `W` and `G`. The defaults are the values every guide used before,
+BIFROST's (`R0=0.99`, `Qc=0.0217`, `alpha=3.1`, `W=0.003`, `G=-9.82`), so existing
+instruments emit exactly what they did. Another instrument can now have different mirrors
+or no gravity; T-Rex, converted from mcdgs, keeps `Guide_gravity`'s own defaults.
+
+`niess-scaffold` keeps a component's `WHEN`, `GROUP`, `EXTEND` and `SPLIT` clauses when a
+recipe maps it onto a niess class. They were kept only for an `Opaque`, so T-Rex came out
+with both of its bispectral guides traced unconditionally. `verify` now compares the
+clauses too, and fails a conversion whose clauses differ from the original's. A composite
+can declare clauses for its children with the new `niess.mccode.declare_clauses`.
+
+`affine_transform3` and `linear_transform3` variables round-trip through JSON without being
+transposed. scipp's scalar and array constructors store the transpose of the matrix given
+for those dtypes (scipp#4017), so every one read back from JSON was transposed.
+
 ## 0.16.0
 
 **An aperture's `left` edge is now at +x, as ESS has it.** McStas and NeXus put +x on the
