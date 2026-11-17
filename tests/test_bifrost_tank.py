@@ -160,3 +160,18 @@ def test_elastic_monitor_is_placed_and_rotated_in_the_tank_frame():
     assert rotate_reference is not None, 'rotation must not fall back to ABSOLUTE'
     assert at_reference.name == 'sample_origin'
     assert rotate_reference.name == 'sample_origin'
+
+
+def test_bifrost_efu_groups_follow_the_efu():
+    """Groups are numbered 15 * ring + 3 * arc + channel % 3, as the EFU numbers its readout."""
+    from niess.bifrost import Tank
+    from niess.bifrost.channel import efu_group
+    from niess.bifrost.parameters import tank_parameters
+    assert sorted(efu_group(c, a) for c in range(9) for a in range(5)) == list(range(45))
+    assert [efu_group(c, 0) for c in range(9)] == [0, 1, 2, 15, 16, 17, 30, 31, 32]
+    assert [efu_group(0, a) for a in range(5)] == [0, 3, 6, 9, 12]
+    tank = Tank.from_calibration(tank_parameters())
+    by_group = {p['groupindex']: p['intervals'] for p in tank.efu_calibration()['Calibration']['Parameters']}
+    for c, channel in enumerate(tank.channels):
+        for a, arm in enumerate(channel.pairs):
+            assert by_group[efu_group(c, a)] == arm.efu_calibration().limits()
