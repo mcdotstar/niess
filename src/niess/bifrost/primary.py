@@ -194,7 +194,8 @@ class Primary(Section):
     def from_calibration(cls, parameters: dict):
         from .parameters import primary_parameters
         from .parameters import with_cbm_channels
+        event_monitors = parameters.pop('event_monitors', False)
         if len(parameters) == 0:
             parameters = primary_parameters()
-        with_cbm_channels(parameters)
+        with_cbm_channels(parameters, event_monitors)
         return super().from_calibration(parameters)

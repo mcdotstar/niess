@@ -59,21 +59,24 @@ def known_channel_params():
 
     return known
 
-def cbm_channels():
-    """How BIFROST's beam monitors are read out, as ECDC's cbm EFU configuration says.
+def cbm_channels(event_monitors: bool = False):
+    """How BIFROST's beam monitors are read out, by monitor name.
 
-    By monitor name; the sources are those ECDC binds the monitors' data to. Every one
-    is histogrammed over 14 pulses, which is what the real EFU does for cbm1-cbm3. The
-    real cbm4 and cbm5 publish events instead, and cbm4 is a 2-D GEM whose firmware
-    can also report positions; simulated, all five count neutrons into histograms.
+    The sources are those ECDC binds the monitors' data to. A simulation sends every
+    monitor's rays as integrating (IBM) readouts by default: the EFU adds each readout's
+    ADC into its histogram, so a ray drawn n times can go as one readout instead of n,
+    and the replay is that much faster. The real psc, normalization and elastic monitors
+    count events; ``event_monitors=True`` reads them out as ECDC's configuration does, as
+    EVENT_0D. Every channel is histogrammed over 14 pulses either way.
     """
     from ..cbm import CbmChannel
+    counted = 'EVENT_0D' if event_monitors else 'IBM'
     readouts = (
-        ('psc_monitor', 'EVENT_0D'),
+        ('psc_monitor', counted),
         ('overlap_monitor', 'IBM'),
         ('bandwidth_monitor', 'IBM'),
-        ('normalization_monitor', 'EVENT_0D'),
-        ('elastic_monitor', 'EVENT_0D'),
+        ('normalization_monitor', counted),
+        ('elastic_monitor', counted),
     )
     return {name: CbmChannel(fen=fen, type=kind, source=f'cbm{fen + 1}',
                              title=f'BIFROST Beam Monitor {fen + 1}')
@@ -92,26 +95,26 @@ def monitor_efficiencies():
             'normalization_monitor': 1e-5, 'elastic_monitor': 0.23}
 
 
-def with_cbm_channel(name: str, cal: dict) -> dict:
+def with_cbm_channel(name: str, cal: dict, event_monitors: bool = False) -> dict:
     """``cal`` with BIFROST's cbm channel and efficiency for monitor ``name``.
 
     Either is left alone if ``cal`` already gives it.
     """
     if 'readout' not in cal:
-        cal['readout'] = cbm_channels()[name]
+        cal['readout'] = cbm_channels(event_monitors)[name]
     cal.setdefault('efficiency', monitor_efficiencies()[name])
     return cal
 
 
-def with_cbm_channels(parameters: dict) -> dict:
+def with_cbm_channels(parameters: dict, event_monitors: bool = False) -> dict:
     """Give every monitor's calibration in ``parameters``, at any depth, its cbm channel."""
     channels = cbm_channels()
     for name, value in parameters.items():
         if isinstance(value, dict):
             if name in channels:
-                with_cbm_channel(name, value)
+                with_cbm_channel(name, value, event_monitors)
             else:
-                with_cbm_channels(value)
+                with_cbm_channels(value, event_monitors)
     return parameters
 
 
@@ -127,7 +130,6 @@ def tank_parameters():
         'length': scalar(3.2, unit='inch').to(unit='mm'),
         'pressure': scalar(0.2, unit='atm'),
     }
-    with_cbm_channel('elastic_monitor', known['elastic_monitor'])
     return known
 
 

@@ -8,8 +8,9 @@ import pytest
 
 from niess.cbm import CbmChannel, Collect, efu_config, monitor_channels
 
-#: cbm1-cbm3 exactly as ECDC's BIFROST cbm EFU configuration has them. The real cbm4
-#: and cbm5 publish events; simulated, every monitor is histogrammed.
+#: cbm1-cbm3 exactly as ECDC's BIFROST cbm EFU configuration has them, which is what
+#: ``event_monitors=True`` builds. The real cbm4 and cbm5 publish events; simulated,
+#: every monitor is histogrammed.
 ECDC_TOPOLOGY = [
     {"FEN": 0, "Channel": 0, "Type": "EVENT_0D", "Source": "cbm1", "Schema": "da00",
      "MaxTofBin": 71428571, "BinCount": 744, "AggregatedFrames": 14},
@@ -33,8 +34,13 @@ def test_every_bifrost_monitor_has_a_channel(instrument):
     assert [name for name, _ in monitor_channels(instrument)] == list(MONITORS)
 
 
-def test_efu_config_is_ecdcs(instrument):
-    config = efu_config(instrument)
+def test_a_simulation_integrates_every_monitor(instrument):
+    assert {channel.type for _, channel in monitor_channels(instrument)} == {'IBM'}
+
+
+def test_efu_config_is_ecdcs():
+    from niess.bifrost.bifrost import instrument
+    config = efu_config(instrument(event_monitors=True))
     assert {k: config[k] for k in ('Detector', 'TypeSubType', 'MaxPulseTimeDiffNS',
                                    'MaxTOFNS', 'MonitorRing', 'MaxFENId')} == {
         'Detector': 'CBM', 'TypeSubType': 16, 'MaxPulseTimeDiffNS': 71428600,
@@ -135,10 +141,7 @@ def test_collector_types_and_parameters(collecting):
         return str(next(p.value for p in instance.parameters if p.name == parameter))
 
     kinds = {name: collector(name).type.name for name in MONITORS}
-    assert kinds == {'psc_monitor': 'CollectorBM0', 'overlap_monitor': 'CollectorBMI',
-                     'bandwidth_monitor': 'CollectorBMI',
-                     'normalization_monitor': 'CollectorBM0',
-                     'elastic_monitor': 'CollectorBM0'}
+    assert kinds == dict.fromkeys(MONITORS, 'CollectorBMI')
     for fen, name in enumerate(MONITORS):
         assert value(collector(name), 'fen_value') == str(fen)
         assert value(collector(name), 'ring') == '"cbm_fibre"'
@@ -165,6 +168,17 @@ def test_a_monitor_efficiency_scales_its_collector(collectors):
     recorder = next(c for c in instr.components if c.name == 'normalization_monitor_collector')
     efficiency = next(p.value for p in recorder.parameters if p.name == 'efficiency')
     assert float(str(efficiency)) == 1e-4
+
+
+def test_an_event_monitor_is_collected_as_events():
+    from niess.cbm import collector
+    from niess.bifrost.parameters import cbm_channels
+    channels = cbm_channels(event_monitors=True)
+    kinds = {name: collector(channel, Collect(), name)[0] for name, channel in channels.items()}
+    assert kinds == {'psc_monitor': 'CollectorBM0', 'overlap_monitor': 'CollectorBMI',
+                     'bandwidth_monitor': 'CollectorBMI',
+                     'normalization_monitor': 'CollectorBM0',
+                     'elastic_monitor': 'CollectorBM0'}
 
 
 @pytest.mark.parametrize('keep, efficiency', [(0, 1), (1.5, 1), (1, -0.1), (1, 2)])
