@@ -8,20 +8,25 @@ minor bump rather than a patch; the old names still work for now, and everything
 is listed below with what replaces it.
 
 <!-- --8<-- [start:releases] -->
-## Unreleased
+## 0.18.0
 
 **BIFROST's simulated beam monitors are all integrating (IBM) monitors.** The psc,
 normalization and elastic monitors were collected and configured as event-counting
 (EVENT_0D) monitors, as ECDC's EFU configuration has them, so every simulated ray went to
 the EFU as its own readout: tens of millions a point, which made the replay slow. An IBM
 readout carries a count that the EFU adds into the same histogram, so the readout replay
-can send a ray drawn many times as one readout (mcstas-readout-master's `merge_ibm`).
+can send a ray drawn many times as one readout: mcstas-readout-master 0.9.0's `merge_ibm`,
+which mccode-plumber 0.28.0's replays take as `--merge-ibm`.
 
 - `instrument(event_monitors=True)` (or the same key in a `Primary` or `Tank` calibration)
   keeps the three as EVENT_0D, which is what ECDC's EFU configuration expects.
 - `cbm_channels`, `with_cbm_channel` and `with_cbm_channels` take `event_monitors`.
 - `tank_parameters()['elastic_monitor']` no longer carries a `readout`; the tank gives
   the elastic monitor its channel when it is built.
+
+Collector files simulated before 0.18.0 still replay their psc, normalization and elastic
+rays as EVENT_0D readouts, so the EFU configuration they replay into must be built with
+`event_monitors=True`; re-simulate to get the faster replay.
 
 ## 0.17.1
 
