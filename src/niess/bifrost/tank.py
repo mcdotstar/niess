@@ -39,7 +39,7 @@ def _elastic_monitor_from_params(params):
 
     cal = par_or('elastic_monitor')
     cal['name'] = cal.get('name', 'elastic_monitor')
-    with_cbm_channel('elastic_monitor', cal)
+    with_cbm_channel('elastic_monitor', cal, params.get('event_monitors', False))
     cal['position'] = cal.get('position', ori * (z * distance))
     cal['orientation'] = cal.get('orientation', ori)
 
